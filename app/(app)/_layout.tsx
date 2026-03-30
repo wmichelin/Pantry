@@ -25,6 +25,9 @@ export default function AppLayout() {
       <Stack.Screen name="household" options={{ title: "Household" }} />
       <Stack.Screen name="create-recipe" options={{ title: "New Recipe" }} />
       <Stack.Screen name="recipe/[id]" options={{ title: "Recipe" }} />
+      <Stack.Screen name="import-recipe" options={{ title: "Import Recipe" }} />
+      <Stack.Screen name="review-recipe" options={{ title: "Review Recipe" }} />
+      <Stack.Screen name="review-board" options={{ title: "Review Board" }} />
     </Stack>
   );
 }

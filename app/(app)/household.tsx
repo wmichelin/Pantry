@@ -77,17 +77,30 @@ export default function HouseholdScreen() {
         <Text style={styles.sectionTitle}>
           Recipes ({recipes.length})
         </Text>
-        <Pressable
-          style={styles.addButton}
-          onPress={() =>
-            router.push({
-              pathname: "/(app)/create-recipe",
-              params: { householdId: id },
-            })
-          }
-        >
-          <Text style={styles.addButtonText}>+ Add Recipe</Text>
-        </Pressable>
+        <View style={styles.recipeActions}>
+          <Pressable
+            style={[styles.addButton, styles.importButton]}
+            onPress={() =>
+              router.push({
+                pathname: "/(app)/import-recipe",
+                params: { householdId: id },
+              })
+            }
+          >
+            <Text style={styles.importButtonText}>↓ Import</Text>
+          </Pressable>
+          <Pressable
+            style={styles.addButton}
+            onPress={() =>
+              router.push({
+                pathname: "/(app)/create-recipe",
+                params: { householdId: id },
+              })
+            }
+          >
+            <Text style={styles.addButtonText}>+ Add</Text>
+          </Pressable>
+        </View>
       </View>
 
       {recipes.length === 0 ? (
@@ -186,6 +199,10 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 8,
   },
+  recipeActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
   addButton: {
     backgroundColor: "#2f95dc",
     borderRadius: 6,
@@ -194,6 +211,16 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  importButton: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#2f95dc",
+  },
+  importButtonText: {
+    color: "#2f95dc",
     fontSize: 14,
     fontWeight: "600",
   },
