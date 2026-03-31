@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../../lib/supabase";
+import { useAuth } from "../../../lib/auth-context";
+import { getWeekStart } from "../../../lib/week";
 
 type Recipe = {
   id: string;
@@ -36,10 +38,14 @@ type Ingredient = {
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [queued, setQueued] = useState(false);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueChecked, setQueueChecked] = useState(false);
 
   useEffect(() => {
     loadRecipe();
@@ -55,7 +61,19 @@ export default function RecipeDetailScreen() {
       supabase.from("recipe_ingredients").select("id, name, quantity, unit").eq("recipe_id", id),
     ]);
 
-    if (rRes.data) setRecipe(rRes.data);
+    if (rRes.data) {
+      setRecipe(rRes.data);
+      const weekStart = getWeekStart();
+      const qRes = await supabase
+        .from("week_queues")
+        .select("id")
+        .eq("household_id", rRes.data.household_id)
+        .eq("recipe_id", id)
+        .eq("week_start", weekStart)
+        .maybeSingle();
+      setQueued(!!qRes.data);
+      setQueueChecked(true);
+    }
     if (iRes.data) setIngredients(iRes.data);
     setLoading(false);
   };
@@ -64,6 +82,30 @@ export default function RecipeDetailScreen() {
     await supabase.from("recipe_ingredients").delete().eq("recipe_id", id);
     await supabase.from("recipes").delete().eq("id", id);
     router.replace({ pathname: "/(app)/household", params: { id: recipe!.household_id } });
+  };
+
+  const handleQueueToggle = async () => {
+    if (!recipe) return;
+    setQueueLoading(true);
+    const weekStart = getWeekStart();
+    if (queued) {
+      await supabase
+        .from("week_queues")
+        .delete()
+        .eq("household_id", recipe.household_id)
+        .eq("recipe_id", recipe.id)
+        .eq("week_start", weekStart);
+      setQueued(false);
+    } else {
+      await supabase.from("week_queues").insert({
+        household_id: recipe.household_id,
+        recipe_id: recipe.id,
+        week_start: weekStart,
+        added_by: user!.id,
+      });
+      setQueued(true);
+    }
+    setQueueLoading(false);
   };
 
   if (loading) {
@@ -138,6 +180,18 @@ export default function RecipeDetailScreen() {
             </View>
           ))}
         </View>
+      )}
+
+      {queueChecked && (
+        <Pressable
+          style={[styles.queueButton, queued && styles.queueButtonActive]}
+          onPress={handleQueueToggle}
+          disabled={queueLoading}
+        >
+          <Text style={[styles.queueButtonText, queued && styles.queueButtonTextActive]}>
+            {queued ? "✓ In this week's queue" : "+ Add to this week"}
+          </Text>
+        </Pressable>
       )}
 
       <Text style={styles.sectionTitle}>
@@ -216,6 +270,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 24,
   },
+  sourceLink: {
+    fontSize: 14,
+    color: "#2f95dc",
+    paddingHorizontal: 24,
+    marginBottom: 12,
+  },
   metaRow: {
     flexDirection: "row",
     gap: 16,
@@ -232,7 +292,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 6,
     paddingHorizontal: 24,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   tag: {
     backgroundColor: "#f0f7ff",
@@ -244,6 +304,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#2f95dc",
     fontWeight: "600",
+  },
+  queueButton: {
+    marginHorizontal: 24,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#34c759",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  queueButtonActive: {
+    backgroundColor: "#34c759",
+  },
+  queueButtonText: {
+    color: "#34c759",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  queueButtonTextActive: {
+    color: "#fff",
   },
   sectionTitle: {
     fontSize: 18,
@@ -304,11 +384,5 @@ const styles = StyleSheet.create({
   cancelText: {
     fontSize: 14,
     color: "#999",
-  },
-  sourceLink: {
-    fontSize: 14,
-    color: "#2f95dc",
-    paddingHorizontal: 24,
-    marginBottom: 12,
   },
 });
