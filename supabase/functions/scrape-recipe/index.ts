@@ -237,7 +237,13 @@ async function scrapeRecipeUrl(
     return { ...jsonLdRecipe, source_url: url, source_type: sourceType };
   }
 
-  // Fallback: Open Graph
+  // Fallback 1: parse ingredients/instructions from article text
+  const articleRecipe = extractFromArticleText($);
+  if (articleRecipe && (articleRecipe.raw_ingredients.length > 0 || articleRecipe.instructions.length > 0)) {
+    return { ...articleRecipe, source_url: url, source_type: sourceType };
+  }
+
+  // Fallback 2: Open Graph only (title + image, no recipe data)
   const title =
     $('meta[property="og:title"]').attr("content") ||
     $("title").text().trim() ||
@@ -252,6 +258,112 @@ async function scrapeRecipeUrl(
     raw_ingredients: [],
     instructions: [],
     suggested_tags: suggestTags(title, []),
+  };
+}
+
+// ─── Article text extraction (fallback for sites without JSON-LD) ────────────
+
+function extractFromArticleText(
+  $: ReturnType<typeof load>
+): Omit<ScrapedRecipe, "source_url" | "source_type"> | null {
+  // Get raw HTML from content area — we need to insert line breaks ourselves
+  // because Cheerio's .text() concatenates adjacent nodes with no separator,
+  // turning "snipped</div><div>Directions" into "snippedDirections" (no \b before D).
+  const contentSelectors = [
+    ".article-body", "article", "main", ".entry-content",
+    ".post-content", ".recipe-content", "#content",
+  ];
+  let rawHtml = "";
+  for (const sel of contentSelectors) {
+    const h = $(sel).first().html() ?? "";
+    if (h.length > 300) { rawHtml = h; break; }
+  }
+  if (!rawHtml) rawHtml = $("body").html() ?? "";
+  if (!rawHtml) return null;
+
+  // Replace block-level tags with newlines so section headers land on their own line
+  const text = rawHtml
+    .replace(/<\/?(div|p|li|ul|ol|h[1-6]|br|section|article|header|footer)\b[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ").replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  // ── Locate sections ──────────────────────────────────────────────────────
+  const ingrIdx = text.search(/\bingredients?\b/i);
+  if (ingrIdx === -1) return null;
+
+  const afterIngr = text.slice(ingrIdx + 11);
+  const relDirIdx = afterIngr.search(/\b(?:directions?|instructions?|method|how to make|preparation)\b/i);
+  const dirIdx = relDirIdx >= 0 ? ingrIdx + 11 + relDirIdx : -1;
+
+  // ── Parse ingredients ────────────────────────────────────────────────────
+  const ingrText = dirIdx > ingrIdx
+    ? text.slice(ingrIdx, dirIdx)
+    : text.slice(ingrIdx, ingrIdx + 1500);
+
+  // Split on newlines first (each ingredient on its own line)
+  let raw_ingredients = ingrText
+    .split("\n")
+    .map((l) => l.replace(/^[-•*]\s*/, "").trim())
+    .filter((l) => l.length > 3 && l.length < 300 && !/^(?:ingredients?|directions?|instructions?)\b/i.test(l));
+
+  if (raw_ingredients.length === 0) {
+    // Fallback: dash-separated items in a single line (older CooktopCove style)
+    const firstDash = ingrText.indexOf("- ");
+    if (firstDash !== -1) {
+      raw_ingredients = ingrText
+        .slice(firstDash)
+        .split(/(?=- )/)
+        .map((s) => s.replace(/^-\s*/, "").trim())
+        .filter((s) => s.length > 3 && s.length < 300);
+    }
+  }
+
+  if (raw_ingredients.length === 0) return null;
+
+  // ── Parse instructions ────────────────────────────────────────────────────
+  let instructions: string[] = [];
+  if (dirIdx !== -1) {
+    const noteIdx = text.search(/\b(?:notes?|tips?|variations?)\b/i);
+    const dirEnd = noteIdx > dirIdx ? noteIdx : dirIdx + 5000;
+    const dirText = text.slice(dirIdx, dirEnd);
+
+    // Try newline-separated numbered steps first
+    const stepLines = dirText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => /^\d+[.)]\s+/.test(l))
+      .map((l) => l.replace(/^\d+[.)]\s+/, "").trim());
+
+    if (stepLines.length > 0) {
+      instructions = stepLines;
+    } else {
+      // Fallback: numbered steps in continuous text
+      const stepMatches = [...dirText.matchAll(/\d+\.\s+(.+?)(?=\s*\d+\.\s|$)/gs)];
+      instructions = stepMatches.map((m) => m[1].trim()).filter((s) => s.length > 5);
+    }
+  }
+
+  // ── Metadata ──────────────────────────────────────────────────────────────
+  const title = decodeHtmlEntities(
+    $('meta[property="og:title"]').attr("content") ||
+    $("title").text().trim() ||
+    "Untitled Recipe"
+  );
+  const image_url = $('meta[property="og:image"]').attr("content");
+  const servingsMatch = text.match(/servings?:?\s*(\d+)/i);
+
+  return {
+    title,
+    image_url,
+    servings: servingsMatch ? parseInt(servingsMatch[1]) : undefined,
+    raw_ingredients,
+    instructions,
+    suggested_tags: suggestTags(title, instructions),
   };
 }
 
