@@ -12,10 +12,12 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../lib/auth-context";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 
 export default function ImportRecipeScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
+  const { session } = useAuth();
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,6 +29,7 @@ export default function ImportRecipeScreen() {
 
     const { data, error } = await supabase.functions.invoke("scrape-recipe", {
       body: { url: trimmed },
+      headers: { Authorization: `Bearer ${session!.access_token}` },
     });
 
     setLoading(false);
