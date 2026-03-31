@@ -329,23 +329,46 @@ function extractInstructions(raw: unknown): string[] {
   if (!raw) return [];
   const items = Array.isArray(raw) ? raw : [raw];
   return items.flatMap((item) => {
-    if (typeof item === "string") return [item.trim()].filter(Boolean);
+    if (typeof item === "string") {
+      const s = item.trim();
+      // Some sites serialize HowToStep objects as single-quoted pseudo-dicts inside strings
+      // e.g. "{'@type': 'HowToStep', 'text': 'Do the thing.'}"
+      if (s.startsWith("{") && (s.includes("'text'") || s.includes('"text"'))) {
+        const m = s.match(/['"]text['"]\s*:\s*['"](.+)/s);
+        if (m) {
+          const val = m[1].replace(/['"]\s*[,}]?\s*$/, "").trim();
+          if (val) return [decodeHtmlEntities(val)];
+        }
+      }
+      return s ? [decodeHtmlEntities(s)] : [];
+    }
     if (typeof item === "object" && item !== null) {
       const rec = item as Record<string, unknown>;
       if (rec["@type"] === "HowToSection" && Array.isArray(rec.itemListElement)) {
         return extractInstructions(rec.itemListElement);
       }
       const text = str(rec.text) ?? str(rec.name) ?? "";
-      return text ? [text.trim()] : [];
+      return text ? [decodeHtmlEntities(text.trim())] : [];
     }
     return [];
   });
 }
 
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ");
+}
+
 function extractIngredients(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .map((item) => (typeof item === "string" ? decodeHtmlEntities(item.trim()) : ""))
     .filter(Boolean);
 }
 

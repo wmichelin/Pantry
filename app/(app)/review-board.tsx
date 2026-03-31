@@ -25,7 +25,7 @@ export default function ReviewBoardScreen() {
 
   const recipes: ScrapedRecipe[] = JSON.parse(recipesJson);
   const [selected, setSelected] = useState<Set<number>>(
-    new Set(recipes.map((_, i) => i))
+    new Set(recipes.map((_, i) => i).filter((i) => recipes[i].raw_ingredients.length > 0))
   );
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
@@ -38,11 +38,13 @@ export default function ReviewBoardScreen() {
     });
   };
 
+  const scrapedIndices = recipes.map((_, i) => i).filter((i) => recipes[i].raw_ingredients.length > 0);
+
   const toggleAll = () => {
-    if (selected.size === recipes.length) {
+    if (selected.size === scrapedIndices.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(recipes.map((_, i) => i)));
+      setSelected(new Set(scrapedIndices));
     }
   };
 
@@ -93,7 +95,6 @@ export default function ReviewBoardScreen() {
     }
 
     setSaving(false);
-    router.dismissAll();
     router.replace({
       pathname: "/(app)/household",
       params: { id: householdId },
@@ -144,10 +145,12 @@ export default function ReviewBoardScreen() {
                 >
                   {item.title}
                 </Text>
-                {item.raw_ingredients.length > 0 && (
+                {item.raw_ingredients.length > 0 ? (
                   <Text style={styles.cardMeta}>
                     {item.raw_ingredients.length} ingredients
                   </Text>
+                ) : (
+                  <Text style={styles.cardWarning}>No ingredients found</Text>
                 )}
                 {item.suggested_tags.length > 0 && (
                   <Text style={styles.cardTags} numberOfLines={1}>
@@ -221,6 +224,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 14, fontWeight: "600", color: "#222", lineHeight: 19 },
   cardTitleDeselected: { color: "#999" },
   cardMeta: { fontSize: 12, color: "#888" },
+  cardWarning: { fontSize: 12, color: "#f0a500", fontWeight: "600" },
   cardTags: { fontSize: 11, color: "#aaa", marginTop: 2 },
   checkbox: {
     width: 24,

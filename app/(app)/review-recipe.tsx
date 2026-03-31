@@ -85,7 +85,6 @@ export default function ReviewRecipeScreen() {
     }
 
     setSaving(false);
-    router.dismissAll();
     router.replace({
       pathname: "/(app)/household",
       params: { id: householdId },
