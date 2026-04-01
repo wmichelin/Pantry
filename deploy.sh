@@ -17,6 +17,6 @@ docker buildx build \
   .
 
 echo "Deploying to Pi..."
-ssh wmichelin@raspberrypi.local "echo '$GITHUB_TOKEN' | docker login ghcr.io -u wmichelin --password-stdin && cd ~/homelab && docker compose pull pantry && docker compose up -d pantry"
+ssh wmichelin@raspberrypi.local "echo \"$GITHUB_TOKEN\" | docker login ghcr.io -u wmichelin --password-stdin && cd ~/homelab && docker compose pull pantry && docker compose up -d pantry"
 
 echo "Done! Pantry available at http://raspberrypi.local:8080"
