@@ -8,12 +8,15 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Modal,
+  ScrollView,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { parseIngredients } from "../../lib/parse-ingredient";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
+import TagEditor from "../../components/TagEditor";
 
 export default function ReviewBoardScreen() {
   const { householdId, recipesJson } = useLocalSearchParams<{
@@ -27,6 +30,10 @@ export default function ReviewBoardScreen() {
   const [selected, setSelected] = useState<Set<number>>(
     new Set(recipes.map((_, i) => i).filter((i) => recipes[i].raw_ingredients.length > 0))
   );
+  const [tagSelections, setTagSelections] = useState<Record<number, string[]>>(
+    () => Object.fromEntries(recipes.map((r, i) => [i, r.suggested_tags]))
+  );
+  const [editingCardIndex, setEditingCardIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
 
@@ -57,8 +64,16 @@ export default function ReviewBoardScreen() {
     setSaving(true);
     setSaveProgress(0);
 
+    const { data: existing } = await supabase
+      .from("recipes")
+      .select("source_url")
+      .eq("household_id", householdId);
+    const existingUrls = new Set((existing ?? []).map((r) => r.source_url).filter(Boolean));
+
+    const deduped = toSave.filter((r) => !r.source_url || !existingUrls.has(r.source_url));
+
     let saved = 0;
-    for (const scraped of toSave) {
+    for (const scraped of deduped) {
       const { data: recipe, error } = await supabase
         .from("recipes")
         .insert({
@@ -69,7 +84,7 @@ export default function ReviewBoardScreen() {
           source_type: scraped.source_type,
           image_url: scraped.image_url,
           instructions: scraped.instructions,
-          tags: scraped.suggested_tags,
+          tags: tagSelections[recipes.indexOf(scraped)] ?? scraped.suggested_tags,
           servings: scraped.servings,
           prep_time_minutes: scraped.prep_time_minutes,
           cook_time_minutes: scraped.cook_time_minutes,
@@ -152,11 +167,36 @@ export default function ReviewBoardScreen() {
                 ) : (
                   <Text style={styles.cardWarning}>No ingredients found</Text>
                 )}
-                {item.suggested_tags.length > 0 && (
-                  <Text style={styles.cardTags} numberOfLines={1}>
-                    {item.suggested_tags.join(" · ")}
-                  </Text>
-                )}
+                <View style={styles.cardTagRow}>
+                  {item.suggested_tags.map((tag) => {
+                    const active = (tagSelections[index] ?? []).includes(tag);
+                    return (
+                      <Pressable
+                        key={tag}
+                        style={[styles.cardTagPill, active && styles.cardTagPillActive]}
+                        onPress={() => {
+                          const current = tagSelections[index] ?? [];
+                          setTagSelections((prev) => ({
+                            ...prev,
+                            [index]: active
+                              ? current.filter((t) => t !== tag)
+                              : [...current, tag],
+                          }));
+                        }}
+                      >
+                        <Text style={[styles.cardTagText, active && styles.cardTagTextActive]}>
+                          {tag}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable
+                    style={styles.cardTagAdd}
+                    onPress={() => setEditingCardIndex(index)}
+                  >
+                    <Text style={styles.cardTagAddText}>+</Text>
+                  </Pressable>
+                </View>
               </View>
               <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
                 {isSelected && <Text style={styles.checkmark}>✓</Text>}
@@ -165,6 +205,40 @@ export default function ReviewBoardScreen() {
           );
         }}
       />
+
+      <Modal
+        visible={editingCardIndex !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditingCardIndex(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            {editingCardIndex !== null && (
+              <>
+                <Text style={styles.modalTitle} numberOfLines={1}>
+                  {recipes[editingCardIndex].title}
+                </Text>
+                <ScrollView style={styles.modalScroll}>
+                  <TagEditor
+                    activeTags={tagSelections[editingCardIndex] ?? []}
+                    suggestedTags={recipes[editingCardIndex].suggested_tags}
+                    onChange={(tags) =>
+                      setTagSelections((prev) => ({ ...prev, [editingCardIndex]: tags }))
+                    }
+                  />
+                </ScrollView>
+                <Pressable
+                  style={styles.modalDone}
+                  onPress={() => setEditingCardIndex(null)}
+                >
+                  <Text style={styles.modalDoneText}>Done</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <View style={styles.footer}>
         {saving ? (
@@ -225,7 +299,77 @@ const styles = StyleSheet.create({
   cardTitleDeselected: { color: "#999" },
   cardMeta: { fontSize: 12, color: "#888" },
   cardWarning: { fontSize: 12, color: "#f0a500", fontWeight: "600" },
-  cardTags: { fontSize: 11, color: "#aaa", marginTop: 2 },
+  cardTagRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 4,
+  },
+  cardTagPill: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  cardTagPillActive: {
+    backgroundColor: "#2f95dc",
+    borderColor: "#2f95dc",
+  },
+  cardTagText: {
+    fontSize: 10,
+    color: "#888",
+  },
+  cardTagTextActive: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  cardTagAdd: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardTagAddText: {
+    fontSize: 12,
+    color: "#aaa",
+    lineHeight: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 24,
+    paddingBottom: 40,
+    maxHeight: "60%",
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 16,
+  },
+  modalScroll: {
+    marginBottom: 16,
+  },
+  modalDone: {
+    backgroundColor: "#2f95dc",
+    borderRadius: 8,
+    padding: 14,
+    alignItems: "center",
+  },
+  modalDoneText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   checkbox: {
     width: 24,
     height: 24,

@@ -15,6 +15,7 @@ import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { parseIngredients } from "../../lib/parse-ingredient";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
+import TagEditor from "../../components/TagEditor";
 
 export default function ReviewRecipeScreen() {
   const { householdId, recipeJson } = useLocalSearchParams<{
@@ -26,20 +27,10 @@ export default function ReviewRecipeScreen() {
 
   const scraped: ScrapedRecipe = JSON.parse(recipeJson);
   const [title, setTitle] = useState(scraped.title);
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(
-    new Set(scraped.suggested_tags)
-  );
+  const [selectedTags, setSelectedTags] = useState<string[]>(scraped.suggested_tags);
   const [saving, setSaving] = useState(false);
 
   const parsedIngredients = parseIngredients(scraped.raw_ingredients);
-
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) => {
-      const next = new Set(prev);
-      next.has(tag) ? next.delete(tag) : next.add(tag);
-      return next;
-    });
-  };
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -58,7 +49,7 @@ export default function ReviewRecipeScreen() {
         source_type: scraped.source_type,
         image_url: scraped.image_url,
         instructions: scraped.instructions,
-        tags: Array.from(selectedTags),
+        tags: selectedTags,
         servings: scraped.servings,
         prep_time_minutes: scraped.prep_time_minutes,
         cook_time_minutes: scraped.cook_time_minutes,
@@ -118,24 +109,12 @@ export default function ReviewRecipeScreen() {
         </View>
       ) : null}
 
-      {selectedTags.size > 0 || scraped.suggested_tags.length > 0 ? (
-        <>
-          <Text style={styles.label}>Tags</Text>
-          <View style={styles.tags}>
-            {scraped.suggested_tags.map((tag) => (
-              <Pressable
-                key={tag}
-                style={[styles.tag, selectedTags.has(tag) && styles.tagSelected]}
-                onPress={() => toggleTag(tag)}
-              >
-                <Text style={[styles.tagText, selectedTags.has(tag) && styles.tagTextSelected]}>
-                  {tag}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      ) : null}
+      <Text style={styles.label}>Tags</Text>
+      <TagEditor
+        activeTags={selectedTags}
+        suggestedTags={scraped.suggested_tags}
+        onChange={setSelectedTags}
+      />
 
       <Text style={styles.label}>
         Ingredients ({parsedIngredients.length})
@@ -198,17 +177,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   meta: { fontSize: 14, color: "#555" },
-  tags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  tag: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  tagSelected: { backgroundColor: "#2f95dc", borderColor: "#2f95dc" },
-  tagText: { fontSize: 13, color: "#555" },
-  tagTextSelected: { color: "#fff", fontWeight: "600" },
   empty: { color: "#999", fontSize: 14 },
   ingredientRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
   bullet: { color: "#2f95dc", fontSize: 16, marginTop: 1 },

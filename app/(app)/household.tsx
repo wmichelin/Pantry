@@ -6,10 +6,12 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import TagEditor from "../../components/TagEditor";
 
 type Member = { id: string; display_name: string; role: string };
 type Recipe = { id: string; title: string; tags: string[] | null };
@@ -24,6 +26,9 @@ export default function HouseholdScreen() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsedTags, setCollapsedTags] = useState<Set<string>>(new Set());
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
+  const [editingTags, setEditingTags] = useState<string[]>([]);
+  const [savingTags, setSavingTags] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -45,6 +50,22 @@ export default function HouseholdScreen() {
       loadData();
     }, [loadData])
   );
+
+  const allKnownTags = useMemo(
+    () => [...new Set(recipes.flatMap((r) => r.tags ?? []))].sort(),
+    [recipes]
+  );
+
+  const saveTagEdit = async () => {
+    if (!editingRecipe) return;
+    setSavingTags(true);
+    await supabase.from("recipes").update({ tags: editingTags }).eq("id", editingRecipe.id);
+    setRecipes((prev) =>
+      prev.map((r) => (r.id === editingRecipe.id ? { ...r, tags: editingTags } : r))
+    );
+    setSavingTags(false);
+    setEditingRecipe(null);
+  };
 
   const taggedSections = useMemo(() => {
     const map = new Map<string, Recipe[]>();
@@ -152,24 +173,95 @@ export default function HouseholdScreen() {
                 <Text style={styles.tagChevron}>{collapsed ? "›" : "⌄"}</Text>
               </Pressable>
               {!collapsed && sectionRecipes.map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.recipeRow}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(app)/recipe/[id]",
-                      params: { id: item.id },
-                    })
-                  }
-                >
-                  <Text style={styles.recipeTitle}>{item.title}</Text>
-                  <Text style={styles.chevron}>&rsaquo;</Text>
-                </Pressable>
+                <View key={item.id} style={styles.recipeRow}>
+                  <Pressable
+                    style={styles.recipeTitleArea}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(app)/recipe/[id]",
+                        params: { id: item.id },
+                      })
+                    }
+                  >
+                    <Text style={styles.recipeTitle}>{item.title}</Text>
+                    <Pressable
+                      style={styles.recipeTagsArea}
+                      onPress={() => {
+                        setEditingRecipe(item);
+                        setEditingTags(item.tags ?? []);
+                      }}
+                    >
+                      {item.tags && item.tags.length > 0 ? (
+                        <View style={styles.inlineTags}>
+                          {item.tags.map((t) => (
+                            <View key={t} style={styles.inlineTag}>
+                              <Text style={styles.inlineTagText}>{t}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={styles.addTagHint}>+ add tags</Text>
+                      )}
+                    </Pressable>
+                  </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(app)/recipe/[id]",
+                        params: { id: item.id },
+                      })
+                    }
+                  >
+                    <Text style={styles.chevron}>&rsaquo;</Text>
+                  </Pressable>
+                </View>
               ))}
             </View>
           );
         })
       )}
+
+      <Modal
+        visible={editingRecipe !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditingRecipe(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Edit Tags</Text>
+            {editingRecipe && (
+              <Text style={styles.modalSubtitle} numberOfLines={1}>
+                {editingRecipe.title}
+              </Text>
+            )}
+            <TagEditor
+              activeTags={editingTags}
+              suggestedTags={allKnownTags}
+              onChange={setEditingTags}
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalSave, savingTags && styles.buttonDisabled]}
+                onPress={saveTagEdit}
+                disabled={savingTags}
+              >
+                {savingTags ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save</Text>
+                )}
+              </Pressable>
+              <Pressable
+                style={styles.modalCancel}
+                onPress={() => setEditingRecipe(null)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Pressable style={styles.signOut} onPress={signOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
@@ -313,17 +405,91 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
+  recipeTitleArea: {
+    flex: 1,
+  },
   recipeTitle: {
     fontSize: 16,
+  },
+  recipeTagsArea: {
+    marginTop: 4,
+  },
+  inlineTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  inlineTag: {
+    backgroundColor: "#f0f7ff",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  inlineTagText: {
+    fontSize: 11,
+    color: "#2f95dc",
+  },
+  addTagHint: {
+    fontSize: 12,
+    color: "#bbb",
   },
   chevron: {
     fontSize: 24,
     color: "#ccc",
+    paddingLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#888",
+    marginBottom: 16,
+  },
+  modalActions: {
+    marginTop: 24,
+    gap: 12,
+  },
+  modalSave: {
+    backgroundColor: "#2f95dc",
+    borderRadius: 8,
+    padding: 14,
+    alignItems: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  modalSaveText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalCancel: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  modalCancelText: {
+    color: "#999",
+    fontSize: 14,
   },
   signOut: {
     marginTop: 32,
