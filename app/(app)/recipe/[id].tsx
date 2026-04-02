@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../lib/auth-context";
 import { getWeekStart } from "../../../lib/week";
+import TagEditor from "../../../components/TagEditor";
 
 type Recipe = {
   id: string;
@@ -46,6 +47,9 @@ export default function RecipeDetailScreen() {
   const [queued, setQueued] = useState(false);
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueChecked, setQueueChecked] = useState(false);
+  const [editingTags, setEditingTags] = useState<string[] | null>(null);
+  const [savingTags, setSavingTags] = useState(false);
+  const [allKnownTags, setAllKnownTags] = useState<string[]>([]);
 
   useEffect(() => {
     loadRecipe();
@@ -64,15 +68,24 @@ export default function RecipeDetailScreen() {
     if (rRes.data) {
       setRecipe(rRes.data);
       const weekStart = getWeekStart();
-      const qRes = await supabase
-        .from("week_queues")
-        .select("id")
-        .eq("household_id", rRes.data.household_id)
-        .eq("recipe_id", id)
-        .eq("week_start", weekStart)
-        .maybeSingle();
+      const [qRes, tRes] = await Promise.all([
+        supabase
+          .from("week_queues")
+          .select("id")
+          .eq("household_id", rRes.data.household_id)
+          .eq("recipe_id", id)
+          .eq("week_start", weekStart)
+          .maybeSingle(),
+        supabase
+          .from("recipes")
+          .select("tags")
+          .eq("household_id", rRes.data.household_id),
+      ]);
       setQueued(!!qRes.data);
       setQueueChecked(true);
+      if (tRes.data) {
+        setAllKnownTags([...new Set(tRes.data.flatMap((r) => r.tags ?? []))].sort());
+      }
     }
     if (iRes.data) setIngredients(iRes.data);
     setLoading(false);
@@ -106,6 +119,15 @@ export default function RecipeDetailScreen() {
       setQueued(true);
     }
     setQueueLoading(false);
+  };
+
+  const handleSaveTags = async () => {
+    if (editingTags === null) return;
+    setSavingTags(true);
+    await supabase.from("recipes").update({ tags: editingTags }).eq("id", id);
+    setRecipe((prev) => (prev ? { ...prev, tags: editingTags } : prev));
+    setEditingTags(null);
+    setSavingTags(false);
   };
 
   if (loading) {
@@ -172,15 +194,46 @@ export default function RecipeDetailScreen() {
         </View>
       )}
 
-      {recipe.tags && recipe.tags.length > 0 && (
-        <View style={styles.tags}>
-          {recipe.tags.map((tag) => (
-            <View key={tag} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
+      <View style={styles.tagsSection}>
+        {editingTags !== null ? (
+          <View style={styles.tagEditorWrap}>
+            <TagEditor
+              activeTags={editingTags}
+              suggestedTags={allKnownTags}
+              onChange={setEditingTags}
+            />
+            <View style={styles.tagEditActions}>
+              <Pressable
+                style={[styles.saveTagsButton, savingTags && styles.buttonDisabled]}
+                onPress={handleSaveTags}
+                disabled={savingTags}
+              >
+                <Text style={styles.saveTagsText}>{savingTags ? "Saving…" : "Save"}</Text>
+              </Pressable>
+              <Pressable onPress={() => setEditingTags(null)}>
+                <Text style={styles.cancelTagsText}>Cancel</Text>
+              </Pressable>
             </View>
-          ))}
-        </View>
-      )}
+          </View>
+        ) : (
+          <View style={styles.tagsRow}>
+            <View style={styles.tags}>
+              {recipe.tags && recipe.tags.length > 0 ? (
+                recipe.tags.map((tag) => (
+                  <View key={tag} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.noTagsHint}>No tags</Text>
+              )}
+            </View>
+            <Pressable onPress={() => setEditingTags(recipe.tags ?? [])}>
+              <Text style={styles.editTagsLink}>Edit tags</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
 
       {queueChecked && (
         <Pressable
@@ -287,12 +340,58 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#555",
   },
+  tagsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 12,
+  },
+  tagsRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
   tags: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    paddingHorizontal: 24,
-    marginBottom: 12,
+    flex: 1,
+  },
+  noTagsHint: {
+    fontSize: 12,
+    color: "#bbb",
+  },
+  editTagsLink: {
+    fontSize: 12,
+    color: "#2f95dc",
+    fontWeight: "600",
+    marginLeft: 8,
+    marginTop: 2,
+  },
+  tagEditorWrap: {
+    // TagEditor has no built-in padding; section provides horizontal padding
+  },
+  tagEditActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+    alignItems: "center",
+  },
+  saveTagsButton: {
+    backgroundColor: "#2f95dc",
+    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  saveTagsText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  cancelTagsText: {
+    fontSize: 14,
+    color: "#999",
   },
   tag: {
     backgroundColor: "#f0f7ff",

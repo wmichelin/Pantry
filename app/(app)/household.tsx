@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import { getWeekStart } from "../../lib/week";
 import TagEditor from "../../components/TagEditor";
 
 type Member = { id: string; display_name: string; role: string };
@@ -19,7 +21,7 @@ type Household = { id: string; name: string; invite_code: string };
 
 export default function HouseholdScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const router = useRouter();
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -29,19 +31,25 @@ export default function HouseholdScreen() {
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [editingTags, setEditingTags] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Recipe[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [queuedIds, setQueuedIds] = useState<Set<string>>(new Set());
 
   const loadData = useCallback(async () => {
     if (!id) return;
 
-    const [hRes, mRes, rRes] = await Promise.all([
+    const [hRes, mRes, rRes, qRes] = await Promise.all([
       supabase.from("households").select("id, name, invite_code").eq("id", id).single(),
       supabase.from("household_members").select("id, display_name, role").eq("household_id", id),
       supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
+      supabase.from("week_queues").select("recipe_id").eq("household_id", id).eq("week_start", getWeekStart()),
     ]);
 
     if (hRes.data) setHousehold(hRes.data);
     if (mRes.data) setMembers(mRes.data);
     if (rRes.data) setRecipes(rRes.data);
+    if (qRes.data) setQueuedIds(new Set(qRes.data.map((q) => q.recipe_id)));
     setLoading(false);
   }, [id]);
 
@@ -66,6 +74,55 @@ export default function HouseholdScreen() {
     setSavingTags(false);
     setEditingRecipe(null);
   };
+
+  const handleQueueToggle = async (recipe: Recipe) => {
+    const weekStart = getWeekStart();
+    if (queuedIds.has(recipe.id)) {
+      setQueuedIds((prev) => { const next = new Set(prev); next.delete(recipe.id); return next; });
+      await supabase
+        .from("week_queues")
+        .delete()
+        .eq("household_id", id)
+        .eq("recipe_id", recipe.id)
+        .eq("week_start", weekStart);
+    } else {
+      setQueuedIds((prev) => new Set([...prev, recipe.id]));
+      await supabase.from("week_queues").insert({
+        household_id: id,
+        recipe_id: recipe.id,
+        week_start: weekStart,
+        added_by: user!.id,
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      const q = query.toLowerCase();
+      const titleMatches = recipes.filter((r) => r.title.toLowerCase().includes(q));
+      const titleMatchIds = new Set(titleMatches.map((r) => r.id));
+      const recipeIds = recipes.map((r) => r.id);
+      if (recipeIds.length > 0) {
+        const { data } = await supabase
+          .from("recipe_ingredients")
+          .select("recipe_id")
+          .ilike("name", `%${q}%`)
+          .in("recipe_id", recipeIds);
+        const ingredientMatchIds = new Set((data ?? []).map((r) => r.recipe_id));
+        const allMatchIds = new Set([...titleMatchIds, ...ingredientMatchIds]);
+        setSearchResults(recipes.filter((r) => allMatchIds.has(r.id)));
+      } else {
+        setSearchResults(titleMatches);
+      }
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, recipes]);
 
   const taggedSections = useMemo(() => {
     const map = new Map<string, Recipe[]>();
@@ -161,7 +218,44 @@ export default function HouseholdScreen() {
         </View>
       </View>
 
-      {recipes.length === 0 ? (
+      <View style={styles.searchBar}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by title or ingredient…"
+          value={query}
+          onChangeText={setQuery}
+          clearButtonMode="while-editing"
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+      </View>
+
+      {query.trim() ? (
+        searching ? (
+          <ActivityIndicator style={styles.searchSpinner} />
+        ) : searchResults.length === 0 ? (
+          <Text style={styles.emptyText}>No recipes found.</Text>
+        ) : (
+          searchResults.map((item) => (
+            <View key={item.id} style={styles.recipeRow}>
+              <Pressable
+                style={styles.recipeTitleArea}
+                onPress={() => router.push({ pathname: "/(app)/recipe/[id]", params: { id: item.id } })}
+              >
+                <Text style={styles.recipeTitle}>{item.title}</Text>
+              </Pressable>
+              <Pressable style={styles.queueToggle} onPress={() => handleQueueToggle(item)}>
+                <Text style={[styles.queueDot, queuedIds.has(item.id) && styles.queueDotActive]}>
+                  {queuedIds.has(item.id) ? "●" : "○"}
+                </Text>
+              </Pressable>
+              <Pressable onPress={() => router.push({ pathname: "/(app)/recipe/[id]", params: { id: item.id } })}>
+                <Text style={styles.chevron}>&rsaquo;</Text>
+              </Pressable>
+            </View>
+          ))
+        )
+      ) : recipes.length === 0 ? (
         <Text style={styles.emptyText}>No recipes yet. Add your first one!</Text>
       ) : (
         taggedSections.map(({ tag, recipes: sectionRecipes }) => {
@@ -176,12 +270,7 @@ export default function HouseholdScreen() {
                 <View key={item.id} style={styles.recipeRow}>
                   <Pressable
                     style={styles.recipeTitleArea}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/(app)/recipe/[id]",
-                        params: { id: item.id },
-                      })
-                    }
+                    onPress={() => router.push({ pathname: "/(app)/recipe/[id]", params: { id: item.id } })}
                   >
                     <Text style={styles.recipeTitle}>{item.title}</Text>
                     <Pressable
@@ -204,14 +293,12 @@ export default function HouseholdScreen() {
                       )}
                     </Pressable>
                   </Pressable>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: "/(app)/recipe/[id]",
-                        params: { id: item.id },
-                      })
-                    }
-                  >
+                  <Pressable style={styles.queueToggle} onPress={() => handleQueueToggle(item)}>
+                    <Text style={[styles.queueDot, queuedIds.has(item.id) && styles.queueDotActive]}>
+                      {queuedIds.has(item.id) ? "●" : "○"}
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={() => router.push({ pathname: "/(app)/recipe/[id]", params: { id: item.id } })}>
                     <Text style={styles.chevron}>&rsaquo;</Text>
                   </Pressable>
                 </View>
@@ -490,6 +577,33 @@ const styles = StyleSheet.create({
   modalCancelText: {
     color: "#999",
     fontSize: 14,
+  },
+  searchBar: {
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    backgroundColor: "#fafafa",
+  },
+  searchSpinner: {
+    marginTop: 24,
+  },
+  queueToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  queueDot: {
+    fontSize: 18,
+    color: "#ccc",
+  },
+  queueDotActive: {
+    color: "#34c759",
   },
   signOut: {
     marginTop: 32,
