@@ -144,6 +144,8 @@ export default function ShoppingListScreen() {
     const grouped = new Map<string, ConsolidatedItem>();
     for (const ing of ingredientsRes.data ?? []) {
       const key = normalize(ing.name);
+      // Skip section headers that slipped through import (e.g. "for the salad:")
+      if (key.endsWith(":")) continue;
       const meta = metaByName.get(key);
       const existing = grouped.get(key);
       if (existing) {

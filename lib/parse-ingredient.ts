@@ -92,8 +92,8 @@ export function parseIngredient(raw: string): ParsedIngredient {
 
   // ── Quantity ──────────────────────────────────────────────────────────────
 
-  // Match: optional number + optional fraction (e.g. "1 1/2", "½", "2")
-  const qtyPattern = /^([\d½⅓⅔¼¾⅛⅜⅝⅞]+(?:\s+[\d]+\/[\d]+)?(?:\/[\d]+)?(?:\.\d+)?)\s*/;
+  // Match: optional number + optional range suffix + optional fraction (e.g. "1 1/2", "1-2", "½", "2")
+  const qtyPattern = /^([\d½⅓⅔¼¾⅛⅜⅝⅞]+(?:\s+[\d]+\/[\d]+)?(?:\/[\d]+)?(?:\.\d+)?)(?:\s*[-–]\s*[\d]+(?:\.\d+)?)?\s*/;
   const qtyMatch = s.match(qtyPattern);
   let quantity: number | null = null;
   if (qtyMatch) {
@@ -110,7 +110,7 @@ export function parseIngredient(raw: string): ParsedIngredient {
   for (const u of sortedUnits) {
     if (sLower.startsWith(u) && (sLower[u.length] === " " || sLower[u.length] === "." || sLower.length === u.length)) {
       unit = u;
-      s = s.slice(u.length).replace(/^[.\s]+/, "");
+      s = s.slice(u.length).replace(/^[.\s]+/, "").replace(/^of\s+/i, "");
       break;
     }
   }
@@ -126,6 +126,23 @@ export function parseIngredient(raw: string): ParsedIngredient {
   return { quantity, unit, name, raw_string: raw };
 }
 
+// Expand compound "X and Y" ingredients into two separate raw strings.
+// Handles: "salt and pepper", "salt and freshly ground black pepper, to taste"
+function expandCompound(raw: string): string[] {
+  const stripped = raw.trim().replace(/^[-•–]\s*/, "");
+  // Only split on " and " when neither side starts with a digit (avoid "1 cup oil and vinegar")
+  const match = stripped.match(/^([a-zA-Z][^,]*?)\s+and\s+([a-zA-Z].*)$/i);
+  if (match) return [match[1].trim(), match[2].trim()];
+  return [raw];
+}
+
 export function parseIngredients(raws: string[]): ParsedIngredient[] {
-  return raws.map(parseIngredient);
+  return raws
+    .filter((raw) => {
+      // Skip section headers (e.g. "For The Salad:", "For The Sauce:")
+      const stripped = raw.trim().replace(/^[-•–]\s*/, "");
+      return !stripped.endsWith(":");
+    })
+    .flatMap(expandCompound)
+    .map(parseIngredient);
 }
