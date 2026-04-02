@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
+import { FormView } from "../../components/FormView";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -34,33 +35,37 @@ export default function LoginScreen() {
       <Text style={styles.title}>Pantry</Text>
       <Text style={styles.subtitle}>Sign in to your account</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        textContentType="emailAddress"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        textContentType="password"
-      />
+      <FormView onSubmit={handleLogin}>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          textContentType="username"
+          autoComplete="username"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          textContentType="password"
+          autoComplete="current-password"
+        />
 
-      <Pressable
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? "Signing in..." : "Sign In"}
-        </Text>
-      </Pressable>
+        <Pressable
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? "Signing in..." : "Sign In"}
+          </Text>
+        </Pressable>
+      </FormView>
 
       <Link href="/(auth)/signup" style={styles.link}>
         <Text style={styles.linkText}>Don't have an account? Sign up</Text>
