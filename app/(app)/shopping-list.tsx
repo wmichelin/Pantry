@@ -9,10 +9,7 @@ import {
   Modal,
 } from "react-native";
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import DraggableFlatList, {
-  ScaleDecorator,
-  RenderItemParams,
-} from "react-native-draggable-flatlist";
+import { SortableList } from "../../components/SortableList";
 import { supabase } from "../../lib/supabase";
 import { getWeekStart } from "../../lib/week";
 
@@ -285,7 +282,7 @@ export default function ShoppingListScreen() {
     return (
       <View style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}>
         {editMode && (
-          <Pressable onLongPress={drag} style={styles.dragHandle}>
+          <Pressable onPressIn={drag} style={styles.dragHandle}>
             <Text style={styles.dragHandleIcon}>≡</Text>
           </Pressable>
         )}
@@ -315,12 +312,6 @@ export default function ShoppingListScreen() {
       </View>
     );
   };
-
-  const renderDraggableItem = ({ item, drag, isActive }: RenderItemParams<ConsolidatedItem>) => (
-    <ScaleDecorator>
-      {renderItemRow(item, drag, isActive)}
-    </ScaleDecorator>
-  );
 
   // ── Build sections ──────────────────────────────────────────────────────────
   const unchecked = items.filter((i) => !i.checked);
@@ -352,19 +343,18 @@ export default function ShoppingListScreen() {
     );
   }
 
-  // ── Edit mode: flat draggable list ──────────────────────────────────────────
+  // ── Edit mode: flat reorderable list ─────────────────────────────────────────
   if (editMode) {
     return (
       <View style={styles.container}>
         <View style={styles.editBanner}>
           <Text style={styles.editBannerText}>Drag to reorder. Tap Done to save.</Text>
         </View>
-        <DraggableFlatList
-          data={items}
+        <SortableList
+          items={items}
           keyExtractor={(item) => item.normalizedName}
-          renderItem={renderDraggableItem}
-          onDragEnd={({ data }) => setItems(data)}
-          containerStyle={{ flex: 1 }}
+          renderItem={(item, drag, isActive) => renderItemRow(item, drag, isActive)}
+          onReorder={(data) => setItems(data)}
         />
       </View>
     );
