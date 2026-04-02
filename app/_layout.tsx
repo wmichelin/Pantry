@@ -1,6 +1,7 @@
 import { Slot, useRouter } from "expo-router";
 import { useEffect } from "react";
 import * as Linking from "expo-linking";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "../lib/auth-context";
 import { supabase } from "../lib/supabase";
 
@@ -37,9 +38,11 @@ function DeepLinkHandler() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <DeepLinkHandler />
-      <Slot />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <DeepLinkHandler />
+        <Slot />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

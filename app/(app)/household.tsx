@@ -18,6 +18,7 @@ import TagEditor from "../../components/TagEditor";
 type Member = { id: string; display_name: string; role: string };
 type Recipe = { id: string; title: string; tags: string[] | null };
 type Household = { id: string; name: string; invite_code: string };
+type Store = { id: string; name: string; sort_order: number };
 
 export default function HouseholdScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,21 +36,25 @@ export default function HouseholdScreen() {
   const [searchResults, setSearchResults] = useState<Recipe[]>([]);
   const [searching, setSearching] = useState(false);
   const [queuedIds, setQueuedIds] = useState<Set<string>>(new Set());
+  const [stores, setStores] = useState<Store[]>([]);
+  const [storeInput, setStoreInput] = useState("");
 
   const loadData = useCallback(async () => {
     if (!id) return;
 
-    const [hRes, mRes, rRes, qRes] = await Promise.all([
+    const [hRes, mRes, rRes, qRes, sRes] = await Promise.all([
       supabase.from("households").select("id, name, invite_code").eq("id", id).single(),
       supabase.from("household_members").select("id, display_name, role").eq("household_id", id),
       supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
       supabase.from("week_queues").select("recipe_id").eq("household_id", id).eq("week_start", getWeekStart()),
+      supabase.from("stores").select("id, name, sort_order").eq("household_id", id).order("sort_order"),
     ]);
 
     if (hRes.data) setHousehold(hRes.data);
     if (mRes.data) setMembers(mRes.data);
     if (rRes.data) setRecipes(rRes.data);
     if (qRes.data) setQueuedIds(new Set(qRes.data.map((q) => q.recipe_id)));
+    if (sRes.data) setStores(sRes.data);
     setLoading(false);
   }, [id]);
 
@@ -73,6 +78,24 @@ export default function HouseholdScreen() {
     );
     setSavingTags(false);
     setEditingRecipe(null);
+  };
+
+  const addStore = async () => {
+    const name = storeInput.trim();
+    if (!name || !id) return;
+    const sort_order = stores.length * 10;
+    const { data } = await supabase
+      .from("stores")
+      .insert({ household_id: id, name, sort_order })
+      .select("id, name, sort_order")
+      .single();
+    if (data) setStores((prev) => [...prev, data]);
+    setStoreInput("");
+  };
+
+  const deleteStore = async (storeId: string) => {
+    setStores((prev) => prev.filter((s) => s.id !== storeId));
+    await supabase.from("stores").delete().eq("id", storeId);
   };
 
   const handleQueueToggle = async (recipe: Recipe) => {
@@ -176,6 +199,32 @@ export default function HouseholdScreen() {
           <Text style={styles.memberRole}>{m.role}</Text>
         </View>
       ))}
+
+      <View style={styles.storesHeader}>
+        <Text style={styles.sectionTitle}>Stores ({stores.length})</Text>
+      </View>
+      {stores.map((s) => (
+        <View key={s.id} style={styles.storeRow}>
+          <Text style={styles.storeName}>{s.name}</Text>
+          <Pressable onPress={() => deleteStore(s.id)}>
+            <Text style={styles.storeDelete}>×</Text>
+          </Pressable>
+        </View>
+      ))}
+      <View style={styles.storeInputRow}>
+        <TextInput
+          style={styles.storeInputField}
+          placeholder="Add a store…"
+          value={storeInput}
+          onChangeText={setStoreInput}
+          returnKeyType="done"
+          onSubmitEditing={addStore}
+          autoCapitalize="words"
+        />
+        <Pressable style={styles.storeAddButton} onPress={addStore}>
+          <Text style={styles.storeAddButtonText}>Add</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.recipesHeader}>
         <Text style={styles.sectionTitle}>
@@ -577,6 +626,54 @@ const styles = StyleSheet.create({
   modalCancelText: {
     color: "#999",
     fontSize: 14,
+  },
+  storesHeader: {
+    marginTop: 24,
+    marginBottom: 4,
+  },
+  storeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  storeName: {
+    fontSize: 16,
+  },
+  storeDelete: {
+    fontSize: 20,
+    color: "#ccc",
+    paddingHorizontal: 4,
+  },
+  storeInputRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  storeInputField: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    backgroundColor: "#fafafa",
+  },
+  storeAddButton: {
+    backgroundColor: "#2f95dc",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    justifyContent: "center",
+  },
+  storeAddButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
   searchBar: {
     marginBottom: 8,
