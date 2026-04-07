@@ -35,8 +35,8 @@ export default function ResetPasswordScreen() {
 
     setLoading(true);
 
-    // Establish the recovery session right before updating — doing it earlier
-    // would trigger the (auth) layout's session guard and redirect to /(app).
+    // Native: tokens passed as params, establish session before updating.
+    // Web: session already established via PKCE exchange in detectSessionInUrl.
     if (access_token && refresh_token) {
       const { error: sessionError } = await supabase.auth.setSession({
         access_token,

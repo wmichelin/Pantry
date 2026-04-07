@@ -9,18 +9,22 @@ function DeepLinkHandler() {
   const router = useRouter();
 
   useEffect(() => {
+    // Web: Supabase auto-exchanges the PKCE code via detectSessionInUrl.
+    // Listen for PASSWORD_RECOVERY and navigate — session is already established.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        router.push("/(auth)/reset-password");
+      }
+    });
+
+    // Native: Supabase sends recovery tokens in the URL fragment:
+    // pantry://reset-password#access_token=...&type=recovery
     const handleUrl = (url: string) => {
-      // Supabase sends recovery tokens in the URL fragment:
-      // pantry://reset-password#access_token=...&type=recovery
       const fragment = url.split("#")[1];
       if (!fragment) return;
 
       const params = Object.fromEntries(new URLSearchParams(fragment));
       if (params.type === "recovery" && params.access_token && params.refresh_token) {
-        // Do NOT call setSession here — that would trigger (auth)/_layout.tsx to
-        // redirect to /(app) before we can land on reset-password. Instead, pass
-        // the tokens as params so reset-password can set the session right before
-        // calling updateUser.
         router.push({
           pathname: "/(auth)/reset-password",
           params: {
@@ -36,7 +40,7 @@ function DeepLinkHandler() {
     });
 
     const sub = Linking.addEventListener("url", ({ url }) => handleUrl(url));
-    return () => sub.remove();
+    return () => { subscription.unsubscribe(); sub.remove(); };
   }, []);
 
   return null;

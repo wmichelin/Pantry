@@ -43,3 +43,10 @@ yarn-error.*
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+terraform/*.tfstate
+terraform/*.tfstate.backup

@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "supabase": {
+"supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=uyuswprxolsktmiraala&features=docs%2Cdatabase%2Cdebugging%2Cdevelopment"
     }
