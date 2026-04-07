@@ -1,7 +1,20 @@
-import DraggableFlatList, {
-  ScaleDecorator,
-  RenderItemParams,
-} from "react-native-draggable-flatlist";
+import React from "react";
+import ReorderableList, {
+  ReorderableListReorderEvent,
+  useReorderableDrag,
+  useIsActive,
+  reorderItems,
+} from "react-native-reorderable-list";
+
+type DraggableWrapperProps = {
+  children: (drag: () => void, isActive: boolean) => React.ReactNode;
+};
+
+function DraggableWrapper({ children }: DraggableWrapperProps) {
+  const drag = useReorderableDrag();
+  const isActive = useIsActive();
+  return <>{children(drag, isActive)}</>;
+}
 
 type Props<T> = {
   items: T[];
@@ -11,15 +24,20 @@ type Props<T> = {
 };
 
 export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: Props<T>) {
+  const handleReorder = ({ from, to }: ReorderableListReorderEvent) => {
+    onReorder(reorderItems(items, from, to));
+  };
+
   return (
-    <DraggableFlatList
+    <ReorderableList
       data={items}
       keyExtractor={keyExtractor}
-      renderItem={({ item, drag, isActive }: RenderItemParams<T>) => (
-        <ScaleDecorator>{renderItem(item, drag, isActive)}</ScaleDecorator>
+      renderItem={({ item }) => (
+        <DraggableWrapper>
+          {(drag, isActive) => renderItem(item, drag, isActive)}
+        </DraggableWrapper>
       )}
-      onDragEnd={({ data }) => onReorder(data)}
-      containerStyle={{ flex: 1 }}
+      onReorder={handleReorder}
     />
   );
 }

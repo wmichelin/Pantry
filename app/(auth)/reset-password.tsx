@@ -9,11 +9,15 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { supabase } from "../../lib/supabase";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
+  const { access_token, refresh_token } = useLocalSearchParams<{
+    access_token: string;
+    refresh_token: string;
+  }>();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,7 +34,25 @@ export default function ResetPasswordScreen() {
     }
 
     setLoading(true);
+
+    // Establish the recovery session right before updating — doing it earlier
+    // would trigger the (auth) layout's session guard and redirect to /(app).
+    if (access_token && refresh_token) {
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      });
+      if (sessionError) {
+        setLoading(false);
+        Alert.alert("Session error", sessionError.message);
+        return;
+      }
+    }
+
     const { error } = await supabase.auth.updateUser({ password });
+
+    // Sign out immediately so the (auth) layout doesn't redirect to /(app).
+    await supabase.auth.signOut();
     setLoading(false);
 
     if (error) {

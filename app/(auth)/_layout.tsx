@@ -1,9 +1,10 @@
-import { Redirect, Stack } from "expo-router";
+import { Redirect, Stack, useSegments } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { ActivityIndicator, View } from "react-native";
 
 export default function AuthLayout() {
   const { session, loading } = useAuth();
+  const segments = useSegments();
 
   if (loading) {
     return (
@@ -13,7 +14,10 @@ export default function AuthLayout() {
     );
   }
 
-  if (session) {
+  // Never redirect away from reset-password — setSession is called mid-flight
+  // there and we don't want a session-change to bounce the user to /(app).
+  const isResetPassword = segments.includes("reset-password");
+  if (session && !isResetPassword) {
     return <Redirect href="/(app)" />;
   }
 

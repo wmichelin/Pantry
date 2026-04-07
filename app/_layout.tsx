@@ -9,7 +9,7 @@ function DeepLinkHandler() {
   const router = useRouter();
 
   useEffect(() => {
-    const handleUrl = async (url: string) => {
+    const handleUrl = (url: string) => {
       // Supabase sends recovery tokens in the URL fragment:
       // pantry://reset-password#access_token=...&type=recovery
       const fragment = url.split("#")[1];
@@ -17,11 +17,17 @@ function DeepLinkHandler() {
 
       const params = Object.fromEntries(new URLSearchParams(fragment));
       if (params.type === "recovery" && params.access_token && params.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: params.access_token,
-          refresh_token: params.refresh_token,
+        // Do NOT call setSession here — that would trigger (auth)/_layout.tsx to
+        // redirect to /(app) before we can land on reset-password. Instead, pass
+        // the tokens as params so reset-password can set the session right before
+        // calling updateUser.
+        router.push({
+          pathname: "/(auth)/reset-password",
+          params: {
+            access_token: params.access_token,
+            refresh_token: params.refresh_token,
+          },
         });
-        router.push("/(auth)/reset-password");
       }
     };
 
