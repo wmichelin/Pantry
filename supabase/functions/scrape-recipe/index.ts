@@ -323,6 +323,15 @@ function extractFromArticleText(
     }
   }
 
+  // Deduplicate (case-insensitive) — prevents double-scraping from sub-sections
+  const seen = new Set<string>();
+  raw_ingredients = raw_ingredients.filter((s) => {
+    const key = s.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   if (raw_ingredients.length === 0) return null;
 
   // ── Parse instructions ────────────────────────────────────────────────────
@@ -479,9 +488,16 @@ function decodeHtmlEntities(s: string): string {
 
 function extractIngredients(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
   return raw
     .map((item) => (typeof item === "string" ? decodeHtmlEntities(item.trim()) : ""))
-    .filter(Boolean);
+    .filter((s) => {
+      if (!s) return false;
+      const key = s.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function parseServings(raw: unknown): number | undefined {
