@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "bun test",
+    "migrate:ingredients": "bun run scripts/migrate-ingredients.ts"
   },
   "dependencies": {
     "@expo/ngrok": "^4.1.0",
