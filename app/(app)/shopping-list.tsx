@@ -8,10 +8,9 @@ import {
   Pressable,
   Modal,
 } from "react-native";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams, useNavigation, useFocusEffect } from "expo-router";
 import { SortableList } from "../../components/SortableList";
 import { supabase } from "../../lib/supabase";
-import { getWeekStart } from "../../lib/week";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,12 +50,6 @@ export default function ShoppingListScreen() {
   const [pendingStoreIds, setPendingStoreIds] = useState<string[]>([]);
   const [savingAssignment, setSavingAssignment] = useState(false);
 
-  const weekStart = getWeekStart();
-  const weekLabel = new Date(weekStart + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-
   // ── Header buttons ──────────────────────────────────────────────────────────
   useEffect(() => {
     navigation.setOptions({
@@ -84,8 +77,7 @@ export default function ShoppingListScreen() {
       supabase
         .from("week_queues")
         .select("recipe_id, recipes(id, title)")
-        .eq("household_id", householdId)
-        .eq("week_start", weekStart),
+        .eq("household_id", householdId),
       supabase
         .from("stores")
         .select("id, name, sort_order")
@@ -94,8 +86,7 @@ export default function ShoppingListScreen() {
       supabase
         .from("shopping_list_checks")
         .select("normalized_name")
-        .eq("household_id", householdId)
-        .eq("week_start", weekStart),
+        .eq("household_id", householdId),
     ]);
 
     setStores(storesRes.data ?? []);
@@ -192,11 +183,13 @@ export default function ShoppingListScreen() {
     const sorted = [...grouped.values()].sort((a, b) => a.sortOrder - b.sortOrder);
     setItems(sorted);
     setLoading(false);
-  }, [householdId, weekStart]);
+  }, [householdId]);
 
-  useEffect(() => {
-    loadList();
-  }, [loadList]);
+  useFocusEffect(
+    useCallback(() => {
+      loadList();
+    }, [loadList])
+  );
 
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {
@@ -207,17 +200,21 @@ export default function ShoppingListScreen() {
     if (nowChecked) {
       await supabase.from("shopping_list_checks").upsert({
         household_id: householdId,
-        week_start: weekStart,
         normalized_name: item.normalizedName,
-      }, { onConflict: "household_id,week_start,normalized_name", ignoreDuplicates: true });
+      }, { onConflict: "household_id,normalized_name", ignoreDuplicates: true });
     } else {
       await supabase
         .from("shopping_list_checks")
         .delete()
         .eq("household_id", householdId)
-        .eq("week_start", weekStart)
         .eq("normalized_name", item.normalizedName);
     }
+  };
+
+  // ── Clear checks ────────────────────────────────────────────────────────────
+  const clearChecks = async () => {
+    await supabase.from("shopping_list_checks").delete().eq("household_id", householdId);
+    setItems((prev) => prev.map((i) => ({ ...i, checked: false })));
   };
 
   // ── Reorder / save order ─────────────────────────────────────────────────────
@@ -363,7 +360,7 @@ export default function ShoppingListScreen() {
   // ── Normal view ─────────────────────────────────────────────────────────────
   const body =
     items.length === 0 ? (
-      <Text style={styles.emptyText}>No recipes queued for this week.</Text>
+      <Text style={styles.emptyText}>No recipes queued. Add some from the queue!</Text>
     ) : stores.length === 0 ? (
       // Flat list (no stores configured)
       <>
@@ -400,7 +397,11 @@ export default function ShoppingListScreen() {
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.weekLabel}>Week of {weekLabel}</Text>
+        {checked.length > 0 && (
+          <Pressable style={styles.clearChecksRow} onPress={clearChecks}>
+            <Text style={styles.clearChecksText}>Clear checks</Text>
+          </Pressable>
+        )}
         {body}
       </ScrollView>
 
@@ -471,7 +472,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: { flex: 1, backgroundColor: "#fff" },
   content: { paddingBottom: 48 },
-  weekLabel: { fontSize: 13, color: "#999", marginBottom: 16, paddingHorizontal: 20, paddingTop: 16 },
+  clearChecksRow: { alignItems: "flex-end", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  clearChecksText: { fontSize: 13, color: "#ff3b30", fontWeight: "600" },
   emptyText: { color: "#999", textAlign: "center", marginTop: 32 },
 
   sectionHeader: {

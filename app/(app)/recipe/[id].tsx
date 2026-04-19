@@ -12,7 +12,6 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../lib/auth-context";
-import { getWeekStart } from "../../../lib/week";
 import TagEditor from "../../../components/TagEditor";
 
 type Recipe = {
@@ -67,14 +66,12 @@ export default function RecipeDetailScreen() {
 
     if (rRes.data) {
       setRecipe(rRes.data);
-      const weekStart = getWeekStart();
       const [qRes, tRes] = await Promise.all([
         supabase
           .from("week_queues")
           .select("id")
           .eq("household_id", rRes.data.household_id)
           .eq("recipe_id", id)
-          .eq("week_start", weekStart)
           .maybeSingle(),
         supabase
           .from("recipes")
@@ -100,20 +97,17 @@ export default function RecipeDetailScreen() {
   const handleQueueToggle = async () => {
     if (!recipe) return;
     setQueueLoading(true);
-    const weekStart = getWeekStart();
     if (queued) {
       await supabase
         .from("week_queues")
         .delete()
         .eq("household_id", recipe.household_id)
-        .eq("recipe_id", recipe.id)
-        .eq("week_start", weekStart);
+        .eq("recipe_id", recipe.id);
       setQueued(false);
     } else {
       await supabase.from("week_queues").insert({
         household_id: recipe.household_id,
         recipe_id: recipe.id,
-        week_start: weekStart,
         added_by: user!.id,
       });
       setQueued(true);
@@ -242,7 +236,7 @@ export default function RecipeDetailScreen() {
           disabled={queueLoading}
         >
           <Text style={[styles.queueButtonText, queued && styles.queueButtonTextActive]}>
-            {queued ? "✓ In this week's queue" : "+ Add to this week"}
+            {queued ? "✓ In queue" : "+ Add to queue"}
           </Text>
         </Pressable>
       )}

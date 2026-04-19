@@ -17,20 +17,32 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadMembership();
-  }, []);
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("household_members")
+        .select("household_id, role, households(id, name, invite_code)")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
 
-  const loadMembership = async () => {
-    const { data } = await supabase
-      .from("household_members")
-      .select("household_id, role, households(id, name, invite_code)")
-      .eq("user_id", user!.id)
-      .limit(1)
-      .maybeSingle();
+      if (cancelled) return;
+      setMembership(data as Membership | null);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
-    setMembership(data as Membership | null);
-    setLoading(false);
-  };
+  useEffect(() => {
+    if (loading || !membership) return;
+    router.replace({
+      pathname: "/(app)/household",
+      params: { id: membership.household_id },
+    });
+  }, [loading, membership, router]);
 
   if (loading) {
     return (
@@ -41,11 +53,11 @@ export default function HomeScreen() {
   }
 
   if (membership) {
-    router.replace({
-      pathname: "/(app)/household",
-      params: { id: membership.household_id },
-    });
-    return null;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
 
   return (
