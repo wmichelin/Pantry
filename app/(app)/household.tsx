@@ -12,7 +12,6 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
-import { getWeekStart } from "../../lib/week";
 import TagEditor from "../../components/TagEditor";
 
 type Recipe = { id: string; title: string; tags: string[] | null };
@@ -39,7 +38,7 @@ export default function HouseholdScreen() {
     const [hRes, rRes, qRes] = await Promise.all([
       supabase.from("households").select("id, name").eq("id", id).single(),
       supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
-      supabase.from("week_queues").select("recipe_id").eq("household_id", id).eq("week_start", getWeekStart()),
+      supabase.from("week_queues").select("recipe_id").eq("household_id", id),
     ]);
     if (hRes.data) setHousehold(hRes.data);
     if (rRes.data) setRecipes(rRes.data);
@@ -70,21 +69,18 @@ export default function HouseholdScreen() {
   };
 
   const handleQueueToggle = async (recipe: Recipe) => {
-    const weekStart = getWeekStart();
     if (queuedIds.has(recipe.id)) {
       setQueuedIds((prev) => { const next = new Set(prev); next.delete(recipe.id); return next; });
       await supabase
         .from("week_queues")
         .delete()
         .eq("household_id", id)
-        .eq("recipe_id", recipe.id)
-        .eq("week_start", weekStart);
+        .eq("recipe_id", recipe.id);
     } else {
       setQueuedIds((prev) => new Set([...prev, recipe.id]));
       await supabase.from("week_queues").insert({
         household_id: id,
         recipe_id: recipe.id,
-        week_start: weekStart,
         added_by: user!.id,
       });
     }

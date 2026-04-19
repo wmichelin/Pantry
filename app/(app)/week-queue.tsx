@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
-import { getWeekStart } from "../../lib/week";
 
 type WeekQueueEntry = {
   id: string;
@@ -29,7 +28,6 @@ export default function WeekQueueScreen() {
       .from("week_queues")
       .select("id, recipe_id, recipes(id, title)")
       .eq("household_id", householdId)
-      .eq("week_start", getWeekStart())
       .order("created_at", { ascending: true });
 
     setEntries((data as WeekQueueEntry[]) ?? []);
@@ -44,12 +42,6 @@ export default function WeekQueueScreen() {
     loadQueue();
   };
 
-  const weekStart = getWeekStart();
-  const weekLabel = new Date(weekStart + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-
   if (loading) {
     return (
       <View style={styles.center}>
@@ -61,7 +53,7 @@ export default function WeekQueueScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.weekLabel}>Week of {weekLabel}</Text>
+        <Text style={styles.weekLabel}>Queue</Text>
         <Pressable
           style={styles.shoppingButton}
           onPress={() =>
@@ -75,7 +67,7 @@ export default function WeekQueueScreen() {
       <ScrollView contentContainerStyle={styles.list}>
         {entries.length === 0 ? (
           <Text style={styles.emptyText}>
-            No recipes queued for this week yet.{"\n"}Open a recipe and tap "+ Add to this week".
+            No recipes queued yet.{"\n"}Open a recipe and tap "+ Add to queue".
           </Text>
         ) : (
           entries.map((entry) => (
