@@ -38,8 +38,10 @@ printf '%s\n' \
   "docker pull ${IMAGE} || { echo 'docker pull failed — use a GitHub PAT with read:packages (see deploy.sh header).'; exit 1; }" \
   'docker rm -f pantry 2>/dev/null || true' \
   "docker run -d --name pantry --restart always -p 8080:80 ${IMAGE}" \
-  '# Configure nginx reverse proxy' \
-  "cat > /etc/nginx/sites-available/${DOMAIN} <<'NGINXCONF'" \
+  '# Nginx + TLS: first deploy writes HTTP + runs certbot; once certs exist, only reload nginx (do not overwrite HTTPS).' \
+  "export DOMAIN=${DOMAIN}" \
+  'if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then' \
+  "  cat > /etc/nginx/sites-available/\$DOMAIN <<'NGINXCONF'" \
   "server {" \
   "    listen 80;" \
   "    server_name ${DOMAIN};" \
@@ -50,11 +52,13 @@ printf '%s\n' \
   "    }" \
   "}" \
   'NGINXCONF' \
-  "ln -sf /etc/nginx/sites-available/${DOMAIN} /etc/nginx/sites-enabled/${DOMAIN}" \
-  'rm -f /etc/nginx/sites-enabled/default' \
-  'nginx -t && systemctl reload nginx' \
-  '# Obtain or renew SSL cert' \
-  "certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos -m wmichelin@gmail.com --redirect" \
+  '  ln -sf /etc/nginx/sites-available/$DOMAIN /etc/nginx/sites-enabled/$DOMAIN' \
+  '  rm -f /etc/nginx/sites-enabled/default' \
+  '  nginx -t && systemctl reload nginx' \
+  "  certbot --nginx -d \$DOMAIN --non-interactive --agree-tos -m wmichelin@gmail.com --redirect" \
+  'else' \
+  '  nginx -t && systemctl reload nginx' \
+  'fi' \
   | ssh -o StrictHostKeyChecking=no root@"$DROPLET_IP" bash
 
 echo "Done! Pantry available at https://$DOMAIN"
