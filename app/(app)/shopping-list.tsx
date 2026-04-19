@@ -8,7 +8,7 @@ import {
   Pressable,
   Modal,
 } from "react-native";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams, useNavigation, useFocusEffect } from "expo-router";
 import { SortableList } from "../../components/SortableList";
 import { supabase } from "../../lib/supabase";
 
@@ -185,9 +185,11 @@ export default function ShoppingListScreen() {
     setLoading(false);
   }, [householdId]);
 
-  useEffect(() => {
-    loadList();
-  }, [loadList]);
+  useFocusEffect(
+    useCallback(() => {
+      loadList();
+    }, [loadList])
+  );
 
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {

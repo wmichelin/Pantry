@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
@@ -22,6 +23,8 @@ export default function WeekQueueScreen() {
   const [entries, setEntries] = useState<WeekQueueEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [clearingWeek, setClearingWeek] = useState(false);
+  const [clearWeekModalVisible, setClearWeekModalVisible] = useState(false);
 
   const loadQueue = useCallback(async () => {
     const { data } = await supabase
@@ -40,6 +43,20 @@ export default function WeekQueueScreen() {
     await supabase.from("week_queues").delete().eq("id", entryId);
     setConfirmRemoveId(null);
     loadQueue();
+  };
+
+  /** Only invoked from the confirmation modal — never call directly from UI. */
+  const clearWeekAfterConfirm = async () => {
+    if (!householdId) return;
+    setClearingWeek(true);
+    try {
+      await supabase.from("week_queues").delete().eq("household_id", householdId);
+      await supabase.from("shopping_list_checks").delete().eq("household_id", householdId);
+      setClearWeekModalVisible(false);
+      loadQueue();
+    } finally {
+      setClearingWeek(false);
+    }
   };
 
   if (loading) {
@@ -63,6 +80,59 @@ export default function WeekQueueScreen() {
           <Text style={styles.shoppingButtonText}>Shopping List</Text>
         </Pressable>
       </View>
+      <View style={styles.clearWeekRow}>
+        <Pressable
+          onPress={() => setClearWeekModalVisible(true)}
+          disabled={clearingWeek}
+          style={clearingWeek && styles.clearWeekDisabled}
+        >
+          {clearingWeek ? (
+            <ActivityIndicator size="small" color="#ff3b30" />
+          ) : (
+            <Text style={styles.clearWeekText}>Clear week</Text>
+          )}
+        </Pressable>
+      </View>
+
+      <Modal
+        visible={clearWeekModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !clearingWeek && setClearWeekModalVisible(false)}
+      >
+        <Pressable
+          style={styles.confirmModalOverlay}
+          onPress={() => !clearingWeek && setClearWeekModalVisible(false)}
+        >
+          <Pressable style={styles.confirmModalSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.confirmModalTitle}>Clear week?</Text>
+            <Text style={styles.confirmModalBody}>
+              This removes every recipe from your queue and clears all shopping list checkmarks.
+              This cannot be undone.
+            </Text>
+            <View style={styles.confirmModalActions}>
+              <Pressable
+                style={[styles.confirmModalButton, styles.confirmModalCancelBtn]}
+                onPress={() => !clearingWeek && setClearWeekModalVisible(false)}
+                disabled={clearingWeek}
+              >
+                <Text style={styles.confirmModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.confirmModalButton, styles.confirmModalDangerBtn]}
+                onPress={() => void clearWeekAfterConfirm()}
+                disabled={clearingWeek}
+              >
+                {clearingWeek ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.confirmModalDangerText}>Clear all</Text>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <ScrollView contentContainerStyle={styles.list}>
         {entries.length === 0 ? (
@@ -127,6 +197,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   shoppingButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  clearWeekRow: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    alignItems: "flex-start",
+  },
+  clearWeekText: { fontSize: 14, fontWeight: "600", color: "#ff3b30" },
+  clearWeekDisabled: { opacity: 0.6 },
   list: { padding: 16, gap: 4 },
   emptyText: {
     color: "#999",
@@ -149,4 +228,58 @@ const styles = StyleSheet.create({
   confirmText: { fontSize: 13, color: "#333" },
   confirmYes: { fontSize: 13, color: "#ff3b30", fontWeight: "600" },
   confirmCancel: { fontSize: 13, color: "#999" },
+
+  confirmModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+  },
+  confirmModalSheet: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 22,
+  },
+  confirmModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 10,
+    color: "#111",
+  },
+  confirmModalBody: {
+    fontSize: 15,
+    color: "#555",
+    lineHeight: 22,
+    marginBottom: 22,
+  },
+  confirmModalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  confirmModalButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: "center",
+  },
+  confirmModalCancelBtn: {
+    backgroundColor: "#f2f2f2",
+  },
+  confirmModalCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  confirmModalDangerBtn: {
+    backgroundColor: "#ff3b30",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  confirmModalDangerText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
 });
