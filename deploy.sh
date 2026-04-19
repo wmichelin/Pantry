@@ -1,4 +1,6 @@
 #!/bin/bash
+# Requires GITHUB_TOKEN with GitHub Packages scopes: read:packages and write:packages
+# (classic PAT). `gh auth token` alone often cannot pull private GHCR images (403).
 set -e
 
 if [ -f .env ]; then
@@ -33,7 +35,7 @@ printf '%s\n' \
   'fi' \
   '# Pull and run app container on 8080' \
   "echo '${GITHUB_TOKEN}' | docker login ghcr.io -u wmichelin --password-stdin" \
-  "docker pull ${IMAGE}" \
+  "docker pull ${IMAGE} || { echo 'docker pull failed — use a GitHub PAT with read:packages (see deploy.sh header).'; exit 1; }" \
   'docker rm -f pantry 2>/dev/null || true' \
   "docker run -d --name pantry --restart always -p 8080:80 ${IMAGE}" \
   '# Configure nginx reverse proxy' \
