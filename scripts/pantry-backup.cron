@@ -1,0 +1,18 @@
+# Pantry nightly Postgres backup (UTC). Install on the DigitalOcean droplet:
+#   sudo cp scripts/pantry-backup.cron /etc/cron.d/pantry-backup
+#   sudo chmod 644 /etc/cron.d/pantry-backup
+# Secrets live in /etc/pantry-backup.env (root-only, NOT committed):
+#   DATABASE_URL=postgresql://...@db.<ref>.supabase.co:5432/postgres?sslmode=require
+#   BACKUP_OUTPUT_DIR=/var/backups/pantry-pg
+#   BACKUP_RETENTION_DAYS=14
+#   BACKUP_S3_BUCKET=pantry-backups
+#   BACKUP_S3_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
+#   AWS_ACCESS_KEY_ID=...
+#   AWS_SECRET_ACCESS_KEY=...
+#   AWS_REGION=auto
+# Adjust the repo path below to where the droplet checks out Pantry.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# min hour dom mon dow user  command
+0 3 * * * root set -a; . /etc/pantry-backup.env; set +a; /opt/pantry/scripts/scheduled-do-pg-backup.sh >> /var/backups/pantry-pg/cron.log 2>&1
