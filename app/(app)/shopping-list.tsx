@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, useNavigation, useFocusEffect } from "expo-router";
 import { SortableList } from "../../components/SortableList";
 import { supabase } from "../../lib/supabase";
+import { showError, throwOnError } from "../../lib/db";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,116 +74,129 @@ export default function ShoppingListScreen() {
   const loadList = useCallback(async () => {
     if (!householdId) return;
 
-    const [queueRes, storesRes, checksRes] = await Promise.all([
-      supabase
-        .from("week_queues")
-        .select("recipe_id, recipes(id, title)")
-        .eq("household_id", householdId),
-      supabase
-        .from("stores")
-        .select("id, name, sort_order")
-        .eq("household_id", householdId)
-        .order("sort_order"),
-      supabase
-        .from("shopping_list_checks")
-        .select("normalized_name")
-        .eq("household_id", householdId),
-    ]);
+    try {
+      const [queueRes, storesRes, checksRes] = await Promise.all([
+        supabase
+          .from("week_queues")
+          .select("recipe_id, recipes(id, title)")
+          .eq("household_id", householdId),
+        supabase
+          .from("stores")
+          .select("id, name, sort_order")
+          .eq("household_id", householdId)
+          .order("sort_order"),
+        supabase
+          .from("shopping_list_checks")
+          .select("normalized_name")
+          .eq("household_id", householdId),
+      ]);
 
-    setStores(storesRes.data ?? []);
-    const checkedNames = new Set((checksRes.data ?? []).map((c) => c.normalized_name));
+      if (queueRes.error) throw queueRes.error;
+      if (storesRes.error) throw storesRes.error;
+      if (checksRes.error) throw checksRes.error;
 
-    const queueData = queueRes.data ?? [];
-    if (queueData.length === 0) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
+      setStores(storesRes.data ?? []);
+      const checkedNames = new Set((checksRes.data ?? []).map((c) => c.normalized_name));
 
-    const recipeIds = queueData.map((q: any) => q.recipe_id);
-    const recipeTitle = new Map<string, string>(
-      queueData.map((q: any) => [q.recipe_id, (q.recipes as any)?.title ?? "Unknown"])
-    );
+      const queueData = queueRes.data ?? [];
+      if (queueData.length === 0) {
+        setItems([]);
+        return;
+      }
 
-    const [ingredientsRes, metaRes, availRes] = await Promise.all([
-      supabase
-        .from("recipe_ingredients")
-        .select("id, recipe_id, name, quantity, unit")
-        .in("recipe_id", recipeIds),
-      supabase
-        .from("ingredient_metadata")
-        .select("id, normalized_name, sort_order")
-        .eq("household_id", householdId),
-      supabase
-        .from("ingredient_store_availability")
-        .select("ingredient_metadata_id, store_id"),
-    ]);
+      const recipeIds = queueData.map((q: any) => q.recipe_id);
+      const recipeTitle = new Map<string, string>(
+        queueData.map((q: any) => [q.recipe_id, (q.recipes as any)?.title ?? "Unknown"])
+      );
 
-    const metaByName = new Map(
-      (metaRes.data ?? []).map((m) => [m.normalized_name, m])
-    );
-    const availByMetaId = new Map<string, string[]>();
-    for (const a of availRes.data ?? []) {
-      const list = availByMetaId.get(a.ingredient_metadata_id) ?? [];
-      list.push(a.store_id);
-      availByMetaId.set(a.ingredient_metadata_id, list);
-    }
+      const [ingredientsRes, metaRes, availRes] = await Promise.all([
+        supabase
+          .from("recipe_ingredients")
+          .select("id, recipe_id, name, quantity, unit")
+          .in("recipe_id", recipeIds),
+        supabase
+          .from("ingredient_metadata")
+          .select("id, normalized_name, sort_order")
+          .eq("household_id", householdId),
+        supabase
+          .from("ingredient_store_availability")
+          .select("ingredient_metadata_id, store_id"),
+      ]);
 
-    // Group recipe_ingredients by normalized name
-    const grouped = new Map<string, ConsolidatedItem>();
-    for (const ing of ingredientsRes.data ?? []) {
-      const key = normalize(ing.name);
-      // Skip section headers that slipped through import (e.g. "for the salad:")
-      if (key.endsWith(":")) continue;
-      const meta = metaByName.get(key);
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.occurrences.push({
-          recipeTitle: recipeTitle.get(ing.recipe_id) ?? "Unknown",
-          quantity: ing.quantity,
-          unit: ing.unit,
-        });
-      } else {
-        grouped.set(key, {
-          normalizedName: key,
-          metadataId: meta?.id ?? "",
-          sortOrder: meta?.sort_order ?? Infinity,
-          storeIds: meta ? (availByMetaId.get(meta.id) ?? []) : [],
-          occurrences: [{
+      if (ingredientsRes.error) throw ingredientsRes.error;
+      if (metaRes.error) throw metaRes.error;
+      if (availRes.error) throw availRes.error;
+
+      const metaByName = new Map(
+        (metaRes.data ?? []).map((m) => [m.normalized_name, m])
+      );
+      const availByMetaId = new Map<string, string[]>();
+      for (const a of availRes.data ?? []) {
+        const list = availByMetaId.get(a.ingredient_metadata_id) ?? [];
+        list.push(a.store_id);
+        availByMetaId.set(a.ingredient_metadata_id, list);
+      }
+
+      // Group recipe_ingredients by normalized name
+      const grouped = new Map<string, ConsolidatedItem>();
+      for (const ing of ingredientsRes.data ?? []) {
+        const key = normalize(ing.name);
+        // Skip section headers that slipped through import (e.g. "for the salad:")
+        if (key.endsWith(":")) continue;
+        const meta = metaByName.get(key);
+        const existing = grouped.get(key);
+        if (existing) {
+          existing.occurrences.push({
             recipeTitle: recipeTitle.get(ing.recipe_id) ?? "Unknown",
             quantity: ing.quantity,
             unit: ing.unit,
-          }],
-          checked: checkedNames.has(key),
-        });
-      }
-    }
-
-    // Auto-create ingredient_metadata for new normalized names
-    const newNames = [...grouped.keys()].filter((k) => !metaByName.has(k));
-    if (newNames.length > 0) {
-      const maxOrder = Math.max(0, ...(metaRes.data ?? []).map((m) => m.sort_order));
-      const inserts = newNames.map((name, i) => ({
-        household_id: householdId,
-        normalized_name: name,
-        sort_order: maxOrder + (i + 1) * 10,
-      }));
-      const { data: newMeta } = await supabase
-        .from("ingredient_metadata")
-        .upsert(inserts, { onConflict: "household_id,normalized_name", ignoreDuplicates: true })
-        .select("id, normalized_name, sort_order");
-      for (const m of newMeta ?? []) {
-        const item = grouped.get(m.normalized_name);
-        if (item) {
-          item.metadataId = m.id;
-          item.sortOrder = m.sort_order;
+          });
+        } else {
+          grouped.set(key, {
+            normalizedName: key,
+            metadataId: meta?.id ?? "",
+            sortOrder: meta?.sort_order ?? Infinity,
+            storeIds: meta ? (availByMetaId.get(meta.id) ?? []) : [],
+            occurrences: [{
+              recipeTitle: recipeTitle.get(ing.recipe_id) ?? "Unknown",
+              quantity: ing.quantity,
+              unit: ing.unit,
+            }],
+            checked: checkedNames.has(key),
+          });
         }
       }
-    }
 
-    const sorted = [...grouped.values()].sort((a, b) => a.sortOrder - b.sortOrder);
-    setItems(sorted);
-    setLoading(false);
+      // Auto-create ingredient_metadata for new normalized names
+      const newNames = [...grouped.keys()].filter((k) => !metaByName.has(k));
+      if (newNames.length > 0) {
+        const maxOrder = Math.max(0, ...(metaRes.data ?? []).map((m) => m.sort_order));
+        const inserts = newNames.map((name, i) => ({
+          household_id: householdId,
+          normalized_name: name,
+          sort_order: maxOrder + (i + 1) * 10,
+        }));
+        const { data: newMeta, error: upsertError } = await supabase
+          .from("ingredient_metadata")
+          .upsert(inserts, { onConflict: "household_id,normalized_name", ignoreDuplicates: true })
+          .select("id, normalized_name, sort_order");
+        if (upsertError) throw upsertError;
+        for (const m of newMeta ?? []) {
+          const item = grouped.get(m.normalized_name);
+          if (item) {
+            item.metadataId = m.id;
+            item.sortOrder = m.sort_order;
+          }
+        }
+      }
+
+      const sorted = [...grouped.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+      setItems(sorted);
+    } catch (err) {
+      showError("Couldn't load the shopping list", err);
+    } finally {
+      setLoading(false);
+    }
   }, [householdId]);
 
   useFocusEffect(
@@ -197,24 +211,34 @@ export default function ShoppingListScreen() {
     setItems((prev) =>
       prev.map((i) => i.normalizedName === item.normalizedName ? { ...i, checked: nowChecked } : i)
     );
-    if (nowChecked) {
-      await supabase.from("shopping_list_checks").upsert({
-        household_id: householdId,
-        normalized_name: item.normalizedName,
-      }, { onConflict: "household_id,normalized_name", ignoreDuplicates: true });
-    } else {
-      await supabase
-        .from("shopping_list_checks")
-        .delete()
-        .eq("household_id", householdId)
-        .eq("normalized_name", item.normalizedName);
+    const { error } = nowChecked
+      ? await supabase.from("shopping_list_checks").upsert({
+          household_id: householdId,
+          normalized_name: item.normalizedName,
+        }, { onConflict: "household_id,normalized_name", ignoreDuplicates: true })
+      : await supabase
+          .from("shopping_list_checks")
+          .delete()
+          .eq("household_id", householdId)
+          .eq("normalized_name", item.normalizedName);
+    if (error) {
+      // Revert the optimistic check.
+      setItems((prev) =>
+        prev.map((i) => i.normalizedName === item.normalizedName ? { ...i, checked: !nowChecked } : i)
+      );
+      showError("Couldn't update item", error);
     }
   };
 
   // ── Clear checks ────────────────────────────────────────────────────────────
   const clearChecks = async () => {
-    await supabase.from("shopping_list_checks").delete().eq("household_id", householdId);
+    const previous = items;
     setItems((prev) => prev.map((i) => ({ ...i, checked: false })));
+    const { error } = await supabase.from("shopping_list_checks").delete().eq("household_id", householdId);
+    if (error) {
+      setItems(previous); // revert
+      showError("Couldn't clear checks", error);
+    }
   };
 
   // ── Reorder / save order ─────────────────────────────────────────────────────
@@ -225,7 +249,11 @@ export default function ShoppingListScreen() {
       normalized_name: item.normalizedName,
       sort_order: (i + 1) * 10,
     }));
-    await supabase.from("ingredient_metadata").upsert(updates, { onConflict: "id" });
+    const { error } = await supabase.from("ingredient_metadata").upsert(updates, { onConflict: "id" });
+    if (error) {
+      showError("Couldn't save the order", error);
+      return;
+    }
     setItems((prev) => prev.map((item, i) => ({ ...item, sortOrder: (i + 1) * 10 })));
   };
 
@@ -238,27 +266,39 @@ export default function ShoppingListScreen() {
   const saveAssignment = async () => {
     if (!assigningItem) return;
     setSavingAssignment(true);
-    await supabase
-      .from("ingredient_store_availability")
-      .delete()
-      .eq("ingredient_metadata_id", assigningItem.metadataId);
-    if (pendingStoreIds.length > 0) {
-      await supabase.from("ingredient_store_availability").insert(
-        pendingStoreIds.map((storeId) => ({
-          ingredient_metadata_id: assigningItem.metadataId,
-          store_id: storeId,
-        }))
+    try {
+      throwOnError(
+        await supabase
+          .from("ingredient_store_availability")
+          .delete()
+          .eq("ingredient_metadata_id", assigningItem.metadataId)
       );
+      if (pendingStoreIds.length > 0) {
+        throwOnError(
+          await supabase.from("ingredient_store_availability").insert(
+            pendingStoreIds.map((storeId) => ({
+              ingredient_metadata_id: assigningItem.metadataId,
+              store_id: storeId,
+            }))
+          )
+        );
+      }
+      // Only update the UI once both writes have succeeded.
+      setItems((prev) =>
+        prev.map((i) =>
+          i.normalizedName === assigningItem.normalizedName
+            ? { ...i, storeIds: pendingStoreIds }
+            : i
+        )
+      );
+      setAssigningItem(null);
+    } catch (err) {
+      // A failed insert after the delete can desync; reload to resync from the DB.
+      showError("Couldn't save stores", err);
+      loadList();
+    } finally {
+      setSavingAssignment(false);
     }
-    setItems((prev) =>
-      prev.map((i) =>
-        i.normalizedName === assigningItem.normalizedName
-          ? { ...i, storeIds: pendingStoreIds }
-          : i
-      )
-    );
-    setSavingAssignment(false);
-    setAssigningItem(null);
   };
 
   // ── Render helpers ──────────────────────────────────────────────────────────

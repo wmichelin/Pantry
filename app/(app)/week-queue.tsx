@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import { showError, throwOnError } from "../../lib/db";
 
 type WeekQueueEntry = {
   id: string;
@@ -27,23 +28,32 @@ export default function WeekQueueScreen() {
   const [clearWeekModalVisible, setClearWeekModalVisible] = useState(false);
 
   const loadQueue = useCallback(async () => {
-    const { data } = await supabase
-      .from("week_queues")
-      .select("id, recipe_id, recipes(id, title)")
-      .eq("household_id", householdId)
-      .order("created_at", { ascending: true });
-
-    // recipe_id -> recipes is to-one, so each row's `recipes` is a single object at
-    // runtime even though the query builder infers an array.
-    setEntries((data as unknown as WeekQueueEntry[]) ?? []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from("week_queues")
+        .select("id, recipe_id, recipes(id, title)")
+        .eq("household_id", householdId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      // recipe_id -> recipes is to-one, so each row's `recipes` is a single object
+      // at runtime even though the query builder infers an array.
+      setEntries((data as unknown as WeekQueueEntry[]) ?? []);
+    } catch (err) {
+      showError("Couldn't load the queue", err);
+    } finally {
+      setLoading(false);
+    }
   }, [householdId]);
 
   useFocusEffect(useCallback(() => { loadQueue(); }, [loadQueue]));
 
   const handleRemove = async (entryId: string) => {
-    await supabase.from("week_queues").delete().eq("id", entryId);
+    const { error } = await supabase.from("week_queues").delete().eq("id", entryId);
     setConfirmRemoveId(null);
+    if (error) {
+      showError("Couldn't remove from queue", error);
+      return;
+    }
     loadQueue();
   };
 
@@ -52,10 +62,12 @@ export default function WeekQueueScreen() {
     if (!householdId) return;
     setClearingWeek(true);
     try {
-      await supabase.from("week_queues").delete().eq("household_id", householdId);
-      await supabase.from("shopping_list_checks").delete().eq("household_id", householdId);
+      throwOnError(await supabase.from("week_queues").delete().eq("household_id", householdId));
+      throwOnError(await supabase.from("shopping_list_checks").delete().eq("household_id", householdId));
       setClearWeekModalVisible(false);
       loadQueue();
+    } catch (err) {
+      showError("Couldn't clear the queue", err);
     } finally {
       setClearingWeek(false);
     }

@@ -73,6 +73,7 @@ export default function ReviewBoardScreen() {
     const deduped = toSave.filter((r) => !r.source_url || !existingUrls.has(r.source_url));
 
     let saved = 0;
+    const failed: string[] = [];
     for (const scraped of deduped) {
       const { data: recipe, error } = await supabase
         .from("recipes")
@@ -92,9 +93,14 @@ export default function ReviewBoardScreen() {
         .select()
         .single();
 
-      if (!error && recipe && scraped.raw_ingredients.length > 0) {
+      if (error || !recipe) {
+        failed.push(scraped.title);
+        continue;
+      }
+
+      if (scraped.raw_ingredients.length > 0) {
         const parsed = parseIngredients(scraped.raw_ingredients);
-        await supabase.from("recipe_ingredients").insert(
+        const { error: ingError } = await supabase.from("recipe_ingredients").insert(
           parsed.map((ing) => ({
             recipe_id: recipe.id,
             name: ing.name,
@@ -103,6 +109,7 @@ export default function ReviewBoardScreen() {
             raw_string: ing.raw_string,
           }))
         );
+        if (ingError) failed.push(`${scraped.title} (ingredients)`);
       }
 
       saved++;
@@ -110,6 +117,12 @@ export default function ReviewBoardScreen() {
     }
 
     setSaving(false);
+    if (failed.length > 0) {
+      Alert.alert(
+        "Some recipes didn't save",
+        `Saved ${saved} of ${deduped.length}.\n\nNot saved: ${failed.join(", ")}`
+      );
+    }
     router.replace({
       pathname: "/(app)/household",
       params: { id: householdId },

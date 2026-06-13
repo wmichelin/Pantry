@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import { showError } from "../../lib/db";
 
 type Ingredient = { name: string; quantity: string; unit: string };
 
@@ -69,24 +70,29 @@ export default function CreateRecipeScreen() {
       return;
     }
 
-    const ingredientRows = validIngredients.map((i) => ({
-      recipe_id: recipe.id,
-      name: i.name.trim(),
-      quantity: i.quantity ? parseFloat(i.quantity) : null,
-      unit: i.unit.trim() || null,
-    }));
+    const ingredientRows = validIngredients.map((i) => {
+      const qty = parseFloat(i.quantity);
+      return {
+        recipe_id: recipe.id,
+        name: i.name.trim(),
+        quantity: i.quantity.trim() && !isNaN(qty) ? qty : null,
+        unit: i.unit.trim() || null,
+      };
+    });
 
     const { error: ingError } = await supabase
       .from("recipe_ingredients")
       .insert(ingredientRows);
 
-    setLoading(false);
-
     if (ingError) {
-      Alert.alert("Error saving ingredients", ingError.message);
+      // Roll back the just-created recipe so we never leave one with no ingredients.
+      await supabase.from("recipes").delete().eq("id", recipe.id);
+      setLoading(false);
+      showError("Couldn't save ingredients", ingError);
       return;
     }
 
+    setLoading(false);
     router.back();
   };
 

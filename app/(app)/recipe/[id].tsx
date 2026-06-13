@@ -12,6 +12,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../lib/auth-context";
+import { showError, throwOnError } from "../../../lib/db";
 import TagEditor from "../../../components/TagEditor";
 
 type Recipe = {
@@ -55,16 +56,17 @@ export default function RecipeDetailScreen() {
   }, [id]);
 
   const loadRecipe = async () => {
-    const [rRes, iRes] = await Promise.all([
-      supabase
-        .from("recipes")
-        .select("id, title, created_at, source_type, source_url, household_id, image_url, servings, prep_time_minutes, cook_time_minutes, instructions, tags")
-        .eq("id", id)
-        .single(),
-      supabase.from("recipe_ingredients").select("id, name, quantity, unit").eq("recipe_id", id),
-    ]);
+    try {
+      const [rRes, iRes] = await Promise.all([
+        supabase
+          .from("recipes")
+          .select("id, title, created_at, source_type, source_url, household_id, image_url, servings, prep_time_minutes, cook_time_minutes, instructions, tags")
+          .eq("id", id)
+          .single(),
+        supabase.from("recipe_ingredients").select("id, name, quantity, unit").eq("recipe_id", id),
+      ]);
 
-    if (rRes.data) {
+      if (rRes.error) throw rRes.error;
       setRecipe(rRes.data);
       const [qRes, tRes] = await Promise.all([
         supabase
@@ -83,45 +85,68 @@ export default function RecipeDetailScreen() {
       if (tRes.data) {
         setAllKnownTags([...new Set(tRes.data.flatMap((r) => r.tags ?? []))].sort());
       }
+      if (iRes.data) setIngredients(iRes.data);
+    } catch (err) {
+      showError("Couldn't load recipe", err);
+    } finally {
+      setLoading(false);
     }
-    if (iRes.data) setIngredients(iRes.data);
-    setLoading(false);
   };
 
   const handleDelete = async () => {
-    await supabase.from("recipe_ingredients").delete().eq("recipe_id", id);
-    await supabase.from("recipes").delete().eq("id", id);
-    router.replace({ pathname: "/(app)/household", params: { id: recipe!.household_id } });
+    if (!recipe) return;
+    try {
+      throwOnError(await supabase.from("recipe_ingredients").delete().eq("recipe_id", id));
+      throwOnError(await supabase.from("recipes").delete().eq("id", id));
+      router.replace({ pathname: "/(app)/household", params: { id: recipe.household_id } });
+    } catch (err) {
+      setConfirmDelete(false);
+      showError("Couldn't delete recipe", err);
+    }
   };
 
   const handleQueueToggle = async () => {
     if (!recipe) return;
     setQueueLoading(true);
-    if (queued) {
-      await supabase
-        .from("week_queues")
-        .delete()
-        .eq("household_id", recipe.household_id)
-        .eq("recipe_id", recipe.id);
-      setQueued(false);
-    } else {
-      await supabase.from("week_queues").insert({
-        household_id: recipe.household_id,
-        recipe_id: recipe.id,
-        added_by: user!.id,
-      });
-      setQueued(true);
+    try {
+      if (queued) {
+        throwOnError(
+          await supabase
+            .from("week_queues")
+            .delete()
+            .eq("household_id", recipe.household_id)
+            .eq("recipe_id", recipe.id)
+        );
+        setQueued(false);
+      } else {
+        throwOnError(
+          await supabase.from("week_queues").insert({
+            household_id: recipe.household_id,
+            recipe_id: recipe.id,
+            added_by: user!.id,
+          })
+        );
+        setQueued(true);
+      }
+    } catch (err) {
+      showError("Couldn't update the queue", err);
+    } finally {
+      setQueueLoading(false);
     }
-    setQueueLoading(false);
   };
 
   const handleSaveTags = async () => {
     if (editingTags === null) return;
     setSavingTags(true);
-    await supabase.from("recipes").update({ tags: editingTags }).eq("id", id);
-    setRecipe((prev) => (prev ? { ...prev, tags: editingTags } : prev));
-    setEditingTags(null);
-    setSavingTags(false);
+    try {
+      throwOnError(await supabase.from("recipes").update({ tags: editingTags }).eq("id", id));
+      setRecipe((prev) => (prev ? { ...prev, tags: editingTags } : prev));
+      setEditingTags(null);
+    } catch (err) {
+      showError("Couldn't save tags", err);
+    } finally {
+      setSavingTags(false);
+    }
   };
 
   if (loading) {
