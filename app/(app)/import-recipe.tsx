@@ -25,6 +25,13 @@ export default function ImportRecipeScreen() {
   const handleImport = async () => {
     const trimmed = url.trim();
     if (!trimmed) return;
+    // Avoid wasting a scrape call on plain text / typos.
+    try {
+      new URL(trimmed);
+    } catch {
+      Alert.alert("Invalid URL", "Enter a full link starting with http:// or https://.");
+      return;
+    }
     setLoading(true);
 
     const { data, error } = await supabase.functions.invoke("scrape-recipe", {
@@ -34,13 +41,13 @@ export default function ImportRecipeScreen() {
 
     setLoading(false);
 
-    if (error || data?.error) {
+    if (error || !data || data.error) {
       Alert.alert("Import failed", error?.message ?? data?.error ?? "Could not scrape that URL.");
       return;
     }
 
     if (data.type === "board") {
-      const recipes: ScrapedRecipe[] = data.recipes;
+      const recipes: ScrapedRecipe[] = data.recipes ?? [];
       if (recipes.length === 0) {
         Alert.alert("Nothing found", "No recipes could be extracted from that board. Pinterest may have blocked the request.");
         return;
@@ -53,7 +60,11 @@ export default function ImportRecipeScreen() {
         },
       });
     } else {
-      const recipe: ScrapedRecipe = data.recipe;
+      const recipe: ScrapedRecipe | undefined = data.recipe;
+      if (!recipe) {
+        Alert.alert("Nothing found", "No recipe could be extracted from that URL.");
+        return;
+      }
       router.push({
         pathname: "/(app)/review-recipe",
         params: {

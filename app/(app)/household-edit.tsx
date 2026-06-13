@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import { showError } from "../../lib/db";
 
 type Member = { id: string; display_name: string; role: string };
 type Household = { id: string; name: string; invite_code: string };
@@ -28,15 +29,21 @@ export default function HouseholdEditScreen() {
 
   const loadData = useCallback(async () => {
     if (!id) return;
-    const [hRes, mRes, sRes] = await Promise.all([
-      supabase.from("households").select("id, name, invite_code").eq("id", id).single(),
-      supabase.from("household_members").select("id, display_name, role").eq("household_id", id),
-      supabase.from("stores").select("id, name, sort_order").eq("household_id", id).order("sort_order"),
-    ]);
-    if (hRes.data) setHousehold(hRes.data);
-    if (mRes.data) setMembers(mRes.data);
-    if (sRes.data) setStores(sRes.data);
-    setLoading(false);
+    try {
+      const [hRes, mRes, sRes] = await Promise.all([
+        supabase.from("households").select("id, name, invite_code").eq("id", id).single(),
+        supabase.from("household_members").select("id, display_name, role").eq("household_id", id),
+        supabase.from("stores").select("id, name, sort_order").eq("household_id", id).order("sort_order"),
+      ]);
+      if (hRes.error) throw hRes.error;
+      setHousehold(hRes.data);
+      if (mRes.data) setMembers(mRes.data);
+      if (sRes.data) setStores(sRes.data);
+    } catch (err) {
+      showError("Couldn't load household", err);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   useFocusEffect(
@@ -49,18 +56,27 @@ export default function HouseholdEditScreen() {
     const name = storeInput.trim();
     if (!name || !id) return;
     const sort_order = stores.length * 10;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("stores")
       .insert({ household_id: id, name, sort_order })
       .select("id, name, sort_order")
       .single();
+    if (error) {
+      showError("Couldn't add store", error);
+      return;
+    }
     if (data) setStores((prev) => [...prev, data]);
     setStoreInput("");
   };
 
   const deleteStore = async (storeId: string) => {
+    const previous = stores;
     setStores((prev) => prev.filter((s) => s.id !== storeId));
-    await supabase.from("stores").delete().eq("id", storeId);
+    const { error } = await supabase.from("stores").delete().eq("id", storeId);
+    if (error) {
+      setStores(previous); // revert the optimistic removal
+      showError("Couldn't delete store", error);
+    }
   };
 
   if (loading) {

@@ -12,6 +12,7 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import { showError, throwOnError } from "../../lib/db";
 import TagEditor from "../../components/TagEditor";
 
 type Recipe = { id: string; title: string; tags: string[] | null };
@@ -35,15 +36,21 @@ export default function HouseholdScreen() {
 
   const loadData = useCallback(async () => {
     if (!id) return;
-    const [hRes, rRes, qRes] = await Promise.all([
-      supabase.from("households").select("id, name").eq("id", id).single(),
-      supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
-      supabase.from("week_queues").select("recipe_id").eq("household_id", id),
-    ]);
-    if (hRes.data) setHousehold(hRes.data);
-    if (rRes.data) setRecipes(rRes.data);
-    if (qRes.data) setQueuedIds(new Set(qRes.data.map((q) => q.recipe_id)));
-    setLoading(false);
+    try {
+      const [hRes, rRes, qRes] = await Promise.all([
+        supabase.from("households").select("id, name").eq("id", id).single(),
+        supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
+        supabase.from("week_queues").select("recipe_id").eq("household_id", id),
+      ]);
+      if (hRes.error) throw hRes.error;
+      setHousehold(hRes.data);
+      if (rRes.data) setRecipes(rRes.data);
+      if (qRes.data) setQueuedIds(new Set(qRes.data.map((q) => q.recipe_id)));
+    } catch (err) {
+      showError("Couldn't load household", err);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   useFocusEffect(
@@ -60,29 +67,42 @@ export default function HouseholdScreen() {
   const saveTagEdit = async () => {
     if (!editingRecipe) return;
     setSavingTags(true);
-    await supabase.from("recipes").update({ tags: editingTags }).eq("id", editingRecipe.id);
-    setRecipes((prev) =>
-      prev.map((r) => (r.id === editingRecipe.id ? { ...r, tags: editingTags } : r))
-    );
-    setSavingTags(false);
-    setEditingRecipe(null);
+    try {
+      throwOnError(await supabase.from("recipes").update({ tags: editingTags }).eq("id", editingRecipe.id));
+      setRecipes((prev) =>
+        prev.map((r) => (r.id === editingRecipe.id ? { ...r, tags: editingTags } : r))
+      );
+      setEditingRecipe(null);
+    } catch (err) {
+      // Keep the modal open so the edit isn't lost.
+      showError("Couldn't save tags", err);
+    } finally {
+      setSavingTags(false);
+    }
   };
 
   const handleQueueToggle = async (recipe: Recipe) => {
-    if (queuedIds.has(recipe.id)) {
-      setQueuedIds((prev) => { const next = new Set(prev); next.delete(recipe.id); return next; });
-      await supabase
-        .from("week_queues")
-        .delete()
-        .eq("household_id", id)
-        .eq("recipe_id", recipe.id);
-    } else {
-      setQueuedIds((prev) => new Set([...prev, recipe.id]));
-      await supabase.from("week_queues").insert({
-        household_id: id,
-        recipe_id: recipe.id,
-        added_by: user!.id,
+    const wasQueued = queuedIds.has(recipe.id);
+    // Optimistic update, reverted below if the write fails.
+    setQueuedIds((prev) => {
+      const next = new Set(prev);
+      wasQueued ? next.delete(recipe.id) : next.add(recipe.id);
+      return next;
+    });
+    const { error } = wasQueued
+      ? await supabase.from("week_queues").delete().eq("household_id", id).eq("recipe_id", recipe.id)
+      : await supabase.from("week_queues").insert({
+          household_id: id,
+          recipe_id: recipe.id,
+          added_by: user!.id,
+        });
+    if (error) {
+      setQueuedIds((prev) => {
+        const next = new Set(prev);
+        wasQueued ? next.add(recipe.id) : next.delete(recipe.id);
+        return next;
       });
+      showError("Couldn't update the queue", error);
     }
   };
 

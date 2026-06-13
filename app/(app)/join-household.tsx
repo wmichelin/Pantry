@@ -22,11 +22,13 @@ export default function JoinHouseholdScreen() {
     if (!trimmed) return;
     setLoading(true);
 
-    const { data: household, error: lookupError } = await supabase
-      .from("households")
-      .select("id, name")
-      .eq("invite_code", trimmed)
-      .maybeSingle();
+    // Exact-match lookup via a SECURITY DEFINER RPC so households are not broadly
+    // readable (see migration 20260613000004_secure_invite_lookup).
+    const { data: rows, error: lookupError } = await supabase.rpc(
+      "lookup_household_by_invite",
+      { p_code: trimmed },
+    );
+    const household = rows?.[0];
 
     if (lookupError || !household) {
       setLoading(false);
