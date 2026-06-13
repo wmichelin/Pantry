@@ -33,7 +33,9 @@ export default function WeekQueueScreen() {
       .eq("household_id", householdId)
       .order("created_at", { ascending: true });
 
-    setEntries((data as WeekQueueEntry[]) ?? []);
+    // recipe_id -> recipes is to-one, so each row's `recipes` is a single object at
+    // runtime even though the query builder infers an array.
+    setEntries((data as unknown as WeekQueueEntry[]) ?? []);
     setLoading(false);
   }, [householdId]);
 
