@@ -13,7 +13,6 @@
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
-    "@dragdroptouch/drag-drop-touch": "^2.0.3",
     "@expo/ngrok": "^4.1.0",
     "@supabase/supabase-js": "^2.100.1",
     "expo": "~54.0.33",
