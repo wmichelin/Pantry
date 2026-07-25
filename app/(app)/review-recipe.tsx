@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { parseIngredients } from "../../lib/parse-ingredient";
+import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
 
@@ -73,6 +74,14 @@ export default function ReviewRecipeScreen() {
           raw_string: ing.raw_string,
         }))
       );
+      // Catalog grows with cleaned names (qty/units already stripped by parse).
+      for (const ing of parsedIngredients) {
+        try {
+          await ensureCatalogIngredient(householdId!, ing.name);
+        } catch (err) {
+          console.warn("Catalog upsert after import failed", err);
+        }
+      }
     }
 
     setSaving(false);

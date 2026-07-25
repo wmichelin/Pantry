@@ -649,4 +649,93 @@ describe("additional real scraped cases", () => {
     expect(results[0].name).toBe("salt");
     expect(results[1].name).toBe("pepper");
   });
+
+  it("glued metric unit: 400g Firm Tofu", () => {
+    expect(parseIngredient("-400g Firm Tofu")).toMatchObject({
+      quantity: 400,
+      unit: "g",
+      name: "Firm Tofu",
+    });
+  });
+
+  it("dual-system measurement prefix: 1.2kg / 2 - 2.4lb", () => {
+    expect(parseIngredient("1.2kg / 2 - 2.4lb Medium Potatoes")).toMatchObject({
+      quantity: null,
+      unit: null,
+      name: "Medium Potatoes",
+    });
+  });
+
+  it("dual unit: 700g / 1.4 lb", () => {
+    expect(parseIngredient("700g / 1.4 lb Small Potatoes")).toMatchObject({
+      name: "Small Potatoes",
+    });
+  });
+
+  it("dual unit: 30g / 2 tbsp", () => {
+    expect(parseIngredient("30g / 2 tbsp Unsalted Butter")).toMatchObject({
+      name: "Unsalted Butter",
+    });
+  });
+
+  it("range with glued unit: 300-400g", () => {
+    expect(parseIngredient("300-400g Firm Tofu")).toMatchObject({
+      quantity: 400,
+      unit: "g",
+      name: "Firm Tofu",
+    });
+  });
+
+  it("90/10 lean ratio is not treated as dual kg/lb prefix", () => {
+    // Parsed as fraction qty (90/10=9); must not be stripped to empty by dual-unit regex.
+    expect(parseIngredient("90/10 Ground Beef")).toMatchObject({
+      quantity: 9,
+      unit: null,
+      name: "Ground Beef",
+    });
+  });
+
+  it("leading dash + teaspoon", () => {
+    expect(parseIngredient("-1 Teaspoon Red Pepper Flakes")).toMatchObject({
+      quantity: 1,
+      unit: "teaspoon",
+      name: "Red Pepper Flakes",
+    });
+  });
+
+  it("dual with leading count: 1 - 1.2kg / 2 - 2.4lb", () => {
+    expect(parseIngredient("1 - 1.2kg / 2 - 2.4lb  medium potatoes (6 - 8)")).toMatchObject({
+      name: "medium potatoes",
+    });
+  });
+
+  it("glued unicode mixed number: 1½ cups", () => {
+    expect(parseIngredient("1½ cups oat flour")).toMatchObject({
+      quantity: 1.5,
+      unit: "cups",
+      name: "oat flour",
+    });
+  });
+
+  it("decimal range: 1.5-2 pounds", () => {
+    expect(parseIngredient("1.5-2 pounds chicken thighs")).toMatchObject({
+      quantity: 2,
+      unit: "pounds",
+      name: "chicken thighs",
+    });
+  });
+
+  it("can with ingredient inside paren", () => {
+    expect(parseIngredient("1  can (15oz black beans, drained/rinsed)")).toMatchObject({
+      quantity: 1,
+      unit: "can",
+      name: "black beans",
+    });
+  });
+
+  it("1/2-inch piece of ginger", () => {
+    expect(parseIngredient("1/2-inch piece of ginger")).toMatchObject({
+      name: "ginger",
+    });
+  });
 });
