@@ -45,6 +45,12 @@ type KeyEventLike = {
   isDefaultPrevented?: () => boolean;
 };
 
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (!ref) return;
+  if (typeof ref === "function") ref(value);
+  else ref.current = value;
+}
+
 export function IngredientAutocomplete({
   value,
   onChangeText,
@@ -64,6 +70,7 @@ export function IngredientAutocomplete({
   const [focused, setFocused] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localInputRef = useRef<TextInput | null>(null);
   const suggestionRefs = useRef<Array<{ scrollIntoView?: (opts?: ScrollIntoViewOptions) => void } | null>>([]);
   // Keep latest nav state for key handlers (RN Web calls onKeyPress from its
   // internal onKeyDown — custom onKeyDown props are overwritten and ignored).
@@ -109,13 +116,24 @@ export function IngredientAutocomplete({
     });
   }, [highlightIndex]);
 
+  const clearBlurTimer = () => {
+    if (blurTimer.current) {
+      clearTimeout(blurTimer.current);
+      blurTimer.current = null;
+    }
+  };
+
   const pick = (item: CatalogIngredient) => {
+    clearBlurTimer();
+    setHighlightIndex(-1);
     if (fillOnSelect) {
       onChangeText(item.display_name);
+      setFocused(false);
+    } else {
+      // Parent commits immediately — keep focus so the next keystroke shows suggestions.
+      setFocused(true);
     }
     onSelect?.(item);
-    setHighlightIndex(-1);
-    setFocused(false);
   };
 
   const moveHighlight = (delta: number) => {
@@ -186,7 +204,10 @@ export function IngredientAutocomplete({
   return (
     <View style={[styles.wrap, containerStyle]}>
       <TextInput
-        ref={inputRef}
+        ref={(node) => {
+          localInputRef.current = node;
+          assignRef(inputRef, node);
+        }}
         style={[styles.input, style]}
         value={value}
         onChangeText={onChangeText}
@@ -199,12 +220,15 @@ export function IngredientAutocomplete({
         onKeyPress={handleKeyPress}
         blurOnSubmit={false}
         onFocus={() => {
-          if (blurTimer.current) clearTimeout(blurTimer.current);
+          clearBlurTimer();
           setFocused(true);
         }}
         onBlur={() => {
-          // Delay so suggestion press can register.
+          // Delay so suggestion press can register. Ignore stale blurs after we
+          // re-focus for continuous add (Enter-to-add → focus stays on input).
+          clearBlurTimer();
           blurTimer.current = setTimeout(() => {
+            if (localInputRef.current?.isFocused()) return;
             setFocused(false);
             setHighlightIndex(-1);
           }, 150);
