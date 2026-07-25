@@ -349,6 +349,9 @@ export default function ShoppingListScreen() {
     try {
       throwOnError(await supabase.from("week_queues").delete().eq("household_id", householdId));
       throwOnError(await supabase.from("shopping_list_checks").delete().eq("household_id", householdId));
+      throwOnError(
+        await supabase.from("shopping_list_manual_items").delete().eq("household_id", householdId)
+      );
       setClearWeekModalVisible(false);
       await loadList();
     } catch (err) {
@@ -659,8 +662,8 @@ export default function ShoppingListScreen() {
           <Pressable style={styles.confirmModalSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.confirmModalTitle}>Clear week?</Text>
             <Text style={styles.confirmModalBody}>
-              This removes every recipe from your queue and clears all shopping list checkmarks.
-              This cannot be undone.
+              This removes every recipe from your queue, clears checkmarks, and deletes
+              one-off items you added. This cannot be undone.
             </Text>
             <View style={styles.confirmModalActions}>
               <Pressable
