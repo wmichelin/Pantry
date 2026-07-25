@@ -20,7 +20,7 @@ describe("formatShoppingList", () => {
       ],
       []
     );
-    expect(text).toBe("☐ Milk · 1 gallon\n\nGot it\n☑ Eggs");
+    expect(text).toBe("- [ ] Milk · 1 gallon\n\n## Got it\n- [x] Eggs");
   });
 
   it("groups by store sections then Other", () => {
@@ -45,7 +45,7 @@ describe("formatShoppingList", () => {
       ]
     );
     expect(text).toBe(
-      "Trader Joe's\n☐ Apples\n\nOther\n☐ Paper Towels"
+      "## Trader Joe's\n- [ ] Apples\n\n## Other\n- [ ] Paper Towels"
     );
   });
 

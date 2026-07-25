@@ -9,8 +9,10 @@ import {
   Modal,
   Share,
   Alert,
+  Platform,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import { File, Paths } from "expo-file-system";
 import { useLocalSearchParams, useNavigation, useFocusEffect } from "expo-router";
 import { SortableList } from "../../components/SortableList";
 import { IngredientAutocomplete } from "../../components/IngredientAutocomplete";
@@ -261,6 +263,19 @@ export default function ShoppingListScreen() {
     const message = exportText();
     if (!message) return;
     try {
+      // Share a .md file so Apple Notes can Import Markdown → interactive checklists.
+      // Plain ☐/☑ (and even pasted Markdown on older iOS) stay as dead text in Notes.
+      if (Platform.OS === "ios" || Platform.OS === "android") {
+        const file = new File(Paths.cache, "Shopping List.md");
+        file.create({ overwrite: true });
+        file.write(message);
+        await Share.share(
+          Platform.OS === "ios"
+            ? { url: file.uri }
+            : { message, url: file.uri, title: "Shopping List.md" }
+        );
+        return;
+      }
       await Share.share({ message });
     } catch (err) {
       showError("Couldn't share the list", err);
@@ -272,7 +287,7 @@ export default function ShoppingListScreen() {
     if (!message) return;
     try {
       await Clipboard.setStringAsync(message);
-      Alert.alert("Copied", "Shopping list copied to clipboard.");
+      Alert.alert("Copied", "Markdown checklist copied to clipboard.");
     } catch (err) {
       showError("Couldn't copy the list", err);
     }
