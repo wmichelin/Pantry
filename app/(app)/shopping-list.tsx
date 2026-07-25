@@ -19,6 +19,7 @@ import { IngredientAutocomplete } from "../../components/IngredientAutocomplete"
 import { supabase } from "../../lib/supabase";
 import { showError, throwOnError } from "../../lib/db";
 import { formatShoppingList } from "../../lib/format-shopping-list";
+import { formatQuantity } from "../../lib/format-quantity";
 import {
   ensureCatalogIngredient,
   listCatalogIngredients,
@@ -49,7 +50,7 @@ type ConsolidatedItem = {
 
 const formatQty = (quantity: number | null, unit: string | null): string => {
   const parts: string[] = [];
-  if (quantity) parts.push(String(quantity));
+  if (quantity) parts.push(formatQuantity(quantity));
   if (unit) parts.push(unit);
   return parts.join(" ");
 };

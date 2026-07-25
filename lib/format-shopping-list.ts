@@ -1,3 +1,5 @@
+import { formatQuantity } from "./format-quantity";
+
 export type ShoppingListExportItem = {
   normalizedName: string;
   checked: boolean;
@@ -13,7 +15,7 @@ export type ShoppingListExportStore = {
 
 const formatQty = (quantity: number | null, unit: string | null): string => {
   const parts: string[] = [];
-  if (quantity) parts.push(String(quantity));
+  if (quantity) parts.push(formatQuantity(quantity));
   if (unit) parts.push(unit);
   return parts.join(" ");
 };
