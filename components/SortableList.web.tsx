@@ -44,19 +44,16 @@ type RowProps<T> = {
 
 function SortableRow<T>({ item, index, id, renderItem }: RowProps<T>) {
   const rowRef = useRef<HTMLDivElement | null>(null);
-  const handleRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
 
   useEffect(() => {
     const element = rowRef.current;
-    const dragHandle = handleRef.current;
-    if (!element || !dragHandle) return;
+    if (!element) return;
 
     return combine(
       draggable({
         element,
-        dragHandle,
         getInitialData: (): ItemData => ({ type: ITEM_TYPE, index, id }),
         onDragStart: () => setDragging(true),
         onDrop: () => setDragging(false),
@@ -82,28 +79,14 @@ function SortableRow<T>({ item, index, id, renderItem }: RowProps<T>) {
       ref={rowRef}
       style={{
         position: "relative",
-        display: "flex",
-        alignItems: "flex-start",
         opacity: dragging ? 0.4 : 1,
         boxSizing: "border-box",
+        cursor: "grab",
+        userSelect: "none",
+        WebkitUserSelect: "none",
       }}
     >
-      <div
-        ref={handleRef}
-        style={{
-          paddingRight: 10,
-          paddingTop: 2,
-          cursor: "grab",
-          userSelect: "none",
-          WebkitUserSelect: "none",
-          touchAction: "none",
-          lineHeight: 1,
-        }}
-        aria-label="Drag to reorder"
-      >
-        <span style={{ fontSize: 20, color: "#bbb" }}>≡</span>
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>{renderItem(item, undefined, dragging)}</div>
+      {renderItem(item, undefined, dragging)}
       {closestEdge ? (
         <div
           style={{

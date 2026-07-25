@@ -583,12 +583,10 @@ export default function ShoppingListScreen() {
     const canRemove = editMode && item.isManual && !fromRecipe;
 
     return (
-      <View style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}>
-        {editMode && drag && (
-          <Pressable onPressIn={drag} style={styles.dragHandle}>
-            <Text style={styles.dragHandleIcon}>≡</Text>
-          </Pressable>
-        )}
+      <Pressable
+        onPressIn={drag}
+        style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}
+      >
         <Pressable style={styles.checkbox} onPress={() => !editMode && toggleCheck(item)}>
           <Text style={[styles.checkboxIcon, item.checked && styles.checkboxIconChecked]}>
             {item.checked ? "●" : "○"}
@@ -619,7 +617,7 @@ export default function ShoppingListScreen() {
             <Text style={styles.storeBadgeText}>{storeLabel ?? "+"}</Text>
           </Pressable>
         )}
-      </View>
+      </Pressable>
     );
   };
 
@@ -971,16 +969,6 @@ const styles = StyleSheet.create({
   },
   itemRowChecked: { opacity: 0.45 },
   itemRowActive: { backgroundColor: "#f0f7ff", elevation: 4 },
-
-  dragHandle: {
-    paddingRight: 10,
-    paddingTop: 2,
-    justifyContent: "center",
-  },
-  dragHandleIcon: {
-    fontSize: 20,
-    color: "#bbb",
-  },
 
   checkbox: { paddingRight: 10, paddingTop: 2 },
   checkboxIcon: { fontSize: 18, color: "#ccc" },
