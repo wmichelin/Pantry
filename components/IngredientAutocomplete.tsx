@@ -15,7 +15,7 @@ import {
   type TextInputSubmitEditingEventData,
 } from "react-native";
 import type { CatalogIngredient } from "../lib/ingredient-catalog";
-import { normalizeIngredient } from "../lib/normalize-ingredient";
+import { searchableIngredient } from "../lib/normalize-ingredient";
 
 type Props = {
   value: string;
@@ -58,15 +58,15 @@ export function IngredientAutocomplete({
   }, []);
 
   const suggestions = useMemo(() => {
-    const q = normalizeIngredient(value);
+    const q = searchableIngredient(value);
     if (!q || q.length < 1) return [];
     const exclude = new Set(excludeNormalized ?? []);
     return catalog
       .filter((c) => {
         if (exclude.has(c.normalized_name)) return false;
         return (
-          c.normalized_name.includes(q) ||
-          c.display_name.toLowerCase().includes(q)
+          searchableIngredient(c.normalized_name).includes(q) ||
+          searchableIngredient(c.display_name).includes(q)
         );
       })
       .slice(0, MAX_SUGGESTIONS);
