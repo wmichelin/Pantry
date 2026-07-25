@@ -394,6 +394,7 @@ export default function ShoppingListScreen() {
 
     // Clear immediately so select → add feels like one action, not fill-then-clear.
     setNewItemText("");
+    addInputRef.current?.focus();
     setAddingItem(true);
     try {
       const catalogRow = await ensureCatalogIngredient(householdId, rawName);
