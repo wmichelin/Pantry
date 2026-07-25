@@ -33,14 +33,11 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Store = { id: string; name: string; sort_order: number };
-
 type ConsolidatedItem = {
   normalizedName: string;
   displayName: string;
   metadataId: string;
   sortOrder: number;
-  storeIds: string[];
   occurrences: { recipeTitle: string; quantity: number | null; unit: string | null }[];
   checked: boolean;
   isManual: boolean;
@@ -63,13 +60,9 @@ export default function ShoppingListScreen() {
   const navigation = useNavigation();
 
   const [items, setItems] = useState<ConsolidatedItem[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
   const [catalog, setCatalog] = useState<CatalogIngredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
-  const [assigningItem, setAssigningItem] = useState<ConsolidatedItem | null>(null);
-  const [pendingStoreIds, setPendingStoreIds] = useState<string[]>([]);
-  const [savingAssignment, setSavingAssignment] = useState(false);
   const [newItemText, setNewItemText] = useState("");
   const [addingItem, setAddingItem] = useState(false);
   const addInputRef = useRef<TextInput>(null);
@@ -81,16 +74,11 @@ export default function ShoppingListScreen() {
     if (!householdId) return;
 
     try {
-      const [queueRes, storesRes, checksRes, manualRes, catalogList] = await Promise.all([
+      const [queueRes, checksRes, manualRes, catalogList] = await Promise.all([
         supabase
           .from("week_queues")
           .select("recipe_id, recipes(id, title)")
           .eq("household_id", householdId),
-        supabase
-          .from("stores")
-          .select("id, name, sort_order")
-          .eq("household_id", householdId)
-          .order("sort_order"),
         supabase
           .from("shopping_list_checks")
           .select("normalized_name")
@@ -103,11 +91,9 @@ export default function ShoppingListScreen() {
       ]);
 
       if (queueRes.error) throw queueRes.error;
-      if (storesRes.error) throw storesRes.error;
       if (checksRes.error) throw checksRes.error;
       if (manualRes.error) throw manualRes.error;
 
-      setStores(storesRes.data ?? []);
       setCatalog(catalogList);
       const checkedNames = new Set((checksRes.data ?? []).map((c) => c.normalized_name));
       const queueData = queueRes.data ?? [];
@@ -118,7 +104,7 @@ export default function ShoppingListScreen() {
         queueData.map((q: any) => [q.recipe_id, (q.recipes as any)?.title ?? "Unknown"])
       );
 
-      const [ingredientsRes, metaRes, availRes] = await Promise.all([
+      const [ingredientsRes, metaRes] = await Promise.all([
         recipeIds.length > 0
           ? supabase
               .from("recipe_ingredients")
@@ -129,24 +115,14 @@ export default function ShoppingListScreen() {
           .from("ingredient_metadata")
           .select("id, normalized_name, display_name, sort_order")
           .eq("household_id", householdId),
-        supabase
-          .from("ingredient_store_availability")
-          .select("ingredient_metadata_id, store_id"),
       ]);
 
       if (ingredientsRes.error) throw ingredientsRes.error;
       if (metaRes.error) throw metaRes.error;
-      if (availRes.error) throw availRes.error;
 
       const metaByName = new Map(
         (metaRes.data ?? []).map((m) => [m.normalized_name, m])
       );
-      const availByMetaId = new Map<string, string[]>();
-      for (const a of availRes.data ?? []) {
-        const list = availByMetaId.get(a.ingredient_metadata_id) ?? [];
-        list.push(a.store_id);
-        availByMetaId.set(a.ingredient_metadata_id, list);
-      }
 
       const grouped = new Map<string, ConsolidatedItem>();
 
@@ -168,7 +144,6 @@ export default function ShoppingListScreen() {
             displayName: meta?.display_name ?? titleCaseIngredient(key),
             metadataId: meta?.id ?? "",
             sortOrder: meta?.sort_order ?? Infinity,
-            storeIds: meta ? (availByMetaId.get(meta.id) ?? []) : [],
             occurrences: [{
               recipeTitle: recipeTitle.get(ing.recipe_id) ?? "Unknown",
               quantity: ing.quantity,
@@ -194,7 +169,6 @@ export default function ShoppingListScreen() {
             displayName: meta?.display_name ?? titleCaseIngredient(key),
             metadataId: meta?.id ?? "",
             sortOrder: meta?.sort_order ?? Infinity,
-            storeIds: meta ? (availByMetaId.get(meta.id) ?? []) : [],
             occurrences: hasQty
               ? [{
                   recipeTitle: "Added",
@@ -256,12 +230,11 @@ export default function ShoppingListScreen() {
         items.map((i) => ({
           normalizedName: i.displayName,
           checked: i.checked,
-          storeIds: i.storeIds,
+          storeIds: [],
           occurrences: i.occurrences,
-        })),
-        stores
+        }))
       ),
-    [items, stores]
+    [items]
   );
 
   const shareList = useCallback(async () => {
@@ -439,7 +412,6 @@ export default function ShoppingListScreen() {
               sortOrder: editMode
                 ? (prev[prev.length - 1]?.sortOrder ?? 0) + 10
                 : catalogRow.sort_order,
-              storeIds: [] as string[],
               occurrences: [],
               checked: false,
               isManual: true,
@@ -508,50 +480,6 @@ export default function ShoppingListScreen() {
     setItems((prev) => prev.map((item, i) => ({ ...item, sortOrder: (i + 1) * 10 })));
   };
 
-  // ── Store assignment ─────────────────────────────────────────────────────────
-  const openAssign = (item: ConsolidatedItem) => {
-    setAssigningItem(item);
-    setPendingStoreIds([...item.storeIds]);
-  };
-
-  const saveAssignment = async () => {
-    if (!assigningItem) return;
-    setSavingAssignment(true);
-    try {
-      throwOnError(
-        await supabase
-          .from("ingredient_store_availability")
-          .delete()
-          .eq("ingredient_metadata_id", assigningItem.metadataId)
-      );
-      if (pendingStoreIds.length > 0) {
-        throwOnError(
-          await supabase.from("ingredient_store_availability").insert(
-            pendingStoreIds.map((storeId) => ({
-              ingredient_metadata_id: assigningItem.metadataId,
-              store_id: storeId,
-            }))
-          )
-        );
-      }
-      // Only update the UI once both writes have succeeded.
-      setItems((prev) =>
-        prev.map((i) =>
-          i.normalizedName === assigningItem.normalizedName
-            ? { ...i, storeIds: pendingStoreIds }
-            : i
-        )
-      );
-      setAssigningItem(null);
-    } catch (err) {
-      // A failed insert after the delete can desync; reload to resync from the DB.
-      showError("Couldn't save stores", err);
-      loadList();
-    } finally {
-      setSavingAssignment(false);
-    }
-  };
-
   // ── Render helpers ──────────────────────────────────────────────────────────
   const renderAddRow = () => (
     <View style={[styles.addRow, { zIndex: 10 }]}>
@@ -593,15 +521,6 @@ export default function ShoppingListScreen() {
     drag?: () => void,
     isActive?: boolean
   ) => {
-    const storeLabel =
-      item.storeIds.length === 0
-        ? null
-        : item.storeIds
-            .map((sid) => stores.find((s) => s.id === sid)?.name ?? "")
-            .filter(Boolean)
-            .map((n) => n.slice(0, 3).toUpperCase())
-            .join(" · ");
-
     const fromRecipe = item.occurrences.some((o) => o.recipeTitle !== "Added");
     const canRemove = editMode && item.isManual && !fromRecipe;
 
@@ -635,35 +554,13 @@ export default function ShoppingListScreen() {
             <Text style={styles.removeButtonText}>✕</Text>
           </Pressable>
         )}
-        {!editMode && stores.length > 0 && (
-          <Pressable style={styles.storeBadge} onPress={() => openAssign(item)}>
-            <Text style={styles.storeBadgeText}>{storeLabel ?? "+"}</Text>
-          </Pressable>
-        )}
       </Pressable>
     );
   };
 
-  // ── Build sections ──────────────────────────────────────────────────────────
+  // ── Build list ──────────────────────────────────────────────────────────────
   const unchecked = items.filter((i) => !i.checked);
   const checked = items.filter((i) => i.checked);
-
-  const renderSection = (sectionItems: ConsolidatedItem[], checkedItems: ConsolidatedItem[], label: string) => {
-    if (sectionItems.length === 0 && checkedItems.length === 0) return null;
-    return (
-      <View key={label}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionLabel}>{label}</Text>
-        </View>
-        {sectionItems.map((item) => (
-          <View key={item.normalizedName}>{renderItemRow(item)}</View>
-        ))}
-        {checkedItems.map((item) => (
-          <View key={item.normalizedName}>{renderItemRow(item)}</View>
-        ))}
-      </View>
-    );
-  };
 
   // ── Loading / empty ─────────────────────────────────────────────────────────
   if (loading) {
@@ -700,8 +597,7 @@ export default function ShoppingListScreen() {
       <Text style={styles.emptyText}>
         No items yet. Add something below, or queue recipes from the week queue.
       </Text>
-    ) : stores.length === 0 ? (
-      // Flat list (no stores configured)
+    ) : (
       <>
         {unchecked.map((item) => (
           <View key={item.normalizedName}>{renderItemRow(item)}</View>
@@ -715,20 +611,6 @@ export default function ShoppingListScreen() {
               <View key={item.normalizedName}>{renderItemRow(item)}</View>
             ))}
           </>
-        )}
-      </>
-    ) : (
-      // Store sections
-      <>
-        {stores.map((store) => {
-          const storeUnchecked = unchecked.filter((i) => i.storeIds.includes(store.id));
-          const storeChecked = checked.filter((i) => i.storeIds.includes(store.id));
-          return renderSection(storeUnchecked, storeChecked, store.name);
-        })}
-        {renderSection(
-          unchecked.filter((i) => i.storeIds.length === 0),
-          checked.filter((i) => i.storeIds.length === 0),
-          "Other"
         )}
       </>
     );
@@ -802,64 +684,6 @@ export default function ShoppingListScreen() {
             </View>
           </Pressable>
         </Pressable>
-      </Modal>
-
-      {/* Store assignment modal */}
-      <Modal
-        visible={assigningItem !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setAssigningItem(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>
-              {assigningItem?.displayName ?? ""}
-            </Text>
-            <Text style={styles.modalSubtitle}>Where can you get this?</Text>
-            {stores.map((store) => {
-              const selected = pendingStoreIds.includes(store.id);
-              return (
-                <Pressable
-                  key={store.id}
-                  style={styles.storeOption}
-                  onPress={() =>
-                    setPendingStoreIds((prev) =>
-                      selected ? prev.filter((id) => id !== store.id) : [...prev, store.id]
-                    )
-                  }
-                >
-                  <Text style={styles.storeOptionCheck}>{selected ? "☑" : "☐"}</Text>
-                  <Text style={styles.storeOptionName}>{store.name}</Text>
-                </Pressable>
-              );
-            })}
-            <View style={styles.modalDivider} />
-            <Pressable
-              style={styles.storeOption}
-              onPress={() => setPendingStoreIds([])}
-            >
-              <Text style={styles.storeOptionCheck}>{pendingStoreIds.length === 0 ? "☑" : "☐"}</Text>
-              <Text style={styles.storeOptionName}>Any Store</Text>
-            </Pressable>
-            <View style={styles.modalActions}>
-              <Pressable
-                style={[styles.modalSave, savingAssignment && styles.buttonDisabled]}
-                onPress={saveAssignment}
-                disabled={savingAssignment}
-              >
-                {savingAssignment ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.modalSaveText}>Save</Text>
-                )}
-              </Pressable>
-              <Pressable style={styles.modalCancel} onPress={() => setAssigningItem(null)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
       </Modal>
     </>
   );
@@ -1016,23 +840,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  storeBadge: {
-    marginLeft: 8,
-    marginTop: 2,
-    backgroundColor: "#f0f7ff",
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    minWidth: 28,
-    alignItems: "center",
-  },
-  storeBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#2f95dc",
-    letterSpacing: 0.3,
-  },
-
   editBanner: {
     backgroundColor: "#f0f7ff",
     paddingVertical: 10,
@@ -1046,54 +853,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: "#888",
-    marginBottom: 16,
-  },
-  storeOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    gap: 12,
-  },
-  storeOptionCheck: { fontSize: 20, color: "#2f95dc" },
-  storeOptionName: { fontSize: 16 },
-  modalDivider: {
-    height: 1,
-    backgroundColor: "#eee",
-    marginVertical: 4,
-  },
-  modalActions: {
-    marginTop: 20,
-    gap: 12,
-  },
-  modalSave: {
-    backgroundColor: "#2f95dc",
-    borderRadius: 8,
-    padding: 14,
-    alignItems: "center",
-  },
   buttonDisabled: { opacity: 0.6 },
-  modalSaveText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  modalCancel: { alignItems: "center", paddingVertical: 8 },
-  modalCancelText: { color: "#999", fontSize: 14 },
 });
