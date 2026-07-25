@@ -17,6 +17,11 @@ import TagEditor from "../../components/TagEditor";
 
 type Recipe = { id: string; title: string; tags: string[] | null };
 type Household = { id: string; name: string };
+type QueueEntry = {
+  id: string;
+  recipe_id: string;
+  recipes: { id: string; title: string };
+};
 
 export default function HouseholdScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,14 +30,20 @@ export default function HouseholdScreen() {
   const [household, setHousehold] = useState<Household | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
-  const [collapsedTags, setCollapsedTags] = useState<Set<string>>(new Set());
+  const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set());
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [editingTags, setEditingTags] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Recipe[]>([]);
   const [searching, setSearching] = useState(false);
-  const [queuedIds, setQueuedIds] = useState<Set<string>>(new Set());
+  const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
+
+  const queuedIds = useMemo(
+    () => new Set(queueEntries.map((e) => e.recipe_id)),
+    [queueEntries]
+  );
+  const queueCount = queueEntries.length;
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -40,12 +51,18 @@ export default function HouseholdScreen() {
       const [hRes, rRes, qRes] = await Promise.all([
         supabase.from("households").select("id, name").eq("id", id).single(),
         supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
-        supabase.from("week_queues").select("recipe_id").eq("household_id", id),
+        supabase
+          .from("week_queues")
+          .select("id, recipe_id, recipes(id, title)")
+          .eq("household_id", id)
+          .order("created_at", { ascending: true }),
       ]);
       if (hRes.error) throw hRes.error;
+      if (qRes.error) throw qRes.error;
       setHousehold(hRes.data);
       if (rRes.data) setRecipes(rRes.data);
-      if (qRes.data) setQueuedIds(new Set(qRes.data.map((q) => q.recipe_id)));
+      // recipe_id -> recipes is to-one; runtime is a single object despite inference.
+      setQueueEntries((qRes.data as unknown as QueueEntry[]) ?? []);
     } catch (err) {
       showError("Couldn't load household", err);
     } finally {
@@ -84,11 +101,18 @@ export default function HouseholdScreen() {
   const handleQueueToggle = async (recipe: Recipe) => {
     const wasQueued = queuedIds.has(recipe.id);
     // Optimistic update, reverted below if the write fails.
-    setQueuedIds((prev) => {
-      const next = new Set(prev);
-      wasQueued ? next.delete(recipe.id) : next.add(recipe.id);
-      return next;
-    });
+    if (wasQueued) {
+      setQueueEntries((prev) => prev.filter((e) => e.recipe_id !== recipe.id));
+    } else {
+      setQueueEntries((prev) => [
+        ...prev,
+        {
+          id: `temp-${recipe.id}`,
+          recipe_id: recipe.id,
+          recipes: { id: recipe.id, title: recipe.title },
+        },
+      ]);
+    }
     const { error } = wasQueued
       ? await supabase.from("week_queues").delete().eq("household_id", id).eq("recipe_id", recipe.id)
       : await supabase.from("week_queues").insert({
@@ -97,13 +121,23 @@ export default function HouseholdScreen() {
           added_by: user!.id,
         });
     if (error) {
-      setQueuedIds((prev) => {
-        const next = new Set(prev);
-        wasQueued ? next.add(recipe.id) : next.delete(recipe.id);
-        return next;
-      });
+      if (wasQueued) {
+        setQueueEntries((prev) => [
+          ...prev,
+          {
+            id: `temp-${recipe.id}`,
+            recipe_id: recipe.id,
+            recipes: { id: recipe.id, title: recipe.title },
+          },
+        ]);
+      } else {
+        setQueueEntries((prev) => prev.filter((e) => e.recipe_id !== recipe.id));
+      }
       showError("Couldn't update the queue", error);
+      return;
     }
+    // Refresh so new rows get real queue ids and stable order.
+    if (!wasQueued) loadData();
   };
 
   useEffect(() => {
@@ -152,22 +186,12 @@ export default function HouseholdScreen() {
   }, [recipes]);
 
   const toggleTag = (tag: string) => {
-    setCollapsedTags((prev) => {
+    setExpandedTags((prev) => {
       const next = new Set(prev);
       next.has(tag) ? next.delete(tag) : next.add(tag);
       return next;
     });
   };
-
-  // Week queue card helpers
-  const queuedRecipes = recipes.filter((r) => queuedIds.has(r.id));
-  const queueCount = queuedRecipes.length;
-  const queuePreview = (() => {
-    if (queueCount === 0) return "No meals planned yet";
-    const shown = queuedRecipes.slice(0, 3).map((r) => r.title);
-    const overflow = queueCount - shown.length;
-    return overflow > 0 ? `${shown.join(" · ")} +${overflow}` : shown.join(" · ");
-  })();
 
   if (loading) {
     return (
@@ -190,43 +214,77 @@ export default function HouseholdScreen() {
         </Pressable>
       </View>
 
-      {/* Week queue card */}
-      <Pressable
-        style={styles.queueCard}
-        onPress={() => router.push({ pathname: "/(app)/week-queue", params: { householdId: id } })}
-      >
-        <View style={styles.queueCardInner}>
-          <View style={styles.queueCardHeader}>
-            <Text style={styles.queueCardTitle}>This Week</Text>
-            <Text style={styles.queueCardCount}>
-              {queueCount > 0 ? `${queueCount} queued` : "Plan meals"} ›
+      {/* This Week hero */}
+      <View style={styles.weekSection}>
+        <View style={styles.weekHeader}>
+          <View style={styles.weekHeaderLeft}>
+            <Text style={styles.weekTitle}>This Week</Text>
+            <Text style={styles.weekCount}>
+              {queueCount > 0 ? `${queueCount} meal${queueCount === 1 ? "" : "s"}` : "No meals"}
             </Text>
           </View>
-          <Text style={styles.queueCardPreview} numberOfLines={1}>{queuePreview}</Text>
-          <View style={styles.queueCardDivider} />
           <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              router.push({ pathname: "/(app)/shopping-list", params: { householdId: id } });
-            }}
+            onPress={() =>
+              router.push({ pathname: "/(app)/week-queue", params: { householdId: id } })
+            }
           >
-            <Text style={styles.queueCardShoppingList}>Shopping List →</Text>
+            <Text style={styles.manageLink}>Manage →</Text>
           </Pressable>
         </View>
-      </Pressable>
 
-      <Pressable
-        style={styles.ingredientsLink}
-        onPress={() =>
-          router.push({ pathname: "/(app)/ingredients", params: { householdId: id } })
-        }
-      >
-        <Text style={styles.ingredientsLinkText}>Ingredients catalog →</Text>
-      </Pressable>
+        {queueCount === 0 ? (
+          <Text style={styles.weekEmpty}>No meals planned — add recipes below</Text>
+        ) : (
+          queueEntries.map((entry) => {
+            const recipe: Recipe = {
+              id: entry.recipe_id,
+              title: entry.recipes.title,
+              tags: null,
+            };
+            return (
+              <View key={entry.id} style={styles.weekRow}>
+                <Pressable
+                  style={styles.weekRowTitleArea}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(app)/recipe/[id]",
+                      params: { id: entry.recipe_id },
+                    })
+                  }
+                >
+                  <Text style={styles.weekRowTitle}>{entry.recipes.title}</Text>
+                </Pressable>
+                <Pressable style={styles.queueToggle} onPress={() => handleQueueToggle(recipe)}>
+                  <Text style={[styles.queueDot, styles.queueDotActive]}>●</Text>
+                </Pressable>
+              </View>
+            );
+          })
+        )}
 
-      {/* Recipes header */}
+        <Pressable
+          style={[styles.shoppingButton, queueCount === 0 && styles.shoppingButtonMuted]}
+          onPress={() =>
+            router.push({ pathname: "/(app)/shopping-list", params: { householdId: id } })
+          }
+        >
+          <Text
+            style={[
+              styles.shoppingButtonText,
+              queueCount === 0 && styles.shoppingButtonTextMuted,
+            ]}
+          >
+            Shopping List
+          </Text>
+        </Pressable>
+        {queueCount === 0 && (
+          <Text style={styles.shoppingHint}>Add meals to build a list</Text>
+        )}
+      </View>
+
+      {/* Add recipes */}
       <View style={styles.recipesHeader}>
-        <Text style={styles.sectionTitle}>Recipes ({recipes.length})</Text>
+        <Text style={styles.sectionTitle}>Add recipes ({recipes.length})</Text>
         <View style={styles.recipeActions}>
           <Pressable
             style={[styles.actionButton, styles.importButton]}
@@ -284,14 +342,14 @@ export default function HouseholdScreen() {
         <Text style={styles.emptyText}>No recipes yet. Add your first one!</Text>
       ) : (
         taggedSections.map(({ tag, recipes: sectionRecipes }) => {
-          const collapsed = collapsedTags.has(tag);
+          const expanded = expandedTags.has(tag);
           return (
             <View key={tag}>
               <Pressable style={styles.tagHeader} onPress={() => toggleTag(tag)}>
                 <Text style={styles.tagHeaderText}>{tag} ({sectionRecipes.length})</Text>
-                <Text style={styles.tagChevron}>{collapsed ? "›" : "⌄"}</Text>
+                <Text style={styles.tagChevron}>{expanded ? "⌄" : "›"}</Text>
               </Pressable>
-              {!collapsed && sectionRecipes.map((item) => (
+              {expanded && sectionRecipes.map((item) => (
                 <View key={item.id} style={styles.recipeRow}>
                   <Pressable
                     style={styles.recipeTitleArea}
@@ -332,6 +390,15 @@ export default function HouseholdScreen() {
           );
         })
       )}
+
+      <Pressable
+        style={styles.ingredientsLink}
+        onPress={() =>
+          router.push({ pathname: "/(app)/ingredients", params: { householdId: id } })
+        }
+      >
+        <Text style={styles.ingredientsLinkText}>Ingredients catalog →</Text>
+      </Pressable>
 
       <Modal
         visible={editingRecipe !== null}
@@ -397,61 +464,94 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
   },
 
-  // Week queue card
-  queueCard: {
+  weekSection: {
     borderRadius: 10,
     backgroundColor: "#f6fff8",
     borderWidth: 1,
     borderColor: "#b8edc6",
     borderLeftWidth: 4,
     borderLeftColor: "#34c759",
-    marginBottom: 24,
-    overflow: "hidden",
-  },
-  queueCardInner: {
+    marginBottom: 28,
     padding: 14,
   },
-  queueCardHeader: {
+  weekHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 10,
   },
-  queueCardTitle: {
+  weekHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+    flex: 1,
+  },
+  weekTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#1a7a35",
   },
-  queueCardCount: {
+  weekCount: {
     fontSize: 13,
     color: "#34c759",
     fontWeight: "600",
   },
-  queueCardPreview: {
-    fontSize: 13,
-    color: "#555",
-    marginBottom: 10,
-  },
-  queueCardDivider: {
-    height: 1,
-    backgroundColor: "#d4f0dd",
-    marginBottom: 10,
-  },
-  queueCardShoppingList: {
+  manageLink: {
     fontSize: 13,
     color: "#34c759",
     fontWeight: "600",
+    paddingLeft: 12,
+  },
+  weekEmpty: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  weekRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#d4f0dd",
+  },
+  weekRowTitleArea: { flex: 1 },
+  weekRowTitle: { fontSize: 15, color: "#222" },
+
+  shoppingButton: {
+    marginTop: 14,
+    backgroundColor: "#34c759",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  shoppingButtonMuted: {
+    backgroundColor: "#e8f5ec",
+  },
+  shoppingButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  shoppingButtonTextMuted: {
+    color: "#7aab88",
+  },
+  shoppingHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#7aab88",
+    textAlign: "center",
   },
 
   ingredientsLink: {
-    marginBottom: 24,
-    marginTop: -12,
+    marginTop: 28,
     paddingVertical: 8,
+    alignItems: "center",
   },
   ingredientsLinkText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#2f95dc",
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#999",
   },
 
   sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },
