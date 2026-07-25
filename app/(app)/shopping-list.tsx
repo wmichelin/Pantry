@@ -384,14 +384,15 @@ export default function ShoppingListScreen() {
   };
 
   // ── Add manual item ─────────────────────────────────────────────────────────
-  const addManualItem = async () => {
-    const key = normalizeIngredient(newItemText);
+  const addManualItem = async (nameOverride?: string) => {
+    const rawName = (nameOverride ?? newItemText).trim();
+    const key = normalizeIngredient(rawName);
     if (!key || !householdId || addingItem) return;
     if (key.endsWith(":")) return;
 
     setAddingItem(true);
     try {
-      const catalogRow = await ensureCatalogIngredient(householdId, newItemText);
+      const catalogRow = await ensureCatalogIngredient(householdId, rawName);
       if (!catalogRow) return;
 
       const { data: manualRow, error: manualError } = await supabase
@@ -551,14 +552,20 @@ export default function ShoppingListScreen() {
         value={newItemText}
         onChangeText={setNewItemText}
         catalog={catalog}
-        onSelect={(item) => setNewItemText(item.display_name)}
-        onSubmitEditing={addManualItem}
+        onSelect={(item) => {
+          void addManualItem(item.display_name);
+        }}
+        onSubmitEditing={() => {
+          void addManualItem();
+        }}
         returnKeyType="done"
         editable={!addingItem}
       />
       <Pressable
         style={[styles.addButton, (!newItemText.trim() || addingItem) && styles.buttonDisabled]}
-        onPress={addManualItem}
+        onPress={() => {
+          void addManualItem();
+        }}
         disabled={!newItemText.trim() || addingItem}
       >
         {addingItem ? (
