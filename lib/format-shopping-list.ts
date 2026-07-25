@@ -21,8 +21,9 @@ const formatQty = (quantity: number | null, unit: string | null): string => {
 const displayName = (name: string) =>
   name.replace(/\b\w/g, (c) => c.toUpperCase());
 
+/** Markdown task-list line — Apple Notes converts these to interactive checklists on .md import (and on paste in newer iOS). */
 const formatLine = (item: ShoppingListExportItem): string => {
-  const mark = item.checked ? "☑" : "☐";
+  const mark = item.checked ? "- [x]" : "- [ ]";
   const name = displayName(item.normalizedName);
   const first = item.occurrences[0];
   const qty = first ? formatQty(first.quantity, first.unit) : "";
@@ -36,13 +37,13 @@ const formatSection = (
 ): string[] => {
   if (unchecked.length === 0 && checked.length === 0) return [];
   const lines: string[] = [];
-  if (label) lines.push(label);
+  if (label) lines.push(`## ${label}`);
   for (const item of unchecked) lines.push(formatLine(item));
   for (const item of checked) lines.push(formatLine(item));
   return lines;
 };
 
-/** Format a shopping list as checkable bullet text for Share / Copy. */
+/** Format a shopping list as Markdown task lists for Share / Copy (Apple Notes, Messages, etc.). */
 export function formatShoppingList(
   items: ShoppingListExportItem[],
   stores: ShoppingListExportStore[]
