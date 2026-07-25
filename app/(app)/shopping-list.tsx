@@ -584,7 +584,7 @@ export default function ShoppingListScreen() {
 
     return (
       <View style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}>
-        {editMode && (
+        {editMode && drag && (
           <Pressable onPressIn={drag} style={styles.dragHandle}>
             <Text style={styles.dragHandleIcon}>≡</Text>
           </Pressable>
