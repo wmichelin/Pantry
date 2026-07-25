@@ -46,6 +46,8 @@ jobs:
       - name: Deploy on droplet
         uses: appleboy/ssh-action@v1.2.0
         env:
+          IMAGE: ghcr.io/wmichelin/pantry:latest
+          DOMAIN: pantry.waltermichelin.com
           GHCR_USER: ${{ github.repository_owner }}
           GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
         with:
@@ -56,41 +58,17 @@ jobs:
           script_stop: true
           script: |
             set -e
-            DOMAIN="${DOMAIN:-pantry.waltermichelin.com}"
-            IMAGE="${IMAGE:-ghcr.io/wmichelin/pantry:latest}"
-            # Install Docker if missing
+            echo "Deploying ${IMAGE} for ${DOMAIN}"
             if ! command -v docker >/dev/null 2>&1; then
               apt-get update -y && apt-get install -y docker.io
               systemctl enable docker && systemctl start docker
             fi
-            # Install nginx + certbot if missing
-            if ! command -v nginx >/dev/null 2>&1; then
-              apt-get update -y && apt-get install -y nginx certbot python3-certbot-nginx
-            fi
-            # Pull and run the app container on 8080
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             docker pull "$IMAGE"
-            docker rm -f pantry 2>/dev/null || true
+            docker rm -f pantry >/dev/null 2>&1 || true
             docker run -d --name pantry --restart always -p 8080:80 "$IMAGE"
-            docker image prune -f || true
-            # Nginx + TLS: first deploy writes HTTP then runs certbot; afterwards just reload.
-            if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-              cat > /etc/nginx/sites-available/$DOMAIN <<NGINXCONF
-            server {
-                listen 80;
-                server_name $DOMAIN;
-                location / {
-                    proxy_pass http://localhost:8080;
-                    proxy_set_header Host \$host;
-                    proxy_set_header X-Real-IP \$remote_addr;
-                }
-            }
-            NGINXCONF
-              ln -sf /etc/nginx/sites-available/$DOMAIN /etc/nginx/sites-enabled/$DOMAIN
-              rm -f /etc/nginx/sites-enabled/default
-              nginx -t && systemctl reload nginx
-              certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m wmichelin@gmail.com --redirect
-            else
-              nginx -t && systemctl reload nginx || true
+            docker ps --filter name=pantry --format "{{.Names}} {{.Status}} {{.Image}}"
+            if command -v nginx >/dev/null 2>&1; then
+              nginx -t
+              systemctl reload nginx
             fi
-            docker ps --filter name=pantry --format 'pantry {{.Status}} {{.Image}}'
