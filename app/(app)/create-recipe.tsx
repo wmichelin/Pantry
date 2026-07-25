@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
@@ -132,6 +133,18 @@ export default function CreateRecipeScreen() {
         value={title}
         onChangeText={setTitle}
         autoFocus
+        autoCorrect
+        autoComplete="off"
+        textContentType="none"
+        importantForAutofill="no"
+        // Safari ignores autocomplete=off for cardholder-name heuristics; a
+        // non-standard token plus an explicit name keeps CC autofill away.
+        {...(Platform.OS === "web"
+          ? ({
+              autoComplete: "nope",
+              name: "pantry-recipe-title",
+            } as object)
+          : null)}
       />
 
       <Text style={[styles.label, { marginTop: 24 }]}>Ingredients</Text>
