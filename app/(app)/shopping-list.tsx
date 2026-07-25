@@ -7,11 +7,25 @@ import {
   ActivityIndicator,
   Pressable,
   Modal,
+  Share,
+  Alert,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useNavigation, useFocusEffect } from "expo-router";
 import { SortableList } from "../../components/SortableList";
+import { IngredientAutocomplete } from "../../components/IngredientAutocomplete";
 import { supabase } from "../../lib/supabase";
 import { showError, throwOnError } from "../../lib/db";
+import { formatShoppingList } from "../../lib/format-shopping-list";
+import {
+  ensureCatalogIngredient,
+  listCatalogIngredients,
+  type CatalogIngredient,
+} from "../../lib/ingredient-catalog";
+import {
+  normalizeIngredient,
+  titleCaseIngredient,
+} from "../../lib/normalize-ingredient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,16 +33,17 @@ type Store = { id: string; name: string; sort_order: number };
 
 type ConsolidatedItem = {
   normalizedName: string;
+  displayName: string;
   metadataId: string;
   sortOrder: number;
   storeIds: string[];
   occurrences: { recipeTitle: string; quantity: number | null; unit: string | null }[];
   checked: boolean;
+  isManual: boolean;
+  manualItemId?: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const normalize = (name: string) => name.toLowerCase().trim();
 
 const formatQty = (quantity: number | null, unit: string | null): string => {
   const parts: string[] = [];
@@ -45,37 +60,21 @@ export default function ShoppingListScreen() {
 
   const [items, setItems] = useState<ConsolidatedItem[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [catalog, setCatalog] = useState<CatalogIngredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [assigningItem, setAssigningItem] = useState<ConsolidatedItem | null>(null);
   const [pendingStoreIds, setPendingStoreIds] = useState<string[]>([]);
   const [savingAssignment, setSavingAssignment] = useState(false);
-
-  // ── Header buttons ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <Pressable
-          onPress={() => {
-            if (editMode) saveOrder();
-            setEditMode((e) => !e);
-          }}
-          style={{ paddingHorizontal: 16 }}
-        >
-          <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
-            {editMode ? "Done" : "Edit Order"}
-          </Text>
-        </Pressable>
-      ),
-    });
-  }, [editMode, items]);
+  const [newItemText, setNewItemText] = useState("");
+  const [addingItem, setAddingItem] = useState(false);
 
   // ── Load ────────────────────────────────────────────────────────────────────
   const loadList = useCallback(async () => {
     if (!householdId) return;
 
     try {
-      const [queueRes, storesRes, checksRes] = await Promise.all([
+      const [queueRes, storesRes, checksRes, manualRes, catalogList] = await Promise.all([
         supabase
           .from("week_queues")
           .select("recipe_id, recipes(id, title)")
@@ -89,20 +88,23 @@ export default function ShoppingListScreen() {
           .from("shopping_list_checks")
           .select("normalized_name")
           .eq("household_id", householdId),
+        supabase
+          .from("shopping_list_manual_items")
+          .select("id, normalized_name, quantity, unit")
+          .eq("household_id", householdId),
+        listCatalogIngredients(householdId),
       ]);
 
       if (queueRes.error) throw queueRes.error;
       if (storesRes.error) throw storesRes.error;
       if (checksRes.error) throw checksRes.error;
+      if (manualRes.error) throw manualRes.error;
 
       setStores(storesRes.data ?? []);
+      setCatalog(catalogList);
       const checkedNames = new Set((checksRes.data ?? []).map((c) => c.normalized_name));
-
       const queueData = queueRes.data ?? [];
-      if (queueData.length === 0) {
-        setItems([]);
-        return;
-      }
+      const manualItems = manualRes.data ?? [];
 
       const recipeIds = queueData.map((q: any) => q.recipe_id);
       const recipeTitle = new Map<string, string>(
@@ -110,13 +112,15 @@ export default function ShoppingListScreen() {
       );
 
       const [ingredientsRes, metaRes, availRes] = await Promise.all([
-        supabase
-          .from("recipe_ingredients")
-          .select("id, recipe_id, name, quantity, unit")
-          .in("recipe_id", recipeIds),
+        recipeIds.length > 0
+          ? supabase
+              .from("recipe_ingredients")
+              .select("id, recipe_id, name, quantity, unit")
+              .in("recipe_id", recipeIds)
+          : Promise.resolve({ data: [] as any[], error: null }),
         supabase
           .from("ingredient_metadata")
-          .select("id, normalized_name, sort_order")
+          .select("id, normalized_name, display_name, sort_order")
           .eq("household_id", householdId),
         supabase
           .from("ingredient_store_availability")
@@ -137,10 +141,10 @@ export default function ShoppingListScreen() {
         availByMetaId.set(a.ingredient_metadata_id, list);
       }
 
-      // Group recipe_ingredients by normalized name
       const grouped = new Map<string, ConsolidatedItem>();
+
       for (const ing of ingredientsRes.data ?? []) {
-        const key = normalize(ing.name);
+        const key = normalizeIngredient(ing.name);
         // Skip section headers that slipped through import (e.g. "for the salad:")
         if (key.endsWith(":")) continue;
         const meta = metaByName.get(key);
@@ -154,6 +158,7 @@ export default function ShoppingListScreen() {
         } else {
           grouped.set(key, {
             normalizedName: key,
+            displayName: meta?.display_name ?? titleCaseIngredient(key),
             metadataId: meta?.id ?? "",
             sortOrder: meta?.sort_order ?? Infinity,
             storeIds: meta ? (availByMetaId.get(meta.id) ?? []) : [],
@@ -163,6 +168,36 @@ export default function ShoppingListScreen() {
               unit: ing.unit,
             }],
             checked: checkedNames.has(key),
+            isManual: false,
+          });
+        }
+      }
+
+      for (const manual of manualItems) {
+        const key = manual.normalized_name;
+        const existing = grouped.get(key);
+        if (existing) {
+          existing.isManual = true;
+          existing.manualItemId = manual.id;
+        } else {
+          const meta = metaByName.get(key);
+          const hasQty = manual.quantity != null || !!manual.unit;
+          grouped.set(key, {
+            normalizedName: key,
+            displayName: meta?.display_name ?? titleCaseIngredient(key),
+            metadataId: meta?.id ?? "",
+            sortOrder: meta?.sort_order ?? Infinity,
+            storeIds: meta ? (availByMetaId.get(meta.id) ?? []) : [],
+            occurrences: hasQty
+              ? [{
+                  recipeTitle: "Added",
+                  quantity: manual.quantity,
+                  unit: manual.unit,
+                }]
+              : [],
+            checked: checkedNames.has(key),
+            isManual: true,
+            manualItemId: manual.id,
           });
         }
       }
@@ -174,20 +209,23 @@ export default function ShoppingListScreen() {
         const inserts = newNames.map((name, i) => ({
           household_id: householdId,
           normalized_name: name,
+          display_name: titleCaseIngredient(name),
           sort_order: maxOrder + (i + 1) * 10,
         }));
         const { data: newMeta, error: upsertError } = await supabase
           .from("ingredient_metadata")
           .upsert(inserts, { onConflict: "household_id,normalized_name", ignoreDuplicates: true })
-          .select("id, normalized_name, sort_order");
+          .select("id, normalized_name, display_name, sort_order");
         if (upsertError) throw upsertError;
         for (const m of newMeta ?? []) {
           const item = grouped.get(m.normalized_name);
           if (item) {
             item.metadataId = m.id;
             item.sortOrder = m.sort_order;
+            item.displayName = m.display_name;
           }
         }
+        setCatalog(await listCatalogIngredients(householdId));
       }
 
       const sorted = [...grouped.values()].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -204,6 +242,76 @@ export default function ShoppingListScreen() {
       loadList();
     }, [loadList])
   );
+
+  const exportText = useCallback(
+    () =>
+      formatShoppingList(
+        items.map((i) => ({
+          normalizedName: i.displayName,
+          checked: i.checked,
+          storeIds: i.storeIds,
+          occurrences: i.occurrences,
+        })),
+        stores
+      ),
+    [items, stores]
+  );
+
+  const shareList = useCallback(async () => {
+    const message = exportText();
+    if (!message) return;
+    try {
+      await Share.share({ message });
+    } catch (err) {
+      showError("Couldn't share the list", err);
+    }
+  }, [exportText]);
+
+  const copyList = useCallback(async () => {
+    const message = exportText();
+    if (!message) return;
+    try {
+      await Clipboard.setStringAsync(message);
+      Alert.alert("Copied", "Shopping list copied to clipboard.");
+    } catch (err) {
+      showError("Couldn't copy the list", err);
+    }
+  }, [exportText]);
+
+  // ── Header buttons ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          {!editMode && items.length > 0 && (
+            <>
+              <Pressable onPress={copyList} style={{ paddingHorizontal: 10 }}>
+                <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
+                  Copy
+                </Text>
+              </Pressable>
+              <Pressable onPress={shareList} style={{ paddingHorizontal: 10 }}>
+                <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
+                  Share
+                </Text>
+              </Pressable>
+            </>
+          )}
+          <Pressable
+            onPress={() => {
+              if (editMode) saveOrder();
+              setEditMode((e) => !e);
+            }}
+            style={{ paddingHorizontal: 16 }}
+          >
+            <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
+              {editMode ? "Done" : "Edit"}
+            </Text>
+          </Pressable>
+        </View>
+      ),
+    });
+  }, [editMode, items, copyList, shareList]);
 
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {
@@ -241,12 +349,105 @@ export default function ShoppingListScreen() {
     }
   };
 
+  // ── Add manual item ─────────────────────────────────────────────────────────
+  const addManualItem = async () => {
+    const key = normalizeIngredient(newItemText);
+    if (!key || !householdId || addingItem) return;
+    if (key.endsWith(":")) return;
+
+    setAddingItem(true);
+    try {
+      const catalogRow = await ensureCatalogIngredient(householdId, newItemText);
+      if (!catalogRow) return;
+
+      const { data: manualRow, error: manualError } = await supabase
+        .from("shopping_list_manual_items")
+        .upsert(
+          { household_id: householdId, normalized_name: key },
+          { onConflict: "household_id,normalized_name" }
+        )
+        .select("id, normalized_name, quantity, unit")
+        .single();
+      if (manualError) throw manualError;
+
+      const existing = items.find((i) => i.normalizedName === key);
+      if (existing) {
+        setItems((prev) =>
+          prev.map((i) =>
+            i.normalizedName === key
+              ? {
+                  ...i,
+                  isManual: true,
+                  manualItemId: manualRow.id,
+                  displayName: catalogRow.display_name,
+                  metadataId: catalogRow.id,
+                }
+              : i
+          )
+        );
+      } else {
+        setItems((prev) =>
+          [
+            ...prev,
+            {
+              normalizedName: key,
+              displayName: catalogRow.display_name,
+              metadataId: catalogRow.id,
+              sortOrder: catalogRow.sort_order,
+              storeIds: [],
+              occurrences: [],
+              checked: false,
+              isManual: true,
+              manualItemId: manualRow.id,
+            },
+          ].sort((a, b) => a.sortOrder - b.sortOrder)
+        );
+      }
+      setCatalog((prev) => {
+        if (prev.some((c) => c.id === catalogRow.id)) return prev;
+        return [...prev, catalogRow].sort((a, b) =>
+          a.display_name.localeCompare(b.display_name)
+        );
+      });
+      setNewItemText("");
+    } catch (err) {
+      showError("Couldn't add item", err);
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  // ── Remove manual item ──────────────────────────────────────────────────────
+  const removeManualItem = async (item: ConsolidatedItem) => {
+    if (!item.isManual || !item.manualItemId) return;
+    const previous = items;
+    const fromRecipe = item.occurrences.some((o) => o.recipeTitle !== "Added");
+    setItems((prev) =>
+      fromRecipe
+        ? prev.map((i) =>
+            i.normalizedName === item.normalizedName
+              ? { ...i, isManual: false, manualItemId: undefined }
+              : i
+          )
+        : prev.filter((i) => i.normalizedName !== item.normalizedName)
+    );
+    const { error } = await supabase
+      .from("shopping_list_manual_items")
+      .delete()
+      .eq("id", item.manualItemId);
+    if (error) {
+      setItems(previous);
+      showError("Couldn't remove item", error);
+    }
+  };
+
   // ── Reorder / save order ─────────────────────────────────────────────────────
   const saveOrder = async () => {
     const updates = items.map((item, i) => ({
       id: item.metadataId,
       household_id: householdId,
       normalized_name: item.normalizedName,
+      display_name: item.displayName,
       sort_order: (i + 1) * 10,
     }));
     const { error } = await supabase.from("ingredient_metadata").upsert(updates, { onConflict: "id" });
@@ -302,6 +503,34 @@ export default function ShoppingListScreen() {
   };
 
   // ── Render helpers ──────────────────────────────────────────────────────────
+  const renderAddRow = () => (
+    <View style={[styles.addRow, { zIndex: 10 }]}>
+      <IngredientAutocomplete
+        containerStyle={{ flex: 1 }}
+        style={styles.addInput}
+        placeholder="Add item…"
+        value={newItemText}
+        onChangeText={setNewItemText}
+        catalog={catalog}
+        onSelect={(item) => setNewItemText(item.display_name)}
+        onSubmitEditing={addManualItem}
+        returnKeyType="done"
+        editable={!addingItem}
+      />
+      <Pressable
+        style={[styles.addButton, (!newItemText.trim() || addingItem) && styles.buttonDisabled]}
+        onPress={addManualItem}
+        disabled={!newItemText.trim() || addingItem}
+      >
+        {addingItem ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={styles.addButtonText}>Add</Text>
+        )}
+      </Pressable>
+    </View>
+  );
+
   const renderItemRow = (
     item: ConsolidatedItem,
     drag?: () => void,
@@ -315,6 +544,9 @@ export default function ShoppingListScreen() {
             .filter(Boolean)
             .map((n) => n.slice(0, 3).toUpperCase())
             .join(" · ");
+
+    const fromRecipe = item.occurrences.some((o) => o.recipeTitle !== "Added");
+    const canRemove = editMode && item.isManual && !fromRecipe;
 
     return (
       <View style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}>
@@ -330,17 +562,24 @@ export default function ShoppingListScreen() {
         </Pressable>
         <View style={styles.itemContent}>
           <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
-            {item.normalizedName.replace(/\b\w/g, (c) => c.toUpperCase())}
+            {item.displayName}
           </Text>
           {item.occurrences.map((occ, i) => {
             const qty = formatQty(occ.quantity, occ.unit);
+            const line = [qty, occ.recipeTitle].filter(Boolean).join(" · ");
+            if (!line) return null;
             return (
               <Text key={i} style={[styles.occurrence, item.checked && styles.occurrenceChecked]}>
-                {qty ? `${qty} · ` : ""}{occ.recipeTitle}
+                {line}
               </Text>
             );
           })}
         </View>
+        {canRemove && (
+          <Pressable style={styles.removeButton} onPress={() => removeManualItem(item)}>
+            <Text style={styles.removeButtonText}>✕</Text>
+          </Pressable>
+        )}
         {!editMode && stores.length > 0 && (
           <Pressable style={styles.storeBadge} onPress={() => openAssign(item)}>
             <Text style={styles.storeBadgeText}>{storeLabel ?? "+"}</Text>
@@ -385,7 +624,9 @@ export default function ShoppingListScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.editBanner}>
-          <Text style={styles.editBannerText}>Drag to reorder. Tap Done to save.</Text>
+          <Text style={styles.editBannerText}>
+            Drag to reorder. Tap ✕ to remove added items. Tap Done to save.
+          </Text>
         </View>
         <SortableList
           items={items}
@@ -400,7 +641,9 @@ export default function ShoppingListScreen() {
   // ── Normal view ─────────────────────────────────────────────────────────────
   const body =
     items.length === 0 ? (
-      <Text style={styles.emptyText}>No recipes queued. Add some from the queue!</Text>
+      <Text style={styles.emptyText}>
+        No items yet. Add something below, or queue recipes from the week queue.
+      </Text>
     ) : stores.length === 0 ? (
       // Flat list (no stores configured)
       <>
@@ -436,7 +679,12 @@ export default function ShoppingListScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        {renderAddRow()}
         {checked.length > 0 && (
           <Pressable style={styles.clearChecksRow} onPress={clearChecks}>
             <Text style={styles.clearChecksText}>Clear checks</Text>
@@ -455,7 +703,7 @@ export default function ShoppingListScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>
-              {assigningItem?.normalizedName.replace(/\b\w/g, (c) => c.toUpperCase())}
+              {assigningItem?.displayName ?? ""}
             </Text>
             <Text style={styles.modalSubtitle}>Where can you get this?</Text>
             {stores.map((store) => {
@@ -512,9 +760,35 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: { flex: 1, backgroundColor: "#fff" },
   content: { paddingBottom: 48 },
-  clearChecksRow: { alignItems: "flex-end", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  addRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  addInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: "#fff",
+  },
+  addButton: {
+    backgroundColor: "#2f95dc",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minWidth: 64,
+    alignItems: "center",
+  },
+  addButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  clearChecksRow: { alignItems: "flex-end", paddingHorizontal: 20, paddingTop: 4, paddingBottom: 4 },
   clearChecksText: { fontSize: 13, color: "#ff3b30", fontWeight: "600" },
-  emptyText: { color: "#999", textAlign: "center", marginTop: 32 },
+  emptyText: { color: "#999", textAlign: "center", marginTop: 32, paddingHorizontal: 24 },
 
   sectionHeader: {
     backgroundColor: "#f8f8f8",
@@ -564,6 +838,18 @@ const styles = StyleSheet.create({
   itemNameChecked: { textDecorationLine: "line-through", color: "#999" },
   occurrence: { fontSize: 13, color: "#888", lineHeight: 18 },
   occurrenceChecked: { textDecorationLine: "line-through" },
+
+  removeButton: {
+    marginLeft: 8,
+    marginTop: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  removeButtonText: {
+    fontSize: 16,
+    color: "#ff3b30",
+    fontWeight: "600",
+  },
 
   storeBadge: {
     marginLeft: 8,

@@ -215,6 +215,15 @@ export default function HouseholdScreen() {
         </View>
       </Pressable>
 
+      <Pressable
+        style={styles.ingredientsLink}
+        onPress={() =>
+          router.push({ pathname: "/(app)/ingredients", params: { householdId: id } })
+        }
+      >
+        <Text style={styles.ingredientsLinkText}>Ingredients catalog →</Text>
+      </Pressable>
+
       {/* Recipes header */}
       <View style={styles.recipesHeader}>
         <Text style={styles.sectionTitle}>Recipes ({recipes.length})</Text>
@@ -432,6 +441,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#34c759",
     fontWeight: "600",
+  },
+
+  ingredientsLink: {
+    marginBottom: 24,
+    marginTop: -12,
+    paddingVertical: 8,
+  },
+  ingredientsLinkText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2f95dc",
   },
 
   sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },

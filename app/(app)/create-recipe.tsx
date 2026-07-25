@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { showError } from "../../lib/db";
+import { IngredientAutocomplete } from "../../components/IngredientAutocomplete";
+import {
+  ensureCatalogIngredient,
+  listCatalogIngredients,
+  type CatalogIngredient,
+} from "../../lib/ingredient-catalog";
 
 type Ingredient = { name: string; quantity: string; unit: string };
 
@@ -23,7 +29,15 @@ export default function CreateRecipeScreen() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([
     { name: "", quantity: "", unit: "" },
   ]);
+  const [catalog, setCatalog] = useState<CatalogIngredient[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!householdId) return;
+    listCatalogIngredients(householdId)
+      .then(setCatalog)
+      .catch((err) => showError("Couldn't load ingredient catalog", err));
+  }, [householdId]);
 
   const updateIngredient = (index: number, field: keyof Ingredient, value: string) => {
     setIngredients((prev) =>
@@ -92,12 +106,25 @@ export default function CreateRecipeScreen() {
       return;
     }
 
+    // Grow the household catalog (separate from recipes) without failing the save.
+    try {
+      for (const i of validIngredients) {
+        await ensureCatalogIngredient(householdId!, i.name);
+      }
+    } catch (err) {
+      console.warn("Catalog upsert after recipe save failed", err);
+    }
+
     setLoading(false);
     router.back();
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.label}>Recipe Title</Text>
       <TextInput
         style={styles.input}
@@ -110,12 +137,15 @@ export default function CreateRecipeScreen() {
       <Text style={[styles.label, { marginTop: 24 }]}>Ingredients</Text>
 
       {ingredients.map((ing, index) => (
-        <View key={index} style={styles.ingredientRow}>
-          <TextInput
-            style={[styles.input, styles.ingredientName]}
+        <View key={index} style={[styles.ingredientRow, { zIndex: ingredients.length - index }]}>
+          <IngredientAutocomplete
+            containerStyle={styles.ingredientName}
+            style={styles.input}
             placeholder="Ingredient"
             value={ing.name}
             onChangeText={(v) => updateIngredient(index, "name", v)}
+            catalog={catalog}
+            onSelect={(item) => updateIngredient(index, "name", item.display_name)}
           />
           <TextInput
             style={[styles.input, styles.ingredientQty]}
@@ -183,7 +213,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginBottom: 8,
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   ingredientName: {
     flex: 3,
@@ -201,6 +231,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fee",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 4,
   },
   removeButtonText: {
     color: "#c00",

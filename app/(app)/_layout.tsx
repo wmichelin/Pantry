@@ -31,6 +31,7 @@ export default function AppLayout() {
       <Stack.Screen name="review-board" options={{ title: "Review Board" }} />
       <Stack.Screen name="week-queue" options={{ title: "This Week" }} />
       <Stack.Screen name="shopping-list" options={{ title: "Shopping List" }} />
+      <Stack.Screen name="ingredients" options={{ title: "Ingredients" }} />
     </Stack>
   );
 }
