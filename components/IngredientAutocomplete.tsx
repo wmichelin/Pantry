@@ -6,10 +6,13 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
+  Platform,
   type TextInputProps,
   type StyleProp,
   type ViewStyle,
   type TextStyle,
+  type NativeSyntheticEvent,
+  type TextInputSubmitEditingEventData,
 } from "react-native";
 import type { CatalogIngredient } from "../lib/ingredient-catalog";
 import { normalizeIngredient } from "../lib/normalize-ingredient";
@@ -44,7 +47,9 @@ export function IngredientAutocomplete({
   editable = true,
 }: Props) {
   const [focused, setFocused] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionRefs = useRef<Array<{ scrollIntoView?: (opts?: ScrollIntoViewOptions) => void } | null>>([]);
 
   useEffect(() => {
     return () => {
@@ -69,10 +74,72 @@ export function IngredientAutocomplete({
 
   const showDropdown = focused && suggestions.length > 0;
 
+  useEffect(() => {
+    setHighlightIndex(-1);
+    suggestionRefs.current = [];
+  }, [value, suggestions.length]);
+
+  useEffect(() => {
+    if (highlightIndex < 0) return;
+    suggestionRefs.current[highlightIndex]?.scrollIntoView?.({
+      block: "nearest",
+    });
+  }, [highlightIndex]);
+
   const pick = (item: CatalogIngredient) => {
     onChangeText(item.display_name);
     onSelect?.(item);
+    setHighlightIndex(-1);
     setFocused(false);
+  };
+
+  const moveHighlight = (delta: number) => {
+    if (suggestions.length === 0) return;
+    setHighlightIndex((current) => {
+      if (current < 0) return delta > 0 ? 0 : suggestions.length - 1;
+      const next = current + delta;
+      if (next < 0) return suggestions.length - 1;
+      if (next >= suggestions.length) return 0;
+      return next;
+    });
+  };
+
+  const handleSubmitEditing = (
+    e: NativeSyntheticEvent<TextInputSubmitEditingEventData>
+  ) => {
+    if (showDropdown && highlightIndex >= 0 && suggestions[highlightIndex]) {
+      pick(suggestions[highlightIndex]);
+      return;
+    }
+    onSubmitEditing?.(e);
+  };
+
+  const handleKeyDown = (event: { key: string; preventDefault: () => void }) => {
+    if (!showDropdown) return;
+
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        moveHighlight(1);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        moveHighlight(-1);
+        break;
+      case "Escape":
+        event.preventDefault();
+        setHighlightIndex(-1);
+        setFocused(false);
+        break;
+      case "Enter":
+        if (highlightIndex >= 0 && suggestions[highlightIndex]) {
+          event.preventDefault();
+          pick(suggestions[highlightIndex]);
+        }
+        break;
+      default:
+        break;
+    }
   };
 
   return (
@@ -86,30 +153,58 @@ export function IngredientAutocomplete({
         autoCorrect={false}
         editable={editable}
         returnKeyType={returnKeyType}
-        onSubmitEditing={onSubmitEditing}
+        onSubmitEditing={handleSubmitEditing}
         onFocus={() => {
           if (blurTimer.current) clearTimeout(blurTimer.current);
           setFocused(true);
         }}
         onBlur={() => {
           // Delay so suggestion press can register.
-          blurTimer.current = setTimeout(() => setFocused(false), 150);
+          blurTimer.current = setTimeout(() => {
+            setFocused(false);
+            setHighlightIndex(-1);
+          }, 150);
         }}
+        // Web: arrow / escape / enter for the suggestion list.
+        {...(Platform.OS === "web"
+          ? {
+              onKeyDown: (e: { nativeEvent?: { key?: string }; key?: string; preventDefault: () => void }) => {
+                const key = e.nativeEvent?.key ?? e.key ?? "";
+                handleKeyDown({ key, preventDefault: () => e.preventDefault() });
+              },
+            }
+          : {})}
       />
       {showDropdown && (
-        <View style={styles.dropdown}>
+        <View style={styles.dropdown} accessibilityRole="list">
           <ScrollView
             keyboardShouldPersistTaps="handled"
             nestedScrollEnabled
             style={styles.dropdownScroll}
           >
-            {suggestions.map((item) => (
+            {suggestions.map((item, index) => (
               <Pressable
                 key={item.id}
-                style={styles.suggestion}
+                ref={(node) => {
+                  suggestionRefs.current[index] = node as {
+                    scrollIntoView?: (opts?: ScrollIntoViewOptions) => void;
+                  } | null;
+                }}
+                style={[
+                  styles.suggestion,
+                  index === highlightIndex && styles.suggestionHighlighted,
+                ]}
                 onPress={() => pick(item)}
+                onHoverIn={() => setHighlightIndex(index)}
               >
-                <Text style={styles.suggestionText}>{item.display_name}</Text>
+                <Text
+                  style={[
+                    styles.suggestionText,
+                    index === highlightIndex && styles.suggestionTextHighlighted,
+                  ]}
+                >
+                  {item.display_name}
+                </Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -160,8 +255,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f2f2f2",
   },
+  suggestionHighlighted: {
+    backgroundColor: "#eaf4fc",
+  },
   suggestionText: {
     fontSize: 15,
     color: "#222",
+  },
+  suggestionTextHighlighted: {
+    color: "#1a6fa8",
+    fontWeight: "600",
   },
 });
