@@ -12,9 +12,9 @@ import {
   type Edge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { getReorderDestinationIndex } from "@atlaskit/pragmatic-drag-and-drop-hitbox/util/get-reorder-destination-index";
-import { enableDragDropTouch } from "@dragdroptouch/drag-drop-touch";
-
-enableDragDropTouch();
+// Vendored without `import.meta` — Expo web serves a classic script, so the npm
+// package's ESM autoload footer breaks the entire app bundle at parse time.
+import { enableDragDropTouch } from "../lib/drag-drop-touch.js";
 
 const ITEM_TYPE = "sortable-item";
 
@@ -127,6 +127,10 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
   const onReorderRef = useRef(onReorder);
   itemsRef.current = items;
   onReorderRef.current = onReorder;
+
+  useEffect(() => {
+    enableDragDropTouch();
+  }, []);
 
   useEffect(() => {
     return monitorForElements({
