@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Ref } from "react";
 import {
   View,
   Text,
@@ -22,10 +22,16 @@ type Props = {
   onChangeText: (text: string) => void;
   catalog: CatalogIngredient[];
   onSelect?: (item: CatalogIngredient) => void;
+  /**
+   * When false, selecting a suggestion does not write into the input first
+   * (parent commits immediately — e.g. shopping list add). Default true.
+   */
+  fillOnSelect?: boolean;
   placeholder?: string;
   style?: StyleProp<TextStyle>;
   containerStyle?: StyleProp<ViewStyle>;
   autoFocus?: boolean;
+  inputRef?: Ref<TextInput>;
   /** Exclude these normalized names from suggestions (e.g. already on a form). */
   excludeNormalized?: string[];
 } & Pick<TextInputProps, "onSubmitEditing" | "returnKeyType" | "editable">;
@@ -44,10 +50,12 @@ export function IngredientAutocomplete({
   onChangeText,
   catalog,
   onSelect,
+  fillOnSelect = true,
   placeholder = "Ingredient",
   style,
   containerStyle,
   autoFocus,
+  inputRef,
   excludeNormalized,
   onSubmitEditing,
   returnKeyType,
@@ -102,7 +110,9 @@ export function IngredientAutocomplete({
   }, [highlightIndex]);
 
   const pick = (item: CatalogIngredient) => {
-    onChangeText(item.display_name);
+    if (fillOnSelect) {
+      onChangeText(item.display_name);
+    }
     onSelect?.(item);
     setHighlightIndex(-1);
     setFocused(false);
@@ -176,6 +186,7 @@ export function IngredientAutocomplete({
   return (
     <View style={[styles.wrap, containerStyle]}>
       <TextInput
+        ref={inputRef}
         style={[styles.input, style]}
         value={value}
         onChangeText={onChangeText}
@@ -186,6 +197,7 @@ export function IngredientAutocomplete({
         returnKeyType={returnKeyType}
         onSubmitEditing={handleSubmitEditing}
         onKeyPress={handleKeyPress}
+        blurOnSubmit={false}
         onFocus={() => {
           if (blurTimer.current) clearTimeout(blurTimer.current);
           setFocused(true);
