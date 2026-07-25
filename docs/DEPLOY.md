@@ -25,14 +25,14 @@ is needed.)
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `DROPLET_HOST` | The droplet's public IP (same value as `terraform output -raw droplet_ip`) |
 | `DROPLET_SSH_KEY` | A **private** SSH key whose public half is authorized for `root` on the droplet (paste the full key, including the BEGIN/END lines) |
+| `GHCR_PAT` | Classic PAT with `read:packages` + `write:packages` (used to push/pull `ghcr.io/wmichelin/pantry`) |
 
 Notes:
 - The values for the two `EXPO_PUBLIC_*` secrets are the same ones in your local
   `.env`. They are **public** by design (anon key + URL ship to the browser), but
   storing them as secrets keeps the workflow file clean.
-- The droplet pulls the private GHCR image using the workflow's `GITHUB_TOKEN`, so
-  no Personal Access Token is required on the droplet.
-- `permissions: packages: write` in the workflow lets the runner push the image.
+- `GHCR_PAT` is required because the default Actions `GITHUB_TOKEN` cannot push to
+  this package in practice; rotate the PAT if it is ever exposed.
 
 ## How to deploy
 
