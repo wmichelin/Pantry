@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { parseIngredients } from "../../lib/parse-ingredient";
+import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
 
@@ -110,6 +111,15 @@ export default function ReviewBoardScreen() {
           }))
         );
         if (ingError) failed.push(`${scraped.title} (ingredients)`);
+        else {
+          for (const ing of parsed) {
+            try {
+              await ensureCatalogIngredient(householdId!, ing.name);
+            } catch (err) {
+              console.warn("Catalog upsert after import failed", err);
+            }
+          }
+        }
       }
 
       saved++;

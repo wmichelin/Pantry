@@ -57,3 +57,7 @@ terraform/*.tfstate.backup
 
 # Supabase CLI local cache
 supabase/.temp/
+
+# local backfill working files
+scripts/.backfill*
+

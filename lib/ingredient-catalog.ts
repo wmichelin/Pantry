@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { normalizeIngredient, titleCaseIngredient } from "./normalize-ingredient";
+import { parseIngredient } from "./parse-ingredient";
 
 export type CatalogIngredient = {
   id: string;
@@ -8,14 +9,28 @@ export type CatalogIngredient = {
   sort_order: number;
 };
 
+/** Strip qty/units/bullets from a raw ingredient string for catalog use. */
+export function catalogNameFromRaw(raw: string): { normalized: string; display: string } | null {
+  const parsed = parseIngredient(raw);
+  const normalized = normalizeIngredient(parsed.name);
+  if (!normalized || normalized.endsWith(":")) return null;
+  // Prefer parser's casing when it kept letters; otherwise title-case the key.
+  const display =
+    parsed.name.trim() && parsed.name.trim() !== normalized
+      ? parsed.name.trim()
+      : titleCaseIngredient(normalized);
+  return { normalized, display };
+}
+
 /** Ensure a catalog row exists. Does not overwrite display_name on existing rows. */
 export async function ensureCatalogIngredient(
   householdId: string,
   name: string,
   opts?: { displayName?: string; sortOrder?: number }
 ): Promise<CatalogIngredient | null> {
-  const normalized = normalizeIngredient(name);
-  if (!normalized || normalized.endsWith(":")) return null;
+  const cleaned = catalogNameFromRaw(name);
+  if (!cleaned) return null;
+  const { normalized, display } = cleaned;
 
   const { data: existing, error: existingError } = await supabase
     .from("ingredient_metadata")
@@ -26,9 +41,7 @@ export async function ensureCatalogIngredient(
   if (existingError) throw existingError;
   if (existing) return existing;
 
-  const display_name =
-    opts?.displayName?.trim() ||
-    (name.trim() !== normalized ? name.trim() : titleCaseIngredient(normalized));
+  const display_name = opts?.displayName?.trim() || display;
 
   let sort_order = opts?.sortOrder;
   if (sort_order == null) {
@@ -72,6 +85,7 @@ export async function ensureCatalogIngredient(
 
 /**
  * Seed the household catalog from recipe ingredient names.
+ * Names are cleaned via parseIngredient (qty/units stripped) before insert.
  * Only inserts missing catalog rows — never touches recipes.
  */
 export async function seedCatalogFromRecipes(householdId: string): Promise<number> {
@@ -108,15 +122,16 @@ export async function seedCatalogFromRecipes(householdId: string): Promise<numbe
 
   const seen = new Set<string>();
   for (const ing of ings ?? []) {
-    const raw = (ing.name ?? "").trim();
-    const key = normalizeIngredient(raw);
-    if (!key || key.endsWith(":") || existingKeys.has(key) || seen.has(key)) continue;
-    seen.add(key);
+    const cleaned = catalogNameFromRaw(ing.name ?? "");
+    if (!cleaned) continue;
+    const { normalized, display } = cleaned;
+    if (existingKeys.has(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
     maxOrder += 10;
     toInsert.push({
       household_id: householdId,
-      normalized_name: key,
-      display_name: raw !== key ? raw : titleCaseIngredient(key),
+      normalized_name: normalized,
+      display_name: display,
       sort_order: maxOrder,
     });
   }
