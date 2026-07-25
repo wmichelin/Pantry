@@ -7,12 +7,6 @@ export type ShoppingListExportItem = {
   occurrences: { quantity: number | null; unit: string | null }[];
 };
 
-export type ShoppingListExportStore = {
-  id: string;
-  name: string;
-  sort_order: number;
-};
-
 const formatQty = (quantity: number | null, unit: string | null): string => {
   const parts: string[] = [];
   if (quantity) parts.push(formatQuantity(quantity));
@@ -46,41 +40,15 @@ const formatSection = (
 };
 
 /** Format a shopping list as Markdown task lists for Share / Copy (Apple Notes, Messages, etc.). */
-export function formatShoppingList(
-  items: ShoppingListExportItem[],
-  stores: ShoppingListExportStore[]
-): string {
+export function formatShoppingList(items: ShoppingListExportItem[]): string {
   const unchecked = items.filter((i) => !i.checked);
   const checked = items.filter((i) => i.checked);
   const lines: string[] = [];
 
-  if (stores.length === 0) {
-    lines.push(...formatSection(null, unchecked, []));
-    if (checked.length > 0) {
-      if (lines.length > 0) lines.push("");
-      lines.push(...formatSection("Got it", [], checked));
-    }
-  } else {
-    for (const store of stores) {
-      const section = formatSection(
-        store.name,
-        unchecked.filter((i) => i.storeIds.includes(store.id)),
-        checked.filter((i) => i.storeIds.includes(store.id))
-      );
-      if (section.length > 0) {
-        if (lines.length > 0) lines.push("");
-        lines.push(...section);
-      }
-    }
-    const other = formatSection(
-      "Other",
-      unchecked.filter((i) => i.storeIds.length === 0),
-      checked.filter((i) => i.storeIds.length === 0)
-    );
-    if (other.length > 0) {
-      if (lines.length > 0) lines.push("");
-      lines.push(...other);
-    }
+  lines.push(...formatSection(null, unchecked, []));
+  if (checked.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push(...formatSection("Got it", [], checked));
   }
 
   return lines.join("\n");
