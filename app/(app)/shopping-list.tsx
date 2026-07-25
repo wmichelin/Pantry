@@ -420,22 +420,27 @@ export default function ShoppingListScreen() {
           )
         );
       } else {
-        setItems((prev) =>
-          [
+        setItems((prev) => {
+          const next = [
             ...prev,
             {
               normalizedName: key,
               displayName: catalogRow.display_name,
               metadataId: catalogRow.id,
-              sortOrder: catalogRow.sort_order,
-              storeIds: [],
+              sortOrder: editMode
+                ? (prev[prev.length - 1]?.sortOrder ?? 0) + 10
+                : catalogRow.sort_order,
+              storeIds: [] as string[],
               occurrences: [],
               checked: false,
               isManual: true,
               manualItemId: manualRow.id,
             },
-          ].sort((a, b) => a.sortOrder - b.sortOrder)
-        );
+          ];
+          // Preserve the user's in-progress order while editing.
+          if (editMode) return next;
+          return next.sort((a, b) => a.sortOrder - b.sortOrder);
+        });
       }
       setCatalog((prev) => {
         if (prev.some((c) => c.id === catalogRow.id)) return prev;
@@ -657,9 +662,10 @@ export default function ShoppingListScreen() {
       <View style={styles.container}>
         <View style={styles.editBanner}>
           <Text style={styles.editBannerText}>
-            Drag to reorder. Tap ✕ to remove added items. Tap Done to save.
+            Drag to reorder. Add items below. Tap ✕ to remove added items. Tap Done to save.
           </Text>
         </View>
+        {renderAddRow()}
         <SortableList
           items={items}
           keyExtractor={(item) => item.normalizedName}
