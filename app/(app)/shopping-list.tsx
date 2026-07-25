@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Share,
   Alert,
   Platform,
+  TextInput,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { File, Paths } from "expo-file-system";
@@ -71,6 +72,7 @@ export default function ShoppingListScreen() {
   const [savingAssignment, setSavingAssignment] = useState(false);
   const [newItemText, setNewItemText] = useState("");
   const [addingItem, setAddingItem] = useState(false);
+  const addInputRef = useRef<TextInput>(null);
   const [clearingWeek, setClearingWeek] = useState(false);
   const [clearWeekModalVisible, setClearWeekModalVisible] = useState(false);
 
@@ -390,10 +392,15 @@ export default function ShoppingListScreen() {
     if (!key || !householdId || addingItem) return;
     if (key.endsWith(":")) return;
 
+    // Clear immediately so select → add feels like one action, not fill-then-clear.
+    setNewItemText("");
     setAddingItem(true);
     try {
       const catalogRow = await ensureCatalogIngredient(householdId, rawName);
-      if (!catalogRow) return;
+      if (!catalogRow) {
+        setNewItemText(rawName);
+        return;
+      }
 
       const { data: manualRow, error: manualError } = await supabase
         .from("shopping_list_manual_items")
@@ -449,11 +456,13 @@ export default function ShoppingListScreen() {
           a.display_name.localeCompare(b.display_name)
         );
       });
-      setNewItemText("");
     } catch (err) {
+      setNewItemText(rawName);
       showError("Couldn't add item", err);
     } finally {
       setAddingItem(false);
+      // Keep typing — don't make add a focus-stealing two-step.
+      requestAnimationFrame(() => addInputRef.current?.focus());
     }
   };
 
@@ -552,6 +561,8 @@ export default function ShoppingListScreen() {
         value={newItemText}
         onChangeText={setNewItemText}
         catalog={catalog}
+        inputRef={addInputRef}
+        fillOnSelect={false}
         onSelect={(item) => {
           void addManualItem(item.display_name);
         }}
@@ -559,7 +570,6 @@ export default function ShoppingListScreen() {
           void addManualItem();
         }}
         returnKeyType="done"
-        editable={!addingItem}
       />
       <Pressable
         style={[styles.addButton, (!newItemText.trim() || addingItem) && styles.buttonDisabled]}
