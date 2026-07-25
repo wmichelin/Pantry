@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../lib/auth-context";
 import { showError, throwOnError } from "../../../lib/db";
+import { formatQuantity } from "../../../lib/format-quantity";
 import TagEditor from "../../../components/TagEditor";
 
 type Recipe = {
@@ -179,7 +180,7 @@ export default function RecipeDetailScreen() {
 
   const formatIngredient = (ing: Ingredient) => {
     const parts: string[] = [];
-    if (ing.quantity) parts.push(String(ing.quantity));
+    if (ing.quantity) parts.push(formatQuantity(ing.quantity));
     if (ing.unit) parts.push(ing.unit);
     parts.push(ing.name);
     return parts.join(" ");

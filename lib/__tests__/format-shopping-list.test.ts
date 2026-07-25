@@ -53,4 +53,19 @@ describe("formatShoppingList", () => {
     expect(formatShoppingList([], [])).toBe("");
     expect(formatShoppingList([], [{ id: "s1", name: "A", sort_order: 0 }])).toBe("");
   });
+
+  it("formats fractional quantities as fractions", () => {
+    const text = formatShoppingList(
+      [
+        {
+          normalizedName: "tahini",
+          checked: false,
+          storeIds: [],
+          occurrences: [{ quantity: 1 / 3, unit: "cup" }],
+        },
+      ],
+      []
+    );
+    expect(text).toBe("- [ ] Tahini · 1/3 cup");
+  });
 });
