@@ -6,12 +6,12 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
-  Platform,
   type TextInputProps,
   type StyleProp,
   type ViewStyle,
   type TextStyle,
   type NativeSyntheticEvent,
+  type TextInputKeyPressEventData,
   type TextInputSubmitEditingEventData,
 } from "react-native";
 import type { CatalogIngredient } from "../lib/ingredient-catalog";
@@ -32,6 +32,13 @@ type Props = {
 
 const MAX_SUGGESTIONS = 8;
 
+type KeyEventLike = {
+  key?: string;
+  nativeEvent?: { key?: string };
+  preventDefault?: () => void;
+  isDefaultPrevented?: () => boolean;
+};
+
 export function IngredientAutocomplete({
   value,
   onChangeText,
@@ -50,6 +57,13 @@ export function IngredientAutocomplete({
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionRefs = useRef<Array<{ scrollIntoView?: (opts?: ScrollIntoViewOptions) => void } | null>>([]);
+  // Keep latest nav state for key handlers (RN Web calls onKeyPress from its
+  // internal onKeyDown — custom onKeyDown props are overwritten and ignored).
+  const navRef = useRef({
+    showDropdown: false,
+    highlightIndex: -1,
+    suggestions: [] as CatalogIngredient[],
+  });
 
   useEffect(() => {
     return () => {
@@ -73,6 +87,7 @@ export function IngredientAutocomplete({
   }, [value, catalog, excludeNormalized]);
 
   const showDropdown = focused && suggestions.length > 0;
+  navRef.current = { showDropdown, highlightIndex, suggestions };
 
   useEffect(() => {
     setHighlightIndex(-1);
@@ -94,52 +109,68 @@ export function IngredientAutocomplete({
   };
 
   const moveHighlight = (delta: number) => {
-    if (suggestions.length === 0) return;
+    const { suggestions: list } = navRef.current;
+    if (list.length === 0) return;
     setHighlightIndex((current) => {
-      if (current < 0) return delta > 0 ? 0 : suggestions.length - 1;
+      if (current < 0) return delta > 0 ? 0 : list.length - 1;
       const next = current + delta;
-      if (next < 0) return suggestions.length - 1;
-      if (next >= suggestions.length) return 0;
+      if (next < 0) return list.length - 1;
+      if (next >= list.length) return 0;
       return next;
     });
+  };
+
+  const handleNavKey = (event: KeyEventLike) => {
+    const { showDropdown: open, highlightIndex: index, suggestions: list } =
+      navRef.current;
+    if (!open) return false;
+
+    const key = event.key ?? event.nativeEvent?.key ?? "";
+    const prevent = () => event.preventDefault?.();
+
+    switch (key) {
+      case "ArrowDown":
+        prevent();
+        moveHighlight(1);
+        return true;
+      case "ArrowUp":
+        prevent();
+        moveHighlight(-1);
+        return true;
+      case "Escape":
+        prevent();
+        setHighlightIndex(-1);
+        setFocused(false);
+        return true;
+      case "Enter":
+        if (index >= 0 && list[index]) {
+          // Must preventDefault so RN Web skips onSubmitEditing / blur-on-submit.
+          prevent();
+          pick(list[index]);
+          return true;
+        }
+        return false;
+      default:
+        return false;
+    }
+  };
+
+  const handleKeyPress = (
+    e: NativeSyntheticEvent<TextInputKeyPressEventData>
+  ) => {
+    handleNavKey(e as unknown as KeyEventLike);
   };
 
   const handleSubmitEditing = (
     e: NativeSyntheticEvent<TextInputSubmitEditingEventData>
   ) => {
-    if (showDropdown && highlightIndex >= 0 && suggestions[highlightIndex]) {
-      pick(suggestions[highlightIndex]);
+    const { showDropdown: open, highlightIndex: index, suggestions: list } =
+      navRef.current;
+    if (open && index >= 0 && list[index]) {
+      pick(list[index]);
       return;
     }
     onSubmitEditing?.(e);
-  };
-
-  const handleKeyDown = (event: { key: string; preventDefault: () => void }) => {
-    if (!showDropdown) return;
-
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        moveHighlight(1);
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        moveHighlight(-1);
-        break;
-      case "Escape":
-        event.preventDefault();
-        setHighlightIndex(-1);
-        setFocused(false);
-        break;
-      case "Enter":
-        if (highlightIndex >= 0 && suggestions[highlightIndex]) {
-          event.preventDefault();
-          pick(suggestions[highlightIndex]);
-        }
-        break;
-      default:
-        break;
-    }
   };
 
   return (
@@ -154,6 +185,7 @@ export function IngredientAutocomplete({
         editable={editable}
         returnKeyType={returnKeyType}
         onSubmitEditing={handleSubmitEditing}
+        onKeyPress={handleKeyPress}
         onFocus={() => {
           if (blurTimer.current) clearTimeout(blurTimer.current);
           setFocused(true);
@@ -165,15 +197,6 @@ export function IngredientAutocomplete({
             setHighlightIndex(-1);
           }, 150);
         }}
-        // Web: arrow / escape / enter for the suggestion list.
-        {...(Platform.OS === "web"
-          ? {
-              onKeyDown: (e: { nativeEvent?: { key?: string }; key?: string; preventDefault: () => void }) => {
-                const key = e.nativeEvent?.key ?? e.key ?? "";
-                handleKeyDown({ key, preventDefault: () => e.preventDefault() });
-              },
-            }
-          : {})}
       />
       {showDropdown && (
         <View style={styles.dropdown} accessibilityRole="list">
