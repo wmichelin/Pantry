@@ -21,9 +21,10 @@ const displayName = (name: string) =>
 /** Plain-text line for Share (Messages, Notes paste, etc.). */
 const formatLine = (item: ShoppingListExportItem): string => {
   const name = displayName(item.normalizedName);
-  const first = item.occurrences[0];
-  const qty = first ? formatQty(first.quantity, first.unit) : "";
-  return qty ? `${name} ${qty}` : name;
+  const qtys = item.occurrences
+    .map((o) => formatQty(o.quantity, o.unit))
+    .filter(Boolean);
+  return qtys.length > 0 ? `${name} ${qtys.join(" ")}` : name;
 };
 
 /** Format a shopping list as a bulleted plain-text list for the share sheet. */

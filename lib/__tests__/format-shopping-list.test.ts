@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { formatShoppingList } from "../format-shopping-list";
 
 describe("formatShoppingList", () => {
-  it("formats plain lines in list order without checkbox markup", () => {
+  it("formats bulleted lines in list order without checkbox markup", () => {
     const text = formatShoppingList([
       {
         normalizedName: "milk",
@@ -58,5 +58,20 @@ describe("formatShoppingList", () => {
       },
     ]);
     expect(text).toBe("• Tahini (1/3 cup)");
+  });
+
+  it("emits all occurrence quantities as separate parentheses", () => {
+    const text = formatShoppingList([
+      {
+        normalizedName: "milk",
+        checked: false,
+        storeIds: [],
+        occurrences: [
+          { quantity: 1, unit: "cup" },
+          { quantity: 1, unit: "gallon" },
+        ],
+      },
+    ]);
+    expect(text).toBe("• Milk (1 cup) (1 gallon)");
   });
 });

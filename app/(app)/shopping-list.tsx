@@ -31,6 +31,8 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ConsolidatedItem = {
+  /** Stable row id: `recipe:name` or `manual:<uuid>`. */
+  listKey: string;
   normalizedName: string;
   displayName: string;
   metadataId: string;
@@ -42,6 +44,14 @@ type ConsolidatedItem = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const recipeListKey = (normalizedName: string) => `recipe:${normalizedName}`;
+const manualListKey = (manualItemId: string) => `manual:${manualItemId}`;
+const isStandaloneManual = (item: ConsolidatedItem) => item.listKey.startsWith("manual:");
+/** Check-row identity: standalone manuals must not share a check with the recipe row. */
+const checkKeyFor = (item: ConsolidatedItem) =>
+  isStandaloneManual(item) ? `${item.normalizedName}::manual` : item.normalizedName;
+const hasManualUnit = (unit: string | null | undefined) => !!unit?.trim();
 
 const formatQty = (quantity: number | null, unit: string | null): string => {
   const parts: string[] = [];
@@ -83,7 +93,7 @@ export default function ShoppingListScreen() {
           .eq("household_id", householdId),
         supabase
           .from("shopping_list_manual_items")
-          .select("id, normalized_name, quantity, unit")
+          .select("id, normalized_name, quantity, unit, sort_order")
           .eq("household_id", householdId),
         listCatalogIngredients(householdId),
       ]);
@@ -122,6 +132,7 @@ export default function ShoppingListScreen() {
         (metaRes.data ?? []).map((m) => [m.normalized_name, m])
       );
 
+      // Keyed by listKey (recipe:name or manual:uuid).
       const grouped = new Map<string, ConsolidatedItem>();
 
       for (const ing of ingredientsRes.data ?? []) {
@@ -129,7 +140,8 @@ export default function ShoppingListScreen() {
         // Skip section headers that slipped through import (e.g. "for the salad:")
         if (key.endsWith(":")) continue;
         const meta = metaByName.get(key);
-        const existing = grouped.get(key);
+        const listKey = recipeListKey(key);
+        const existing = grouped.get(listKey);
         if (existing) {
           existing.occurrences.push({
             recipeTitle: recipeTitle.get(ing.recipe_id) ?? "Unknown",
@@ -137,7 +149,8 @@ export default function ShoppingListScreen() {
             unit: ing.unit,
           });
         } else {
-          grouped.set(key, {
+          grouped.set(listKey, {
+            listKey,
             normalizedName: key,
             displayName: meta?.display_name ?? titleCaseIngredient(key),
             metadataId: meta?.id ?? "",
@@ -155,34 +168,56 @@ export default function ShoppingListScreen() {
 
       for (const manual of manualItems) {
         const key = manual.normalized_name;
-        const existing = grouped.get(key);
-        if (existing) {
-          existing.isManual = true;
-          existing.manualItemId = manual.id;
-        } else {
-          const meta = metaByName.get(key);
-          const hasQty = manual.quantity != null || !!manual.unit;
-          grouped.set(key, {
-            normalizedName: key,
-            displayName: meta?.display_name ?? titleCaseIngredient(key),
-            metadataId: meta?.id ?? "",
-            sortOrder: meta?.sort_order ?? Infinity,
-            occurrences: hasQty
-              ? [{
-                  recipeTitle: "Added",
-                  quantity: manual.quantity,
-                  unit: manual.unit,
-                }]
-              : [],
-            checked: checkedNames.has(key),
-            isManual: true,
-            manualItemId: manual.id,
+        const recipeKey = recipeListKey(key);
+        const recipeRow = grouped.get(recipeKey);
+        const meta = metaByName.get(key);
+
+        // Collapse into the recipe row only when the ad-hoc item has a unit.
+        if (recipeRow && hasManualUnit(manual.unit)) {
+          recipeRow.occurrences.push({
+            recipeTitle: "Added",
+            quantity: manual.quantity,
+            unit: manual.unit,
           });
+          recipeRow.isManual = true;
+          recipeRow.manualItemId = manual.id;
+          continue;
         }
+
+        // Bare ad-hoc (no unit), or no recipe match → own line item.
+        const listKey = manualListKey(manual.id);
+        const hasQty = manual.quantity != null || !!manual.unit;
+        // Prefer ::manual check key; fall back to legacy bare-name checks when no recipe row.
+        const checked =
+          checkedNames.has(`${key}::manual`) ||
+          (!recipeRow && checkedNames.has(key));
+        grouped.set(listKey, {
+          listKey,
+          normalizedName: key,
+          displayName: meta?.display_name ?? titleCaseIngredient(key),
+          metadataId: meta?.id ?? "",
+          sortOrder: manual.sort_order ?? meta?.sort_order ?? Infinity,
+          occurrences: hasQty
+            ? [{
+                recipeTitle: "Added",
+                quantity: manual.quantity,
+                unit: manual.unit,
+              }]
+            : [],
+          checked,
+          isManual: true,
+          manualItemId: manual.id,
+        });
       }
 
       // Auto-create ingredient_metadata for new normalized names
-      const newNames = [...grouped.keys()].filter((k) => !metaByName.has(k));
+      const newNames = [
+        ...new Set(
+          [...grouped.values()]
+            .map((i) => i.normalizedName)
+            .filter((k) => !metaByName.has(k))
+        ),
+      ];
       if (newNames.length > 0) {
         const maxOrder = Math.max(0, ...(metaRes.data ?? []).map((m) => m.sort_order));
         const inserts = newNames.map((name, i) => ({
@@ -197,11 +232,13 @@ export default function ShoppingListScreen() {
           .select("id, normalized_name, display_name, sort_order");
         if (upsertError) throw upsertError;
         for (const m of newMeta ?? []) {
-          const item = grouped.get(m.normalized_name);
-          if (item) {
+          for (const item of grouped.values()) {
+            if (item.normalizedName !== m.normalized_name) continue;
             item.metadataId = m.id;
-            item.sortOrder = m.sort_order;
             item.displayName = m.display_name;
+            if (!isStandaloneManual(item)) {
+              item.sortOrder = m.sort_order;
+            }
           }
         }
         setCatalog(await listCatalogIngredients(householdId));
@@ -295,23 +332,24 @@ export default function ShoppingListScreen() {
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {
     const nowChecked = !item.checked;
+    const checkKey = checkKeyFor(item);
     setItems((prev) =>
-      prev.map((i) => i.normalizedName === item.normalizedName ? { ...i, checked: nowChecked } : i)
+      prev.map((i) => (i.listKey === item.listKey ? { ...i, checked: nowChecked } : i))
     );
     const { error } = nowChecked
       ? await supabase.from("shopping_list_checks").upsert({
           household_id: householdId,
-          normalized_name: item.normalizedName,
+          normalized_name: checkKey,
         }, { onConflict: "household_id,normalized_name", ignoreDuplicates: true })
       : await supabase
           .from("shopping_list_checks")
           .delete()
           .eq("household_id", householdId)
-          .eq("normalized_name", item.normalizedName);
+          .eq("normalized_name", checkKey);
     if (error) {
       // Revert the optimistic check.
       setItems((prev) =>
-        prev.map((i) => i.normalizedName === item.normalizedName ? { ...i, checked: !nowChecked } : i)
+        prev.map((i) => (i.listKey === item.listKey ? { ...i, checked: !nowChecked } : i))
       );
       showError("Couldn't update item", error);
     }
@@ -365,45 +403,71 @@ export default function ShoppingListScreen() {
         return;
       }
 
+      const nextSort =
+        Math.max(0, ...items.map((i) => (Number.isFinite(i.sortOrder) ? i.sortOrder : 0))) + 10;
+
       const { data: manualRow, error: manualError } = await supabase
         .from("shopping_list_manual_items")
         .upsert(
-          { household_id: householdId, normalized_name: key },
+          { household_id: householdId, normalized_name: key, sort_order: nextSort },
           { onConflict: "household_id,normalized_name" }
         )
-        .select("id, normalized_name, quantity, unit")
+        .select("id, normalized_name, quantity, unit, sort_order")
         .single();
       if (manualError) throw manualError;
 
-      const existing = items.find((i) => i.normalizedName === key);
-      if (existing) {
+      const recipeRow = items.find((i) => i.listKey === recipeListKey(key));
+      const collapse = !!recipeRow && hasManualUnit(manualRow.unit);
+
+      if (collapse && recipeRow) {
         setItems((prev) =>
           prev.map((i) =>
-            i.normalizedName === key
+            i.listKey === recipeRow.listKey
               ? {
                   ...i,
                   isManual: true,
                   manualItemId: manualRow.id,
                   displayName: catalogRow.display_name,
                   metadataId: catalogRow.id,
+                  occurrences: [
+                    ...i.occurrences.filter((o) => o.recipeTitle !== "Added"),
+                    {
+                      recipeTitle: "Added",
+                      quantity: manualRow.quantity,
+                      unit: manualRow.unit,
+                    },
+                  ],
                 }
               : i
           )
         );
       } else {
-        setItems((prev) => [
-          ...prev,
-          {
-            normalizedName: key,
-            displayName: catalogRow.display_name,
-            metadataId: catalogRow.id,
-            sortOrder: (prev[prev.length - 1]?.sortOrder ?? 0) + 10,
-            occurrences: [],
-            checked: false,
-            isManual: true,
-            manualItemId: manualRow.id,
-          },
-        ]);
+        // Bare ad-hoc beside a recipe row, or no recipe match — own line.
+        const listKey = manualListKey(manualRow.id);
+        setItems((prev) => {
+          const without = prev.filter((i) => i.listKey !== listKey);
+          return [
+            ...without,
+            {
+              listKey,
+              normalizedName: key,
+              displayName: catalogRow.display_name,
+              metadataId: catalogRow.id,
+              sortOrder: manualRow.sort_order ?? nextSort,
+              occurrences:
+                manualRow.quantity != null || !!manualRow.unit
+                  ? [{
+                      recipeTitle: "Added",
+                      quantity: manualRow.quantity,
+                      unit: manualRow.unit,
+                    }]
+                  : [],
+              checked: false,
+              isManual: true,
+              manualItemId: manualRow.id,
+            },
+          ];
+        });
       }
       setCatalog((prev) => {
         if (prev.some((c) => c.id === catalogRow.id)) return prev;
@@ -425,16 +489,23 @@ export default function ShoppingListScreen() {
   const removeManualItem = async (item: ConsolidatedItem) => {
     if (!item.isManual || !item.manualItemId) return;
     const previous = items;
-    const fromRecipe = item.occurrences.some((o) => o.recipeTitle !== "Added");
-    setItems((prev) =>
-      fromRecipe
-        ? prev.map((i) =>
-            i.normalizedName === item.normalizedName
-              ? { ...i, isManual: false, manualItemId: undefined }
-              : i
-          )
-        : prev.filter((i) => i.normalizedName !== item.normalizedName)
-    );
+    if (isStandaloneManual(item)) {
+      setItems((prev) => prev.filter((i) => i.listKey !== item.listKey));
+    } else {
+      // Collapsed into a recipe row — drop the "Added" occurrence only.
+      setItems((prev) =>
+        prev.map((i) =>
+          i.listKey === item.listKey
+            ? {
+                ...i,
+                isManual: false,
+                manualItemId: undefined,
+                occurrences: i.occurrences.filter((o) => o.recipeTitle !== "Added"),
+              }
+            : i
+        )
+      );
+    }
     const { error } = await supabase
       .from("shopping_list_manual_items")
       .delete()
@@ -448,18 +519,43 @@ export default function ShoppingListScreen() {
   // ── Reorder / save order ─────────────────────────────────────────────────────
   const saveOrder = async (ordered: ConsolidatedItem[]) => {
     if (!householdId) return;
-    const updates = ordered.map((item, i) => ({
-      id: item.metadataId,
-      household_id: householdId,
-      normalized_name: item.normalizedName,
-      display_name: item.displayName,
-      sort_order: (i + 1) * 10,
-    }));
-    const { error } = await supabase.from("ingredient_metadata").upsert(updates, { onConflict: "id" });
-    if (error) {
-      showError("Couldn't save the order", error);
-      return;
+
+    const metaUpdates = ordered
+      .map((item, i) => ({ item, sort_order: (i + 1) * 10 }))
+      .filter(({ item }) => !isStandaloneManual(item) && !!item.metadataId)
+      .map(({ item, sort_order }) => ({
+        id: item.metadataId,
+        household_id: householdId,
+        normalized_name: item.normalizedName,
+        display_name: item.displayName,
+        sort_order,
+      }));
+
+    const manualUpdates = ordered
+      .map((item, i) => ({ item, sort_order: (i + 1) * 10 }))
+      .filter(({ item }) => isStandaloneManual(item) && !!item.manualItemId);
+
+    if (metaUpdates.length > 0) {
+      const { error } = await supabase
+        .from("ingredient_metadata")
+        .upsert(metaUpdates, { onConflict: "id" });
+      if (error) {
+        showError("Couldn't save the order", error);
+        return;
+      }
     }
+
+    for (const { item, sort_order } of manualUpdates) {
+      const { error } = await supabase
+        .from("shopping_list_manual_items")
+        .update({ sort_order })
+        .eq("id", item.manualItemId!);
+      if (error) {
+        showError("Couldn't save the order", error);
+        return;
+      }
+    }
+
     setItems(ordered.map((item, i) => ({ ...item, sortOrder: (i + 1) * 10 })));
   };
 
@@ -509,8 +605,8 @@ export default function ShoppingListScreen() {
     drag?: () => void,
     isActive?: boolean
   ) => {
-    const fromRecipe = item.occurrences.some((o) => o.recipeTitle !== "Added");
-    const canRemove = item.isManual && !fromRecipe;
+    // ✕ on standalone manuals and collapsed recipe+ad-hoc rows.
+    const canRemove = item.isManual;
 
     return (
       <View
@@ -608,7 +704,7 @@ export default function ShoppingListScreen() {
         ) : (
           <SortableList
             items={items}
-            keyExtractor={(item) => item.normalizedName}
+            keyExtractor={(item) => item.listKey}
             renderItem={(item, drag, isActive) => renderItemRow(item, drag, isActive)}
             onReorder={handleReorder}
           />
