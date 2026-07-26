@@ -6,7 +6,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
  * HTML5 DnD + touch polyfills are unreliable under React Native Web (Pressables
  * preventDefault synthetic mouse/drag events). Pointer events are the dependable path.
  *
- * Touch/pen: press-hold ~180ms, then drag (quick swipe still scrolls).
+ * Touch/pen: brief stillness claims the gesture (blocks scroll steal), then drag
+ * arms quickly — move after claim starts immediately; otherwise a short hold.
  * Mouse: drag after a few pixels of movement.
  */
 
@@ -17,9 +18,13 @@ type Props<T> = {
   onReorder: (items: T[]) => void;
 };
 
-const HOLD_MS = 180;
-const HOLD_MOVE_CANCEL_PX = 12;
-const MOUSE_ACTIVATE_PX = 6;
+/** Stillness before we take the gesture from the scroller (touch). */
+const CLAIM_MS = 55;
+/** Auto-arm drag if the finger stays put after claim. */
+const HOLD_MS = 110;
+/** Finger jitter allowed before claim; larger than before so holds aren't cancelled. */
+const HOLD_MOVE_CANCEL_PX = 22;
+const MOUSE_ACTIVATE_PX = 4;
 
 function isNoDragTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -62,7 +67,9 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
     id: string;
     startX: number;
     startY: number;
+    claimed: boolean;
     activated: boolean;
+    claimTimer: ReturnType<typeof setTimeout> | null;
     holdTimer: ReturnType<typeof setTimeout> | null;
     rowEl: HTMLElement;
     pointerType: string;
@@ -70,6 +77,7 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
 
   const cleanup = useCallback(() => {
     const s = sessionRef.current;
+    if (s?.claimTimer) clearTimeout(s.claimTimer);
     if (s?.holdTimer) clearTimeout(s.holdTimer);
     if (s?.rowEl) s.rowEl.style.touchAction = "";
     sessionRef.current = null;
@@ -78,27 +86,10 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
     setGhost(null);
   }, []);
 
-  const activate = useCallback((clientX: number, clientY: number) => {
+  const claimGesture = useCallback(() => {
     const s = sessionRef.current;
-    if (!s || s.activated) return;
-    s.activated = true;
-    if (s.holdTimer) {
-      clearTimeout(s.holdTimer);
-      s.holdTimer = null;
-    }
-
-    const rect = s.rowEl.getBoundingClientRect();
-    setActiveId(s.id);
-    setOverIndex(s.startIndex);
-    setGhost({
-      html: s.rowEl.innerHTML,
-      width: rect.width,
-      height: rect.height,
-      x: clientX,
-      y: clientY,
-      offsetX: clientX - rect.left,
-      offsetY: clientY - rect.top,
-    });
+    if (!s || s.claimed) return;
+    s.claimed = true;
     s.rowEl.style.touchAction = "none";
     try {
       s.rowEl.setPointerCapture(s.pointerId);
@@ -106,6 +97,37 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
       /* pointer may already be up */
     }
   }, []);
+
+  const activate = useCallback(
+    (clientX: number, clientY: number) => {
+      const s = sessionRef.current;
+      if (!s || s.activated) return;
+      claimGesture();
+      s.activated = true;
+      if (s.claimTimer) {
+        clearTimeout(s.claimTimer);
+        s.claimTimer = null;
+      }
+      if (s.holdTimer) {
+        clearTimeout(s.holdTimer);
+        s.holdTimer = null;
+      }
+
+      const rect = s.rowEl.getBoundingClientRect();
+      setActiveId(s.id);
+      setOverIndex(s.startIndex);
+      setGhost({
+        html: s.rowEl.innerHTML,
+        width: rect.width,
+        height: rect.height,
+        x: clientX,
+        y: clientY,
+        offsetX: clientX - rect.left,
+        offsetY: clientY - rect.top,
+      });
+    },
+    [claimGesture]
+  );
 
   useEffect(() => () => cleanup(), [cleanup]);
 
@@ -120,13 +142,21 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
       id,
       startX: e.clientX,
       startY: e.clientY,
+      claimed: false,
       activated: false,
+      claimTimer: null,
       holdTimer: null,
       rowEl,
       pointerType: e.pointerType,
     };
 
     if (e.pointerType === "touch" || e.pointerType === "pen") {
+      // Claim early so the browser doesn't start a scroll and cancel our pointer.
+      sessionRef.current.claimTimer = setTimeout(() => {
+        const s = sessionRef.current;
+        if (!s || s.activated) return;
+        claimGesture();
+      }, CLAIM_MS);
       sessionRef.current.holdTimer = setTimeout(() => {
         const s = sessionRef.current;
         if (!s || s.activated) return;
@@ -143,11 +173,21 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
 
     if (!s.activated) {
       if (s.pointerType === "touch" || s.pointerType === "pen") {
-        if (dist > HOLD_MOVE_CANCEL_PX) cleanup();
-        return;
+        // Before claim: big move = user is scrolling — bail.
+        if (!s.claimed && dist > HOLD_MOVE_CANCEL_PX) {
+          cleanup();
+          return;
+        }
+        // After claim (or enough intentional move): start drag immediately.
+        if (s.claimed || dist > HOLD_MOVE_CANCEL_PX) {
+          activate(e.clientX, e.clientY);
+        } else {
+          return;
+        }
+      } else {
+        if (dist < MOUSE_ACTIVATE_PX) return;
+        activate(e.clientX, e.clientY);
       }
-      if (dist < MOUSE_ACTIVATE_PX) return;
-      activate(e.clientX, e.clientY);
     }
 
     if (!sessionRef.current?.activated) return;
