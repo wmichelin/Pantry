@@ -191,7 +191,7 @@ export default function HouseholdEditScreen() {
         </Text>
         {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
       </View>
-      <Text style={styles.aisleHint}>Drag ≡ to match your store walk path</Text>
+      <Text style={styles.aisleHint}>Drag to match your store walk path</Text>
 
       <SortableList
         items={aisleCategories}
