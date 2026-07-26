@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -12,9 +12,13 @@ import {
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import * as Linking from "expo-linking";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -66,6 +70,7 @@ export default function ForgotPasswordScreen() {
       <TextInput
         style={styles.input}
         placeholder="Email"
+        placeholderTextColor={colors.textMuted}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -87,50 +92,54 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#fff",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  body: {
-    fontSize: 16,
-    color: "#555",
-    marginBottom: 28,
-    lineHeight: 22,
-  },
-  bold: {
-    fontWeight: "600",
-    color: "#333",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 12,
-    backgroundColor: "#fafafa",
-  },
-  button: {
-    backgroundColor: "#2f95dc",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: "center",
+      padding: 24,
+      backgroundColor: colors.background,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "700",
+      marginBottom: 12,
+      color: colors.text,
+    },
+    body: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginBottom: 28,
+      lineHeight: 22,
+    },
+    bold: {
+      fontWeight: "600",
+      color: colors.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: 8,
+      padding: 14,
+      fontSize: 16,
+      marginBottom: 12,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      padding: 16,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonText: {
+      color: colors.primaryText,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+  });
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,9 +11,13 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { access_token, refresh_token } = useLocalSearchParams<{
     access_token: string;
     refresh_token: string;
@@ -74,6 +78,7 @@ export default function ResetPasswordScreen() {
       <TextInput
         style={styles.input}
         placeholder="New password"
+        placeholderTextColor={colors.textMuted}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -83,6 +88,7 @@ export default function ResetPasswordScreen() {
       <TextInput
         style={styles.input}
         placeholder="Confirm new password"
+        placeholderTextColor={colors.textMuted}
         value={confirm}
         onChangeText={setConfirm}
         secureTextEntry
@@ -102,40 +108,44 @@ export default function ResetPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#fff",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 28,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 12,
-    backgroundColor: "#fafafa",
-  },
-  button: {
-    backgroundColor: "#2f95dc",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: "center",
+      padding: 24,
+      backgroundColor: colors.background,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "700",
+      marginBottom: 28,
+      color: colors.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: 8,
+      padding: 14,
+      fontSize: 16,
+      marginBottom: 12,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      padding: 16,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonText: {
+      color: colors.primaryText,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+  });
+}

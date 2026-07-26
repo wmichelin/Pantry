@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import { parseIngredients } from "../../lib/parse-ingredient";
 import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
 
 export default function ReviewRecipeScreen() {
   const { householdId, recipeJson } = useLocalSearchParams<{
@@ -25,6 +27,8 @@ export default function ReviewRecipeScreen() {
   }>();
   const { user } = useAuth();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const scraped: ScrapedRecipe = JSON.parse(recipeJson);
   const [title, setTitle] = useState(scraped.title);
@@ -146,7 +150,7 @@ export default function ReviewRecipeScreen() {
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.primaryText} />
           ) : (
             <Text style={styles.saveButtonText}>Save to Household</Text>
           )}
@@ -160,45 +164,54 @@ export default function ReviewRecipeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 24, paddingBottom: 48 },
-  image: {
-    width: "100%",
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 16,
-    backgroundColor: "#eee",
-  },
-  label: { fontSize: 16, fontWeight: "600", marginBottom: 8, marginTop: 16 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: "#fafafa",
-  },
-  metaRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginTop: 12,
-    flexWrap: "wrap",
-  },
-  meta: { fontSize: 14, color: "#555" },
-  empty: { color: "#999", fontSize: 14 },
-  ingredientRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
-  bullet: { color: "#2f95dc", fontSize: 16, marginTop: 1 },
-  ingredientText: { flex: 1, fontSize: 15 },
-  actions: { marginTop: 32, gap: 12 },
-  saveButton: {
-    backgroundColor: "#2f95dc",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-  },
-  buttonDisabled: { opacity: 0.6 },
-  saveButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  discardButton: { alignItems: "center", paddingVertical: 8 },
-  discardText: { color: "#999", fontSize: 14 },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 24, paddingBottom: 48 },
+    image: {
+      width: "100%",
+      height: 200,
+      borderRadius: 8,
+      marginBottom: 16,
+      backgroundColor: colors.surfaceMuted,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 8,
+      marginTop: 16,
+      color: colors.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+    metaRow: {
+      flexDirection: "row",
+      gap: 16,
+      marginTop: 12,
+      flexWrap: "wrap",
+    },
+    meta: { fontSize: 14, color: colors.textSecondary },
+    empty: { color: colors.textMuted, fontSize: 14 },
+    ingredientRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
+    bullet: { color: colors.primary, fontSize: 16, marginTop: 1 },
+    ingredientText: { flex: 1, fontSize: 15, color: colors.text },
+    actions: { marginTop: 32, gap: 12 },
+    saveButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      padding: 16,
+      alignItems: "center",
+    },
+    buttonDisabled: { opacity: 0.6 },
+    saveButtonText: { color: colors.primaryText, fontSize: 16, fontWeight: "600" },
+    discardButton: { alignItems: "center", paddingVertical: 8 },
+    discardText: { color: colors.textMuted, fontSize: 14 },
+  });
+}

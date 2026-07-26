@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -14,11 +14,15 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth-context";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
 
 export default function ImportRecipeScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
   const { session } = useAuth();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -84,6 +88,7 @@ export default function ImportRecipeScreen() {
       <TextInput
         style={styles.input}
         placeholder="https://..."
+        placeholderTextColor={colors.textMuted}
         value={url}
         onChangeText={setUrl}
         autoCapitalize="none"
@@ -103,7 +108,7 @@ export default function ImportRecipeScreen() {
       >
         {loading ? (
           <View style={styles.buttonRow}>
-            <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+            <ActivityIndicator color={colors.primaryText} style={{ marginRight: 8 }} />
             <Text style={styles.buttonText}>Scraping...</Text>
           </View>
         ) : (
@@ -114,49 +119,53 @@ export default function ImportRecipeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: "#fff",
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 15,
-    backgroundColor: "#fafafa",
-  },
-  hint: {
-    fontSize: 13,
-    color: "#999",
-    marginTop: 8,
-    lineHeight: 18,
-  },
-  button: {
-    backgroundColor: "#2f95dc",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 24,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  buttonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 24,
+      backgroundColor: colors.background,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 8,
+      marginTop: 16,
+      color: colors.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: 8,
+      padding: 14,
+      fontSize: 15,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+    hint: {
+      fontSize: 13,
+      color: colors.textMuted,
+      marginTop: 8,
+      lineHeight: 18,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      padding: 16,
+      alignItems: "center",
+      marginTop: 24,
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+    buttonText: {
+      color: colors.primaryText,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    buttonRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+  });
+}

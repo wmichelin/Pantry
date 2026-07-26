@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import { supabase } from "../../lib/supabase";
 import { parseIngredients } from "../../lib/parse-ingredient";
 import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
 import TagEditor from "../../components/TagEditor";
 
 export default function ReviewBoardScreen() {
@@ -26,6 +28,8 @@ export default function ReviewBoardScreen() {
   }>();
   const { user } = useAuth();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const recipes: ScrapedRecipe[] = JSON.parse(recipesJson);
   const [selected, setSelected] = useState<Set<number>>(
@@ -266,7 +270,7 @@ export default function ReviewBoardScreen() {
       <View style={styles.footer}>
         {saving ? (
           <View style={styles.savingRow}>
-            <ActivityIndicator color="#2f95dc" />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.savingText}>
               Saving {saveProgress} / {selectedCount}...
             </Text>
@@ -287,8 +291,9 @@ export default function ReviewBoardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -296,32 +301,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: colors.border,
   },
-  headerText: { fontSize: 15, fontWeight: "600", color: "#333" },
-  toggleAll: { fontSize: 14, color: "#2f95dc", fontWeight: "600" },
+  headerText: { fontSize: 15, fontWeight: "600", color: colors.text },
+  toggleAll: { fontSize: 14, color: colors.primary, fontWeight: "600" },
   list: { padding: 12, gap: 8 },
   card: {
     flexDirection: "row",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.borderStrong,
     overflow: "hidden",
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     alignItems: "center",
   },
   cardDeselected: { opacity: 0.45 },
-  thumbnail: { width: 72, height: 72, backgroundColor: "#eee" },
+  thumbnail: { width: 72, height: 72, backgroundColor: colors.surfaceMuted },
   thumbnailPlaceholder: {
     justifyContent: "center",
     alignItems: "center",
   },
   thumbnailPlaceholderText: { fontSize: 24 },
   cardBody: { flex: 1, padding: 10, gap: 2 },
-  cardTitle: { fontSize: 14, fontWeight: "600", color: "#222", lineHeight: 19 },
-  cardTitleDeselected: { color: "#999" },
-  cardMeta: { fontSize: 12, color: "#888" },
-  cardWarning: { fontSize: 12, color: "#f0a500", fontWeight: "600" },
+  cardTitle: { fontSize: 14, fontWeight: "600", color: colors.text, lineHeight: 19 },
+  cardTitleDeselected: { color: colors.textMuted },
+  cardMeta: { fontSize: 12, color: colors.textMuted },
+  cardWarning: { fontSize: 12, color: colors.warning, fontWeight: "600" },
   cardTagRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -330,26 +335,26 @@ const styles = StyleSheet.create({
   },
   cardTagPill: {
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: colors.borderStrong,
     borderRadius: 10,
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
   cardTagPillActive: {
-    backgroundColor: "#2f95dc",
-    borderColor: "#2f95dc",
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   cardTagText: {
     fontSize: 10,
-    color: "#888",
+    color: colors.textMuted,
   },
   cardTagTextActive: {
-    color: "#fff",
+    color: colors.primaryText,
     fontWeight: "600",
   },
   cardTagAdd: {
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: colors.borderStrong,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -358,7 +363,7 @@ const styles = StyleSheet.create({
   },
   cardTagAddText: {
     fontSize: 12,
-    color: "#aaa",
+    color: colors.textMuted,
     lineHeight: 16,
   },
   modalOverlay: {
@@ -367,7 +372,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 24,
@@ -378,18 +383,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 16,
+    color: colors.text,
   },
   modalScroll: {
     marginBottom: 16,
   },
   modalDone: {
-    backgroundColor: "#2f95dc",
+    backgroundColor: colors.primary,
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
   },
   modalDoneText: {
-    color: "#fff",
+    color: colors.primaryText,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -398,30 +404,30 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#ccc",
+    borderColor: colors.textMuted,
     marginHorizontal: 12,
     justifyContent: "center",
     alignItems: "center",
   },
   checkboxSelected: {
-    backgroundColor: "#2f95dc",
-    borderColor: "#2f95dc",
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
-  checkmark: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  checkmark: { color: colors.primaryText, fontSize: 13, fontWeight: "700" },
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: "#eee",
-    backgroundColor: "#fff",
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
   saveButton: {
-    backgroundColor: "#2f95dc",
+    backgroundColor: colors.primary,
     borderRadius: 8,
     padding: 16,
     alignItems: "center",
   },
   buttonDisabled: { opacity: 0.5 },
-  saveButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  saveButtonText: { color: colors.primaryText, fontSize: 16, fontWeight: "600" },
   savingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -429,5 +435,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 8,
   },
-  savingText: { fontSize: 15, color: "#555" },
-});
+  savingText: { fontSize: 15, color: colors.textSecondary },
+  });
+}

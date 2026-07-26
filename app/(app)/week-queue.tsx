@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { showError, throwOnError } from "../../lib/db";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
 
 type WeekQueueEntry = {
   id: string;
@@ -21,6 +23,8 @@ type WeekQueueEntry = {
 export default function WeekQueueScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [entries, setEntries] = useState<WeekQueueEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
@@ -76,7 +80,7 @@ export default function WeekQueueScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -101,7 +105,7 @@ export default function WeekQueueScreen() {
           style={clearingWeek && styles.clearWeekDisabled}
         >
           {clearingWeek ? (
-            <ActivityIndicator size="small" color="#ff3b30" />
+            <ActivityIndicator size="small" color={colors.danger} />
           ) : (
             <Text style={styles.clearWeekText}>Clear week</Text>
           )}
@@ -138,7 +142,7 @@ export default function WeekQueueScreen() {
                 disabled={clearingWeek}
               >
                 {clearingWeek ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.primaryText} />
                 ) : (
                   <Text style={styles.confirmModalDangerText}>Clear all</Text>
                 )}
@@ -191,9 +195,10 @@ export default function WeekQueueScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  container: { flex: 1, backgroundColor: "#fff" },
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -201,28 +206,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: colors.border,
   },
-  weekLabel: { fontSize: 15, fontWeight: "600", color: "#333" },
+  weekLabel: { fontSize: 15, fontWeight: "600", color: colors.text },
   shoppingButton: {
-    backgroundColor: "#2f95dc",
+    backgroundColor: colors.primary,
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  shoppingButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  shoppingButtonText: { color: colors.primaryText, fontSize: 14, fontWeight: "600" },
   clearWeekRow: {
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: colors.border,
     alignItems: "flex-start",
   },
-  clearWeekText: { fontSize: 14, fontWeight: "600", color: "#ff3b30" },
+  clearWeekText: { fontSize: 14, fontWeight: "600", color: colors.danger },
   clearWeekDisabled: { opacity: 0.6 },
   list: { padding: 16, gap: 4 },
   emptyText: {
-    color: "#999",
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: 32,
     lineHeight: 22,
@@ -233,15 +238,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: colors.border,
   },
   recipeInfo: { flex: 1 },
-  recipeTitle: { fontSize: 16, color: "#222" },
-  removeText: { fontSize: 14, color: "#ff3b30", paddingLeft: 12 },
+  recipeTitle: { fontSize: 16, color: colors.text },
+  removeText: { fontSize: 14, color: colors.danger, paddingLeft: 12 },
   confirmInline: { flexDirection: "row", alignItems: "center", gap: 10 },
-  confirmText: { fontSize: 13, color: "#333" },
-  confirmYes: { fontSize: 13, color: "#ff3b30", fontWeight: "600" },
-  confirmCancel: { fontSize: 13, color: "#999" },
+  confirmText: { fontSize: 13, color: colors.text },
+  confirmYes: { fontSize: 13, color: colors.danger, fontWeight: "600" },
+  confirmCancel: { fontSize: 13, color: colors.textMuted },
 
   confirmModalOverlay: {
     flex: 1,
@@ -250,7 +255,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   confirmModalSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     borderRadius: 14,
     padding: 22,
   },
@@ -258,11 +263,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 10,
-    color: "#111",
+    color: colors.text,
   },
   confirmModalBody: {
     fontSize: 15,
-    color: "#555",
+    color: colors.textSecondary,
     lineHeight: 22,
     marginBottom: 22,
   },
@@ -279,21 +284,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   confirmModalCancelBtn: {
-    backgroundColor: "#f2f2f2",
+    backgroundColor: colors.surfaceMuted,
   },
   confirmModalCancelText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: colors.text,
   },
   confirmModalDangerBtn: {
-    backgroundColor: "#ff3b30",
+    backgroundColor: colors.danger,
     minHeight: 44,
     justifyContent: "center",
   },
   confirmModalDangerText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: colors.primaryText,
   },
-});
+  });
+}

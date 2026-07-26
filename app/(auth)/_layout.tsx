@@ -1,15 +1,24 @@
 import { Redirect, Stack, useSegments } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { ActivityIndicator, View } from "react-native";
 
 export default function AuthLayout() {
   const { session, loading } = useAuth();
+  const { colors } = useTheme();
   const segments = useSegments();
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: colors.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -21,5 +30,12 @@ export default function AuthLayout() {
     return <Redirect href="/(app)" />;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    />
+  );
 }

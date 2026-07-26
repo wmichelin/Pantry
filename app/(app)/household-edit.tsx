@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,9 @@ import {
   resolveAisleCategoryOrder,
   type IngredientCategory,
 } from "../../lib/ingredient-categories";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
+import ThemePreferencePicker from "../../components/ThemePreferencePicker";
 
 type Member = { id: string; display_name: string; role: string };
 type Household = {
@@ -31,6 +34,8 @@ type Store = { id: string; name: string; sort_order: number };
 export default function HouseholdEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { signOut } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -116,7 +121,7 @@ export default function HouseholdEditScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -152,6 +157,7 @@ export default function HouseholdEditScreen() {
         <TextInput
           style={styles.storeInputField}
           placeholder="Add a store…"
+          placeholderTextColor={colors.textMuted}
           value={storeInput}
           onChangeText={setStoreInput}
           returnKeyType="done"
@@ -167,7 +173,7 @@ export default function HouseholdEditScreen() {
         <Text style={[styles.sectionTitle, styles.aisleSectionTitle]}>
           Aisle order ({aisleCategories.length})
         </Text>
-        {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
+        {savingAisles ? <ActivityIndicator size="small" color={colors.primary} /> : null}
       </View>
       <Text style={styles.aisleHint}>Drag to match your store walk path</Text>
       <SortableList
@@ -193,6 +199,8 @@ export default function HouseholdEditScreen() {
         )}
       />
 
+      <ThemePreferencePicker />
+
       <Pressable style={styles.signOut} onPress={signOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </Pressable>
@@ -200,97 +208,110 @@ export default function HouseholdEditScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 24, paddingBottom: 48 },
-  inviteBox: {
-    backgroundColor: "#f0f7ff",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  inviteLabel: {
-    fontSize: 12,
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  inviteCode: {
-    fontSize: 28,
-    fontWeight: "700",
-    letterSpacing: 4,
-    color: "#2f95dc",
-    marginVertical: 4,
-  },
-  inviteHint: { fontSize: 12, color: "#999" },
-  sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },
-  storesSectionTitle: { marginTop: 24 },
-  memberRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  memberName: { fontSize: 16 },
-  memberRole: { fontSize: 14, color: "#999" },
-  storeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  storeName: { fontSize: 16 },
-  storeDelete: { fontSize: 20, color: "#ccc", paddingHorizontal: 4 },
-  storeInputRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  storeInputField: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-    backgroundColor: "#fafafa",
-  },
-  storeAddButton: {
-    backgroundColor: "#2f95dc",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    justifyContent: "center",
-  },
-  storeAddButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  aisleHeader: {
-    marginTop: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  aisleSectionTitle: { marginBottom: 0, flex: 1 },
-  aisleHint: { fontSize: 13, color: "#999", marginTop: 4, marginBottom: 8 },
-  aisleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    backgroundColor: "#fff",
-  },
-  aisleRowActive: { backgroundColor: "#f0f7ff" },
-  aisleDragHit: { flex: 1 },
-  aisleLabel: { flex: 1, fontSize: 16 },
-  aisleHandle: { fontSize: 20, color: "#bbb", paddingHorizontal: 8 },
-  signOut: { marginTop: 40, alignSelf: "center" },
-  signOutText: { color: "#999", fontSize: 14 },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    center: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: colors.background,
+    },
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 24, paddingBottom: 48 },
+    inviteBox: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: 8,
+      padding: 16,
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    inviteLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+    },
+    inviteCode: {
+      fontSize: 28,
+      fontWeight: "700",
+      letterSpacing: 4,
+      color: colors.primary,
+      marginVertical: 4,
+    },
+    inviteHint: { fontSize: 12, color: colors.textMuted },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      marginBottom: 8,
+      color: colors.text,
+    },
+    storesSectionTitle: { marginTop: 24 },
+    memberRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    memberName: { fontSize: 16, color: colors.text },
+    memberRole: { fontSize: 14, color: colors.textMuted },
+    storeRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    storeName: { fontSize: 16, color: colors.text },
+    storeDelete: { fontSize: 20, color: colors.textMuted, paddingHorizontal: 4 },
+    storeInputRow: {
+      flexDirection: "row",
+      gap: 8,
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    storeInputField: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 14,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+    storeAddButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      justifyContent: "center",
+    },
+    storeAddButtonText: { color: colors.primaryText, fontSize: 14, fontWeight: "600" },
+    aisleHeader: {
+      marginTop: 28,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    aisleSectionTitle: { marginBottom: 0, flex: 1 },
+    aisleHint: { fontSize: 13, color: colors.textMuted, marginTop: 4, marginBottom: 8 },
+    aisleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    aisleRowActive: { backgroundColor: colors.primarySoft },
+    aisleDragHit: { flex: 1 },
+    aisleLabel: { flex: 1, fontSize: 16, color: colors.text },
+    aisleHandle: { fontSize: 20, color: colors.textMuted, paddingHorizontal: 8 },
+    signOut: { marginTop: 40, alignSelf: "center" },
+    signOutText: { color: colors.textMuted, fontSize: 14 },
+  });
+}

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTheme } from "../lib/theme-context";
 
 /**
  * Web sortable list via Pointer Events.
@@ -59,6 +60,7 @@ export function SortableList<T>({
   onReorder,
   nestedInScroll = false,
 }: Props<T>) {
+  const { colors } = useTheme();
   const listRef = useRef<HTMLDivElement | null>(null);
   const itemsRef = useRef(items);
   const onReorderRef = useRef(onReorder);
@@ -247,7 +249,7 @@ export function SortableList<T>({
                   right: 0,
                   top: 0,
                   height: 3,
-                  backgroundColor: "#2f95dc",
+                  backgroundColor: colors.primary,
                   pointerEvents: "none",
                   zIndex: 2,
                 }}
@@ -267,7 +269,7 @@ export function SortableList<T>({
                   justifyContent: "center",
                   cursor: "grab",
                   touchAction: "none",
-                  color: "#bbb",
+                  color: colors.textMuted,
                   fontSize: 20,
                   lineHeight: 1,
                   userSelect: "none",
@@ -293,7 +295,7 @@ export function SortableList<T>({
             pointerEvents: "none",
             zIndex: 99999,
             boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
-            backgroundColor: "#fff",
+            backgroundColor: colors.background,
             overflow: "hidden",
           }}
           dangerouslySetInnerHTML={{ __html: ghost.html }}
