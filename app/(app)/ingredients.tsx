@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -20,9 +20,13 @@ import {
 } from "../../lib/ingredient-catalog";
 import { normalizeIngredient } from "../../lib/normalize-ingredient";
 import { supabase } from "../../lib/supabase";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
 
 export default function IngredientsScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<CatalogIngredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -148,7 +152,7 @@ export default function IngredientsScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -169,6 +173,7 @@ export default function IngredientsScreen() {
           <TextInput
             style={styles.addInput}
             placeholder="Add ingredient…"
+            placeholderTextColor={colors.textMuted}
             value={newName}
             onChangeText={setNewName}
             onSubmitEditing={addIngredient}
@@ -182,7 +187,7 @@ export default function IngredientsScreen() {
             disabled={!newName.trim() || adding}
           >
             {adding ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={colors.primaryText} size="small" />
             ) : (
               <Text style={styles.addButtonText}>Add</Text>
             )}
@@ -202,6 +207,7 @@ export default function IngredientsScreen() {
         <TextInput
           style={styles.filterInput}
           placeholder="Filter…"
+          placeholderTextColor={colors.textMuted}
           value={filter}
           onChangeText={setFilter}
           autoCorrect={false}
@@ -261,7 +267,7 @@ export default function IngredientsScreen() {
                 disabled={savingRename || !renameText.trim()}
               >
                 {savingRename ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.primaryText} />
                 ) : (
                   <Text style={styles.modalSaveText}>Save</Text>
                 )}
@@ -277,63 +283,67 @@ export default function IngredientsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  container: { flex: 1, backgroundColor: "#fff" },
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 48 },
-  hint: { fontSize: 13, color: "#888", lineHeight: 18, marginBottom: 16 },
+  hint: { fontSize: 13, color: colors.textMuted, lineHeight: 18, marginBottom: 16 },
   addRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
   addInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: colors.borderStrong,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.background,
   },
   addButton: {
-    backgroundColor: "#2f95dc",
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingHorizontal: 16,
     justifyContent: "center",
     minWidth: 64,
     alignItems: "center",
   },
-  addButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  addButtonText: { color: colors.primaryText, fontWeight: "600", fontSize: 16 },
   seedButton: {
     borderWidth: 1,
-    borderColor: "#2f95dc",
+    borderColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
     marginBottom: 16,
   },
-  seedButtonText: { color: "#2f95dc", fontWeight: "600", fontSize: 14 },
+  seedButtonText: { color: colors.primary, fontWeight: "600", fontSize: 14 },
   filterInput: {
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: colors.borderStrong,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
     marginBottom: 8,
-    backgroundColor: "#fafafa",
+    backgroundColor: colors.surface,
+    color: colors.text,
   },
-  count: { fontSize: 12, color: "#999", marginBottom: 8, fontWeight: "600" },
-  empty: { color: "#999", textAlign: "center", marginTop: 24 },
+  count: { fontSize: 12, color: colors.textMuted, marginBottom: 8, fontWeight: "600" },
+  empty: { color: colors.textMuted, textAlign: "center", marginTop: 24 },
   row: {
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#f2f2f2",
+    borderBottomColor: colors.border,
     paddingVertical: 12,
   },
   rowMain: { flex: 1 },
-  rowName: { fontSize: 16, fontWeight: "600", color: "#222" },
-  rowMeta: { fontSize: 12, color: "#aaa", marginTop: 2 },
+  rowName: { fontSize: 16, fontWeight: "600", color: colors.text },
+  rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   deleteBtn: { paddingHorizontal: 12, paddingVertical: 4 },
-  deleteText: { color: "#ff3b30", fontSize: 16, fontWeight: "600" },
+  deleteText: { color: colors.danger, fontSize: 16, fontWeight: "600" },
   disabled: { opacity: 0.6 },
   modalOverlay: {
     flex: 1,
@@ -342,26 +352,29 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 20,
   },
-  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12, color: colors.text },
   modalInput: {
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: colors.borderStrong,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     marginBottom: 16,
+    color: colors.text,
+    backgroundColor: colors.background,
   },
   modalActions: { gap: 12 },
   modalSave: {
-    backgroundColor: "#2f95dc",
+    backgroundColor: colors.primary,
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
   },
-  modalSaveText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  modalCancel: { textAlign: "center", color: "#999", paddingVertical: 8 },
-});
+  modalSaveText: { color: colors.primaryText, fontWeight: "600", fontSize: 16 },
+  modalCancel: { textAlign: "center", color: colors.textMuted, paddingVertical: 8 },
+  });
+}

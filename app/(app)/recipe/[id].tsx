@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../lib/auth-context";
 import { showError, throwOnError } from "../../../lib/db";
+import { useTheme } from "../../../lib/theme-context";
+import type { ThemeColors } from "../../../lib/theme";
 import { formatQuantity } from "../../../lib/format-quantity";
 import TagEditor from "../../../components/TagEditor";
 
@@ -41,6 +43,8 @@ export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,7 +157,7 @@ export default function RecipeDetailScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -161,7 +165,7 @@ export default function RecipeDetailScreen() {
   if (!recipe) {
     return (
       <View style={styles.center}>
-        <Text>Recipe not found.</Text>
+        <Text style={styles.notFoundText}>Recipe not found.</Text>
       </View>
     );
   }
@@ -318,15 +322,21 @@ export default function RecipeDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: colors.background,
+  },
+  notFoundText: {
+    color: colors.text,
+    fontSize: 16,
   },
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
   },
   content: {
     paddingBottom: 48,
@@ -334,7 +344,7 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: 220,
-    backgroundColor: "#eee",
+    backgroundColor: colors.surfaceMuted,
     marginBottom: 16,
   },
   title: {
@@ -342,10 +352,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 12,
     paddingHorizontal: 24,
+    color: colors.text,
   },
   sourceLink: {
     fontSize: 14,
-    color: "#2f95dc",
+    color: colors.primary,
     paddingHorizontal: 24,
     marginBottom: 12,
   },
@@ -358,7 +369,7 @@ const styles = StyleSheet.create({
   },
   meta: {
     fontSize: 14,
-    color: "#555",
+    color: colors.textSecondary,
   },
   tagsSection: {
     paddingHorizontal: 24,
@@ -377,11 +388,11 @@ const styles = StyleSheet.create({
   },
   noTagsHint: {
     fontSize: 12,
-    color: "#bbb",
+    color: colors.textMuted,
   },
   editTagsLink: {
     fontSize: 12,
-    color: "#2f95dc",
+    color: colors.primary,
     fontWeight: "600",
     marginLeft: 8,
     marginTop: 2,
@@ -396,13 +407,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveTagsButton: {
-    backgroundColor: "#2f95dc",
+    backgroundColor: colors.primary,
     borderRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   saveTagsText: {
-    color: "#fff",
+    color: colors.primaryText,
     fontWeight: "600",
     fontSize: 14,
   },
@@ -411,38 +422,38 @@ const styles = StyleSheet.create({
   },
   cancelTagsText: {
     fontSize: 14,
-    color: "#999",
+    color: colors.textMuted,
   },
   tag: {
-    backgroundColor: "#f0f7ff",
+    backgroundColor: colors.primarySoft,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   tagText: {
     fontSize: 12,
-    color: "#2f95dc",
+    color: colors.primary,
     fontWeight: "600",
   },
   queueButton: {
     marginHorizontal: 24,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#34c759",
+    borderColor: colors.success,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
   },
   queueButtonActive: {
-    backgroundColor: "#34c759",
+    backgroundColor: colors.success,
   },
   queueButtonText: {
-    color: "#34c759",
+    color: colors.success,
     fontWeight: "600",
     fontSize: 15,
   },
   queueButtonTextActive: {
-    color: "#fff",
+    color: colors.primaryText,
   },
   sectionTitle: {
     fontSize: 18,
@@ -450,9 +461,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 24,
     paddingHorizontal: 24,
+    color: colors.text,
   },
   emptyText: {
-    color: "#999",
+    color: colors.textMuted,
     paddingHorizontal: 24,
   },
   row: {
@@ -464,12 +476,12 @@ const styles = StyleSheet.create({
   },
   bullet: {
     fontSize: 16,
-    color: "#2f95dc",
+    color: colors.primary,
     marginTop: 2,
   },
   stepNumber: {
     fontSize: 15,
-    color: "#2f95dc",
+    color: colors.primary,
     fontWeight: "600",
     marginTop: 2,
     minWidth: 20,
@@ -478,13 +490,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     flex: 1,
     lineHeight: 22,
+    color: colors.text,
   },
   deleteButton: {
     marginTop: 40,
     alignSelf: "center",
   },
   deleteText: {
-    color: "#ff3b30",
+    color: colors.danger,
     fontSize: 14,
   },
   confirmRow: {
@@ -494,7 +507,7 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     fontSize: 14,
-    color: "#333",
+    color: colors.text,
   },
   confirmButtons: {
     flexDirection: "row",
@@ -502,6 +515,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 14,
-    color: "#999",
+    color: colors.textMuted,
   },
-});
+  });
+}

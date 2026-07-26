@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import {
   listCatalogIngredients,
   type CatalogIngredient,
 } from "../../lib/ingredient-catalog";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
 
 type Ingredient = { name: string; quantity: string; unit: string };
 
@@ -26,6 +28,8 @@ export default function CreateRecipeScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [title, setTitle] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([
     { name: "", quantity: "", unit: "" },
@@ -130,6 +134,7 @@ export default function CreateRecipeScreen() {
       <TextInput
         style={styles.input}
         placeholder="e.g. Sheet Pan Chicken Fajitas"
+        placeholderTextColor={colors.textMuted}
         value={title}
         onChangeText={setTitle}
         autoFocus
@@ -163,6 +168,7 @@ export default function CreateRecipeScreen() {
           <TextInput
             style={[styles.input, styles.ingredientQty]}
             placeholder="Qty"
+            placeholderTextColor={colors.textMuted}
             value={ing.quantity}
             onChangeText={(v) => updateIngredient(index, "quantity", v)}
             keyboardType="numeric"
@@ -170,6 +176,7 @@ export default function CreateRecipeScreen() {
           <TextInput
             style={[styles.input, styles.ingredientUnit]}
             placeholder="Unit"
+            placeholderTextColor={colors.textMuted}
             value={ing.unit}
             onChangeText={(v) => updateIngredient(index, "unit", v)}
           />
@@ -201,76 +208,80 @@ export default function CreateRecipeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  content: {
-    padding: 24,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: "#fafafa",
-  },
-  ingredientRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
-    alignItems: "flex-start",
-  },
-  ingredientName: {
-    flex: 3,
-  },
-  ingredientQty: {
-    flex: 1,
-  },
-  ingredientUnit: {
-    flex: 1.5,
-  },
-  removeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#fee",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  removeButtonText: {
-    color: "#c00",
-    fontWeight: "600",
-  },
-  addIngredient: {
-    paddingVertical: 12,
-  },
-  addIngredientText: {
-    color: "#2f95dc",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  saveButton: {
-    backgroundColor: "#2f95dc",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 24,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: 24,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 8,
+      color: colors.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+    ingredientRow: {
+      flexDirection: "row",
+      gap: 8,
+      marginBottom: 8,
+      alignItems: "flex-start",
+    },
+    ingredientName: {
+      flex: 3,
+    },
+    ingredientQty: {
+      flex: 1,
+    },
+    ingredientUnit: {
+      flex: 1.5,
+    },
+    removeButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceMuted,
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 4,
+    },
+    removeButtonText: {
+      color: colors.danger,
+      fontWeight: "600",
+    },
+    addIngredient: {
+      paddingVertical: 12,
+    },
+    addIngredientText: {
+      color: colors.primary,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    saveButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      padding: 16,
+      alignItems: "center",
+      marginTop: 24,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    saveButtonText: {
+      color: colors.primaryText,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+  });
+}

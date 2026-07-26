@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import { useTheme } from "../../lib/theme-context";
+import type { ThemeColors } from "../../lib/theme";
+import ThemePreferencePicker from "../../components/ThemePreferencePicker";
 
 type Membership = {
   household_id: string;
@@ -13,6 +16,8 @@ type Membership = {
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [membership, setMembership] = useState<Membership | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -47,7 +52,7 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -55,7 +60,7 @@ export default function HomeScreen() {
   if (membership) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -83,6 +88,8 @@ export default function HomeScreen() {
         </Text>
       </Pressable>
 
+      <ThemePreferencePicker />
+
       <Pressable style={styles.signOut} onPress={signOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </Pressable>
@@ -90,56 +97,60 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#fff",
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  subtext: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 40,
-  },
-  button: {
-    backgroundColor: "#2f95dc",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  secondaryButton: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#2f95dc",
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  secondaryButtonText: {
-    color: "#2f95dc",
-  },
-  signOut: {
-    marginTop: 32,
-    alignSelf: "center",
-  },
-  signOutText: {
-    color: "#999",
-    fontSize: 14,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    center: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: colors.background,
+    },
+    container: {
+      flex: 1,
+      justifyContent: "center",
+      padding: 24,
+      backgroundColor: colors.background,
+    },
+    heading: {
+      fontSize: 28,
+      fontWeight: "700",
+      textAlign: "center",
+      marginBottom: 8,
+      color: colors.text,
+    },
+    subtext: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: "center",
+      marginBottom: 40,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      padding: 16,
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    secondaryButton: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    buttonText: {
+      color: colors.primaryText,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    secondaryButtonText: {
+      color: colors.primary,
+    },
+    signOut: {
+      marginTop: 32,
+      alignSelf: "center",
+    },
+    signOutText: {
+      color: colors.textMuted,
+      fontSize: 14,
+    },
+  });
+}
