@@ -1,14 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
   Pressable,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   TextInput,
 } from "react-native";
-import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { showError } from "../../lib/db";
@@ -30,6 +29,8 @@ type Store = { id: string; name: string; sort_order: number };
 export default function HouseholdEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { signOut } = useAuth();
+  const navigation = useNavigation();
+  const router = useRouter();
 
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -38,6 +39,27 @@ export default function HouseholdEditScreen() {
   const [loading, setLoading] = useState(true);
   const [storeInput, setStoreInput] = useState("");
   const [savingAisles, setSavingAisles] = useState(false);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          onPress={() => {
+            if (id) {
+              router.replace({ pathname: "/(app)/household", params: { id } });
+              return;
+            }
+            if (router.canGoBack()) router.back();
+          }}
+          style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back to household"
+        >
+          <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>‹ Back</Text>
+        </Pressable>
+      ),
+    });
+  }, [id, navigation, router]);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -120,59 +142,61 @@ export default function HouseholdEditScreen() {
     );
   }
 
+  // Same shell as shopping list: sticky header + SortableList owns the scroll.
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.inviteBox}>
-        <Text style={styles.inviteLabel}>Invite Code</Text>
-        <Text style={styles.inviteCode}>{household?.invite_code}</Text>
-        <Text style={styles.inviteHint}>Share this code to invite members</Text>
-      </View>
-
-      <Text style={styles.sectionTitle}>Members ({members.length})</Text>
-      {members.map((m) => (
-        <View key={m.id} style={styles.memberRow}>
-          <Text style={styles.memberName}>{m.display_name}</Text>
-          <Text style={styles.memberRole}>{m.role}</Text>
+    <View style={styles.container}>
+      <View style={styles.topSection}>
+        <View style={styles.inviteBox}>
+          <Text style={styles.inviteLabel}>Invite Code</Text>
+          <Text style={styles.inviteCode}>{household?.invite_code}</Text>
+          <Text style={styles.inviteHint}>Share this code to invite members</Text>
         </View>
-      ))}
 
-      <Text style={[styles.sectionTitle, styles.storesSectionTitle]}>
-        Stores ({stores.length})
-      </Text>
-      {stores.map((s) => (
-        <View key={s.id} style={styles.storeRow}>
-          <Text style={styles.storeName}>{s.name}</Text>
-          <Pressable onPress={() => deleteStore(s.id)}>
-            <Text style={styles.storeDelete}>×</Text>
+        <Text style={styles.sectionTitle}>Members ({members.length})</Text>
+        {members.map((m) => (
+          <View key={m.id} style={styles.memberRow}>
+            <Text style={styles.memberName}>{m.display_name}</Text>
+            <Text style={styles.memberRole}>{m.role}</Text>
+          </View>
+        ))}
+
+        <Text style={[styles.sectionTitle, styles.storesSectionTitle]}>
+          Stores ({stores.length})
+        </Text>
+        {stores.map((s) => (
+          <View key={s.id} style={styles.storeRow}>
+            <Text style={styles.storeName}>{s.name}</Text>
+            <Pressable onPress={() => deleteStore(s.id)}>
+              <Text style={styles.storeDelete}>×</Text>
+            </Pressable>
+          </View>
+        ))}
+        <View style={styles.storeInputRow}>
+          <TextInput
+            style={styles.storeInputField}
+            placeholder="Add a store…"
+            value={storeInput}
+            onChangeText={setStoreInput}
+            returnKeyType="done"
+            onSubmitEditing={addStore}
+            autoCapitalize="words"
+          />
+          <Pressable style={styles.storeAddButton} onPress={addStore}>
+            <Text style={styles.storeAddButtonText}>Add</Text>
           </Pressable>
         </View>
-      ))}
-      <View style={styles.storeInputRow}>
-        <TextInput
-          style={styles.storeInputField}
-          placeholder="Add a store…"
-          value={storeInput}
-          onChangeText={setStoreInput}
-          returnKeyType="done"
-          onSubmitEditing={addStore}
-          autoCapitalize="words"
-        />
-        <Pressable style={styles.storeAddButton} onPress={addStore}>
-          <Text style={styles.storeAddButtonText}>Add</Text>
-        </Pressable>
+
+        <View style={styles.aisleHeader}>
+          <Text style={[styles.sectionTitle, styles.aisleSectionTitle]}>
+            Aisle order ({aisleCategories.length})
+          </Text>
+          {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
+        </View>
       </View>
 
-      <View style={styles.aisleHeader}>
-        <Text style={[styles.sectionTitle, styles.aisleSectionTitle]}>
-          Aisle order ({aisleCategories.length})
-        </Text>
-        {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
-      </View>
-      <Text style={styles.aisleHint}>Drag ≡ to match your store walk path</Text>
       <SortableList
         items={aisleCategories}
         keyExtractor={(item) => item.id}
-        nestedInScroll
         onReorder={(next) => {
           void saveAisleOrder(next);
         }}
@@ -192,14 +216,14 @@ export default function HouseholdEditScreen() {
       <Pressable style={styles.signOut} onPress={signOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </Pressable>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 24, paddingBottom: 48 },
+  topSection: { paddingHorizontal: 24, paddingTop: 24 },
   inviteBox: {
     backgroundColor: "#f0f7ff",
     borderRadius: 8,
@@ -268,17 +292,17 @@ const styles = StyleSheet.create({
   storeAddButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   aisleHeader: {
     marginTop: 28,
+    marginBottom: 4,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   aisleSectionTitle: { marginBottom: 0, flex: 1 },
-  aisleHint: { fontSize: 13, color: "#999", marginTop: 4, marginBottom: 8 },
   aisleRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 4,
+    paddingHorizontal: 24,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
     backgroundColor: "#fff",
@@ -286,6 +310,6 @@ const styles = StyleSheet.create({
   aisleRowActive: { backgroundColor: "#f0f7ff" },
   aisleDragHit: { flex: 1 },
   aisleLabel: { flex: 1, fontSize: 16 },
-  signOut: { marginTop: 40, alignSelf: "center" },
+  signOut: { paddingVertical: 20, alignSelf: "center" },
   signOutText: { color: "#999", fontSize: 14 },
 });
