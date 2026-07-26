@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   TextInput,
 } from "react-native";
-import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { showError } from "../../lib/db";
@@ -29,6 +29,8 @@ type Store = { id: string; name: string; sort_order: number };
 export default function HouseholdEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { signOut } = useAuth();
+  const navigation = useNavigation();
+  const router = useRouter();
 
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -37,6 +39,27 @@ export default function HouseholdEditScreen() {
   const [loading, setLoading] = useState(true);
   const [storeInput, setStoreInput] = useState("");
   const [savingAisles, setSavingAisles] = useState(false);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          onPress={() => {
+            if (id) {
+              router.replace({ pathname: "/(app)/household", params: { id } });
+              return;
+            }
+            if (router.canGoBack()) router.back();
+          }}
+          style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back to household"
+        >
+          <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>‹ Back</Text>
+        </Pressable>
+      ),
+    });
+  }, [id, navigation, router]);
 
   const loadData = useCallback(async () => {
     if (!id) return;
