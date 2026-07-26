@@ -1,14 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Web sortable list via Pointer Events (mouse + touch).
+ * Web sortable list via Pointer Events.
  *
- * HTML5 DnD + touch polyfills are unreliable under React Native Web (Pressables
- * preventDefault synthetic mouse/drag events). Pointer events are the dependable path.
- *
- * Touch/pen: brief stillness claims the gesture (blocks scroll steal), then drag
- * arms quickly — move after claim starts immediately; otherwise a short hold.
- * Mouse: drag after a few pixels of movement.
+ * Mobile / coarse pointer: drag from the ≡ handle only (immediate, no press-hold).
+ * Desktop mouse: drag from the whole row after a small move threshold.
  */
 
 type Props<T> = {
@@ -18,20 +14,18 @@ type Props<T> = {
   onReorder: (items: T[]) => void;
 };
 
-/** Stillness before we take the gesture from the scroller (touch). */
-const CLAIM_MS = 55;
-/** Auto-arm drag if the finger stays put after claim. */
-const HOLD_MS = 110;
-/** Finger jitter allowed before claim; larger than before so holds aren't cancelled. */
-const HOLD_MOVE_CANCEL_PX = 22;
 const MOUSE_ACTIVATE_PX = 4;
+
+function isDragHandleTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return !!target.closest("[data-drag-handle]");
+}
 
 function isNoDragTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   return !!target.closest("[data-no-drag]");
 }
 
-/** Destination index for splice(from,1)+splice(to,0) based on pointer Y. */
 function indexFromY(clientY: number, listEl: HTMLElement): number {
   const rows = Array.from(listEl.querySelectorAll<HTMLElement>("[data-sortable-id]"));
   if (rows.length === 0) return 0;
@@ -42,12 +36,28 @@ function indexFromY(clientY: number, listEl: HTMLElement): number {
   return rows.length - 1;
 }
 
+/** Phones / Chrome device-mode: no hover. Keeps desktop mouse whole-row drag. */
+function useMobileDragUi(): boolean {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: none), (pointer: coarse)");
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return mobile;
+}
+
 export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: Props<T>) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const itemsRef = useRef(items);
   const onReorderRef = useRef(onReorder);
   itemsRef.current = items;
   onReorderRef.current = onReorder;
+
+  const showHandle = useMobileDragUi();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -67,18 +77,13 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
     id: string;
     startX: number;
     startY: number;
-    claimed: boolean;
     activated: boolean;
-    claimTimer: ReturnType<typeof setTimeout> | null;
-    holdTimer: ReturnType<typeof setTimeout> | null;
+    fromHandle: boolean;
     rowEl: HTMLElement;
-    pointerType: string;
   } | null>(null);
 
   const cleanup = useCallback(() => {
     const s = sessionRef.current;
-    if (s?.claimTimer) clearTimeout(s.claimTimer);
-    if (s?.holdTimer) clearTimeout(s.holdTimer);
     if (s?.rowEl) s.rowEl.style.touchAction = "";
     sessionRef.current = null;
     setActiveId(null);
@@ -86,10 +91,23 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
     setGhost(null);
   }, []);
 
-  const claimGesture = useCallback(() => {
+  const activate = useCallback((clientX: number, clientY: number) => {
     const s = sessionRef.current;
-    if (!s || s.claimed) return;
-    s.claimed = true;
+    if (!s || s.activated) return;
+    s.activated = true;
+
+    const rect = s.rowEl.getBoundingClientRect();
+    setActiveId(s.id);
+    setOverIndex(s.startIndex);
+    setGhost({
+      html: s.rowEl.innerHTML,
+      width: rect.width,
+      height: rect.height,
+      x: clientX,
+      y: clientY,
+      offsetX: clientX - rect.left,
+      offsetY: clientY - rect.top,
+    });
     s.rowEl.style.touchAction = "none";
     try {
       s.rowEl.setPointerCapture(s.pointerId);
@@ -98,37 +116,6 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
     }
   }, []);
 
-  const activate = useCallback(
-    (clientX: number, clientY: number) => {
-      const s = sessionRef.current;
-      if (!s || s.activated) return;
-      claimGesture();
-      s.activated = true;
-      if (s.claimTimer) {
-        clearTimeout(s.claimTimer);
-        s.claimTimer = null;
-      }
-      if (s.holdTimer) {
-        clearTimeout(s.holdTimer);
-        s.holdTimer = null;
-      }
-
-      const rect = s.rowEl.getBoundingClientRect();
-      setActiveId(s.id);
-      setOverIndex(s.startIndex);
-      setGhost({
-        html: s.rowEl.innerHTML,
-        width: rect.width,
-        height: rect.height,
-        x: clientX,
-        y: clientY,
-        offsetX: clientX - rect.left,
-        offsetY: clientY - rect.top,
-      });
-    },
-    [claimGesture]
-  );
-
   useEffect(() => () => cleanup(), [cleanup]);
 
   const onPointerDown = (e: React.PointerEvent, index: number, id: string, rowEl: HTMLElement) => {
@@ -136,32 +123,28 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
     if (isNoDragTarget(e.target)) return;
     if (sessionRef.current) return;
 
+    const touchLike =
+      showHandle || e.pointerType === "touch" || e.pointerType === "pen";
+    const fromHandle = isDragHandleTarget(e.target);
+
+    // Mobile: only the handle starts a drag. Desktop mouse: whole row.
+    if (touchLike && !fromHandle) return;
+
     sessionRef.current = {
       pointerId: e.pointerId,
       startIndex: index,
       id,
       startX: e.clientX,
       startY: e.clientY,
-      claimed: false,
       activated: false,
-      claimTimer: null,
-      holdTimer: null,
+      fromHandle,
       rowEl,
-      pointerType: e.pointerType,
     };
 
-    if (e.pointerType === "touch" || e.pointerType === "pen") {
-      // Claim early so the browser doesn't start a scroll and cancel our pointer.
-      sessionRef.current.claimTimer = setTimeout(() => {
-        const s = sessionRef.current;
-        if (!s || s.activated) return;
-        claimGesture();
-      }, CLAIM_MS);
-      sessionRef.current.holdTimer = setTimeout(() => {
-        const s = sessionRef.current;
-        if (!s || s.activated) return;
-        activate(s.startX, s.startY);
-      }, HOLD_MS);
+    // Handle (mobile): grab immediately. Mouse row: wait for a few pixels.
+    if (fromHandle) {
+      e.preventDefault();
+      activate(e.clientX, e.clientY);
     }
   };
 
@@ -169,25 +152,10 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
     const s = sessionRef.current;
     if (!s || e.pointerId !== s.pointerId) return;
 
-    const dist = Math.hypot(e.clientX - s.startX, e.clientY - s.startY);
-
     if (!s.activated) {
-      if (s.pointerType === "touch" || s.pointerType === "pen") {
-        // Before claim: big move = user is scrolling — bail.
-        if (!s.claimed && dist > HOLD_MOVE_CANCEL_PX) {
-          cleanup();
-          return;
-        }
-        // After claim (or enough intentional move): start drag immediately.
-        if (s.claimed || dist > HOLD_MOVE_CANCEL_PX) {
-          activate(e.clientX, e.clientY);
-        } else {
-          return;
-        }
-      } else {
-        if (dist < MOUSE_ACTIVATE_PX) return;
-        activate(e.clientX, e.clientY);
-      }
+      const dist = Math.hypot(e.clientX - s.startX, e.clientY - s.startY);
+      if (dist < MOUSE_ACTIVATE_PX) return;
+      activate(e.clientX, e.clientY);
     }
 
     if (!sessionRef.current?.activated) return;
@@ -249,11 +217,14 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
               position: "relative",
               opacity: isActive ? 0.35 : 1,
               boxSizing: "border-box",
-              cursor: "grab",
+              cursor: showHandle ? "default" : "grab",
               userSelect: "none",
               WebkitUserSelect: "none",
               WebkitTouchCallout: "none",
               touchAction: "pan-y",
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "stretch",
             }}
           >
             {showLine ? (
@@ -270,7 +241,29 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
                 }}
               />
             ) : null}
-            {renderItem(item, undefined, isActive)}
+            <div style={{ flex: 1, minWidth: 0 }}>{renderItem(item, undefined, isActive)}</div>
+            {showHandle ? (
+              <div
+                data-drag-handle
+                role="button"
+                aria-label="Drag to reorder"
+                style={{
+                  flexShrink: 0,
+                  width: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "grab",
+                  touchAction: "none",
+                  color: "#bbb",
+                  fontSize: 20,
+                  lineHeight: 1,
+                  userSelect: "none",
+                }}
+              >
+                ≡
+              </div>
+            ) : null}
           </div>
         );
       })}
