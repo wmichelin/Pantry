@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { insertionIndexFromY, moveItemBefore } from "../lib/sortable-reorder";
 
 /**
@@ -9,6 +10,8 @@ import { insertionIndexFromY, moveItemBefore } from "../lib/sortable-reorder";
  *
  * Pointer tracking uses window listeners + ancestor scroll lock so nesting
  * inside React Native Web ScrollView does not corrupt clientY / jump the ghost.
+ * The drag ghost is portaled to document.body so position:fixed is viewport-true
+ * even when an ancestor ScrollView uses transform.
  */
 
 type Props<T> = {
@@ -38,7 +41,12 @@ function isNoDragTarget(target: EventTarget | null): boolean {
 
 function lockAncestorScroll(fromEl: HTMLElement | null): () => void {
   if (!fromEl || typeof document === "undefined") return () => {};
-  const locked: { el: HTMLElement; overflow: string; overflowY: string }[] = [];
+  const locked: {
+    el: HTMLElement;
+    overflow: string;
+    overflowY: string;
+    touchAction: string;
+  }[] = [];
   let el: HTMLElement | null = fromEl;
   while (el) {
     const style = window.getComputedStyle(el);
@@ -51,9 +59,11 @@ function lockAncestorScroll(fromEl: HTMLElement | null): () => void {
         el,
         overflow: el.style.overflow,
         overflowY: el.style.overflowY,
+        touchAction: el.style.touchAction,
       });
       el.style.overflow = "hidden";
       el.style.overflowY = "hidden";
+      el.style.touchAction = "none";
     }
     el = el.parentElement;
   }
@@ -63,6 +73,7 @@ function lockAncestorScroll(fromEl: HTMLElement | null): () => void {
     for (const entry of locked) {
       entry.el.style.overflow = entry.overflow;
       entry.el.style.overflowY = entry.overflowY;
+      entry.el.style.touchAction = entry.touchAction;
     }
     document.body.style.userSelect = prevUserSelect;
   };
@@ -102,6 +113,7 @@ export function SortableList<T>({
   onReorderRef.current = onReorder;
 
   const showHandle = useMobileDragUi();
+  const nestedInScroll = !scrollEnabled;
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -124,6 +136,11 @@ export function SortableList<T>({
     activated: boolean;
     fromHandle: boolean;
     rowEl: HTMLElement;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+    height: number;
+    html: string;
   } | null>(null);
 
   const unlockScrollRef = useRef<(() => void) | null>(null);
@@ -147,20 +164,23 @@ export function SortableList<T>({
     if (!s || s.activated) return;
     s.activated = true;
 
-    const rect = s.rowEl.getBoundingClientRect();
     setActiveId(s.id);
     setOverIndex(s.startIndex);
+    // Use grab offsets captured on pointerdown (before any scroll) so the ghost
+    // stays under the cursor even if layout shifts when scroll is locked.
     setGhost({
-      html: s.rowEl.innerHTML,
-      width: rect.width,
-      height: rect.height,
+      html: s.html,
+      width: s.width,
+      height: s.height,
       x: clientX,
       y: clientY,
-      offsetX: clientX - rect.left,
-      offsetY: clientY - rect.top,
+      offsetX: s.offsetX,
+      offsetY: s.offsetY,
     });
     s.rowEl.style.touchAction = "none";
-    unlockScrollRef.current = lockAncestorScroll(listRef.current);
+    if (!unlockScrollRef.current) {
+      unlockScrollRef.current = lockAncestorScroll(listRef.current);
+    }
     try {
       s.rowEl.setPointerCapture(s.pointerId);
     } catch {
@@ -243,6 +263,7 @@ export function SortableList<T>({
     // Handle-only modes: ignore presses on the row body.
     if (touchLike && !fromHandle) return;
 
+    const rect = rowEl.getBoundingClientRect();
     sessionRef.current = {
       pointerId: e.pointerId,
       startIndex: index,
@@ -252,7 +273,18 @@ export function SortableList<T>({
       activated: false,
       fromHandle,
       rowEl,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      width: rect.width,
+      height: rect.height,
+      html: rowEl.innerHTML,
     };
+
+    // Nested in a page ScrollView: lock ancestors immediately so the threshold
+    // move cannot scroll the page and desync grab offsets.
+    if (nestedInScroll && !unlockScrollRef.current) {
+      unlockScrollRef.current = lockAncestorScroll(listRef.current);
+    }
 
     attachDocListeners();
 
@@ -272,6 +304,32 @@ export function SortableList<T>({
       if (from < 0 || overIndex === null) return true;
       return overIndex === from || overIndex === from + 1;
     })();
+
+  const ghostNode =
+    ghost && typeof document !== "undefined" ? (
+      <div
+        aria-hidden
+        style={{
+          position: "fixed",
+          left: ghost.x - ghost.offsetX,
+          top: ghost.y - ghost.offsetY,
+          width: ghost.width,
+          height: ghost.height,
+          opacity: 0.92,
+          pointerEvents: "none",
+          zIndex: 99999,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+          backgroundColor: "#fff",
+          overflow: "hidden",
+          // Match the source row: innerHTML is the flex children, not the flex container.
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "stretch",
+          boxSizing: "border-box",
+        }}
+        dangerouslySetInnerHTML={{ __html: ghost.html }}
+      />
+    ) : null;
 
   return (
     <div
@@ -374,30 +432,7 @@ export function SortableList<T>({
 
       {ListFooterComponent}
 
-      {ghost ? (
-        <div
-          aria-hidden
-          style={{
-            position: "fixed",
-            left: ghost.x - ghost.offsetX,
-            top: ghost.y - ghost.offsetY,
-            width: ghost.width,
-            height: ghost.height,
-            opacity: 0.92,
-            pointerEvents: "none",
-            zIndex: 99999,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
-            backgroundColor: "#fff",
-            overflow: "hidden",
-            // Match the source row: innerHTML is the flex children, not the flex container.
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "stretch",
-            boxSizing: "border-box",
-          }}
-          dangerouslySetInnerHTML={{ __html: ghost.html }}
-        />
-      ) : null}
+      {ghostNode ? createPortal(ghostNode, document.body) : null}
     </div>
   );
 }
