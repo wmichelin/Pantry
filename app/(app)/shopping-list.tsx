@@ -578,9 +578,7 @@ export default function ShoppingListScreen() {
     );
   };
 
-  // ── Build list ──────────────────────────────────────────────────────────────
-  const unchecked = items.filter((i) => !i.checked);
-  const checked = items.filter((i) => i.checked);
+  const hasChecked = items.some((i) => i.checked);
 
   // ── Loading / empty ─────────────────────────────────────────────────────────
   if (loading) {
@@ -619,19 +617,9 @@ export default function ShoppingListScreen() {
       </Text>
     ) : (
       <>
-        {unchecked.map((item) => (
+        {items.map((item) => (
           <View key={item.normalizedName}>{renderItemRow(item)}</View>
         ))}
-        {checked.length > 0 && (
-          <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionLabel}>Got it</Text>
-            </View>
-            {checked.map((item) => (
-              <View key={item.normalizedName}>{renderItemRow(item)}</View>
-            ))}
-          </>
-        )}
       </>
     );
 
@@ -656,7 +644,7 @@ export default function ShoppingListScreen() {
                 <Text style={styles.clearActionText}>Clear week</Text>
               )}
             </Pressable>
-            {checked.length > 0 && (
+            {hasChecked && (
               <Pressable onPress={clearChecks}>
                 <Text style={styles.clearActionText}>Clear checks</Text>
               </Pressable>
@@ -808,23 +796,6 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 
-
-  sectionHeader: {
-    backgroundColor: "#f8f8f8",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#e8e8e8",
-    marginTop: 8,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
 
   itemRow: {
     flexDirection: "row",

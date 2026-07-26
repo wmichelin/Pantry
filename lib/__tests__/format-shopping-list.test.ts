@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { formatShoppingList } from "../format-shopping-list";
 
 describe("formatShoppingList", () => {
-  it("formats a flat list with unchecked then checked", () => {
+  it("keeps checked items in place instead of moving them to a section", () => {
     const text = formatShoppingList([
       {
         normalizedName: "milk",
@@ -16,8 +16,14 @@ describe("formatShoppingList", () => {
         storeIds: [],
         occurrences: [],
       },
+      {
+        normalizedName: "bread",
+        checked: false,
+        storeIds: [],
+        occurrences: [],
+      },
     ]);
-    expect(text).toBe("- [ ] Milk · 1 gallon\n\n## Got it\n- [x] Eggs");
+    expect(text).toBe("- [ ] Milk · 1 gallon\n- [x] Eggs\n- [ ] Bread");
   });
 
   it("stays flat even when items have storeIds", () => {
