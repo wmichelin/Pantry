@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Pressable,
   Modal,
@@ -62,7 +61,6 @@ export default function ShoppingListScreen() {
   const [items, setItems] = useState<ConsolidatedItem[]>([]);
   const [catalog, setCatalog] = useState<CatalogIngredient[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editMode, setEditMode] = useState(false);
   const [newItemText, setNewItemText] = useState("");
   const [addingItem, setAddingItem] = useState(false);
   const addInputRef = useRef<TextInput>(null);
@@ -282,28 +280,17 @@ export default function ShoppingListScreen() {
       ),
       headerRight: () => (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          {!editMode && items.length > 0 && (
-            <Pressable onPress={shareList} style={{ paddingHorizontal: 10 }}>
+          {items.length > 0 && (
+            <Pressable onPress={shareList} style={{ paddingHorizontal: 16 }}>
               <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
                 Share
               </Text>
             </Pressable>
           )}
-          <Pressable
-            onPress={() => {
-              if (editMode) saveOrder();
-              setEditMode((e) => !e);
-            }}
-            style={{ paddingHorizontal: 16 }}
-          >
-            <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
-              {editMode ? "Done" : "Edit"}
-            </Text>
-          </Pressable>
         </View>
       ),
     });
-  }, [editMode, items, shareList, householdId, navigation, router]);
+  }, [items, shareList, householdId, navigation, router]);
 
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {
@@ -404,26 +391,19 @@ export default function ShoppingListScreen() {
           )
         );
       } else {
-        setItems((prev) => {
-          const next = [
-            ...prev,
-            {
-              normalizedName: key,
-              displayName: catalogRow.display_name,
-              metadataId: catalogRow.id,
-              sortOrder: editMode
-                ? (prev[prev.length - 1]?.sortOrder ?? 0) + 10
-                : catalogRow.sort_order,
-              occurrences: [],
-              checked: false,
-              isManual: true,
-              manualItemId: manualRow.id,
-            },
-          ];
-          // Preserve the user's in-progress order while editing.
-          if (editMode) return next;
-          return next.sort((a, b) => a.sortOrder - b.sortOrder);
-        });
+        setItems((prev) => [
+          ...prev,
+          {
+            normalizedName: key,
+            displayName: catalogRow.display_name,
+            metadataId: catalogRow.id,
+            sortOrder: (prev[prev.length - 1]?.sortOrder ?? 0) + 10,
+            occurrences: [],
+            checked: false,
+            isManual: true,
+            manualItemId: manualRow.id,
+          },
+        ]);
       }
       setCatalog((prev) => {
         if (prev.some((c) => c.id === catalogRow.id)) return prev;
@@ -466,8 +446,9 @@ export default function ShoppingListScreen() {
   };
 
   // ── Reorder / save order ─────────────────────────────────────────────────────
-  const saveOrder = async () => {
-    const updates = items.map((item, i) => ({
+  const saveOrder = async (ordered: ConsolidatedItem[]) => {
+    if (!householdId) return;
+    const updates = ordered.map((item, i) => ({
       id: item.metadataId,
       household_id: householdId,
       normalized_name: item.normalizedName,
@@ -479,7 +460,12 @@ export default function ShoppingListScreen() {
       showError("Couldn't save the order", error);
       return;
     }
-    setItems((prev) => prev.map((item, i) => ({ ...item, sortOrder: (i + 1) * 10 })));
+    setItems(ordered.map((item, i) => ({ ...item, sortOrder: (i + 1) * 10 })));
+  };
+
+  const handleReorder = (data: ConsolidatedItem[]) => {
+    setItems(data);
+    void saveOrder(data);
   };
 
   // ── Render helpers ──────────────────────────────────────────────────────────
@@ -524,19 +510,19 @@ export default function ShoppingListScreen() {
     isActive?: boolean
   ) => {
     const fromRecipe = item.occurrences.some((o) => o.recipeTitle !== "Added");
-    const canRemove = editMode && item.isManual && !fromRecipe;
+    const canRemove = item.isManual && !fromRecipe;
 
     return (
-      <Pressable
-        onPressIn={drag}
+      <View
         style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}
       >
-        <Pressable style={styles.checkbox} onPress={() => !editMode && toggleCheck(item)}>
+        <Pressable style={styles.checkbox} onPress={() => toggleCheck(item)}>
           <Text style={[styles.checkboxIcon, item.checked && styles.checkboxIconChecked]}>
             {item.checked ? "●" : "○"}
           </Text>
         </Pressable>
-        <View style={styles.itemContent}>
+        {/* Native: press content to drag. Web SortableList owns whole-row drag. */}
+        <Pressable style={styles.itemContent} onPressIn={drag}>
           <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
             {item.displayName}
           </Text>
@@ -550,13 +536,13 @@ export default function ShoppingListScreen() {
               </Text>
             );
           })}
-        </View>
+        </Pressable>
         {canRemove && (
           <Pressable style={styles.removeButton} onPress={() => removeManualItem(item)}>
             <Text style={styles.removeButtonText}>✕</Text>
           </Pressable>
         )}
-      </Pressable>
+      </View>
     );
   };
 
@@ -571,47 +557,9 @@ export default function ShoppingListScreen() {
     );
   }
 
-  // ── Edit mode: flat reorderable list ─────────────────────────────────────────
-  if (editMode) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.editBanner}>
-          <Text style={styles.editBannerText}>
-            Drag to reorder. Add items below. Tap ✕ to remove added items. Tap Done to save.
-          </Text>
-        </View>
-        {renderAddRow()}
-        <SortableList
-          items={items}
-          keyExtractor={(item) => item.normalizedName}
-          renderItem={(item, drag, isActive) => renderItemRow(item, drag, isActive)}
-          onReorder={(data) => setItems(data)}
-        />
-      </View>
-    );
-  }
-
-  // ── Normal view ─────────────────────────────────────────────────────────────
-  const body =
-    items.length === 0 ? (
-      <Text style={styles.emptyText}>
-        No items yet. Add something below, or queue recipes from the week queue.
-      </Text>
-    ) : (
-      <>
-        {items.map((item) => (
-          <View key={item.normalizedName}>{renderItemRow(item)}</View>
-        ))}
-      </>
-    );
-
   return (
     <>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
+      <View style={styles.container}>
         {renderAddRow()}
         {items.length > 0 && (
           <View style={styles.clearActionsRow}>
@@ -633,8 +581,19 @@ export default function ShoppingListScreen() {
             )}
           </View>
         )}
-        {body}
-      </ScrollView>
+        {items.length === 0 ? (
+          <Text style={styles.emptyText}>
+            No items yet. Add something below, or queue recipes from the week queue.
+          </Text>
+        ) : (
+          <SortableList
+            items={items}
+            keyExtractor={(item) => item.normalizedName}
+            renderItem={(item, drag, isActive) => renderItemRow(item, drag, isActive)}
+            onReorder={handleReorder}
+          />
+        )}
+      </View>
 
       <Modal
         visible={clearWeekModalVisible}
@@ -811,19 +770,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#ff3b30",
     fontWeight: "600",
-  },
-
-  editBanner: {
-    backgroundColor: "#f0f7ff",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#d0e8f8",
-  },
-  editBannerText: {
-    fontSize: 13,
-    color: "#2f95dc",
-    textAlign: "center",
   },
 
   buttonDisabled: { opacity: 0.6 },
