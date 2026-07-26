@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { formatShoppingList } from "../format-shopping-list";
 
 describe("formatShoppingList", () => {
-  it("keeps checked items in place instead of moving them to a section", () => {
+  it("formats plain lines in list order without checkbox markup", () => {
     const text = formatShoppingList([
       {
         normalizedName: "milk",
@@ -23,7 +23,7 @@ describe("formatShoppingList", () => {
         occurrences: [],
       },
     ]);
-    expect(text).toBe("- [ ] Milk · 1 gallon\n- [x] Eggs\n- [ ] Bread");
+    expect(text).toBe("Milk · 1 gallon\nEggs\nBread");
   });
 
   it("stays flat even when items have storeIds", () => {
@@ -41,7 +41,7 @@ describe("formatShoppingList", () => {
         occurrences: [],
       },
     ]);
-    expect(text).toBe("- [ ] Apples\n- [ ] Paper Towels");
+    expect(text).toBe("Apples\nPaper Towels");
   });
 
   it("returns empty string for empty list", () => {
@@ -57,6 +57,6 @@ describe("formatShoppingList", () => {
         occurrences: [{ quantity: 1 / 3, unit: "cup" }],
       },
     ]);
-    expect(text).toBe("- [ ] Tahini · 1/3 cup");
+    expect(text).toBe("Tahini · 1/3 cup");
   });
 });
