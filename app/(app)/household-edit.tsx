@@ -142,61 +142,71 @@ export default function HouseholdEditScreen() {
     );
   }
 
-  // Same shell as shopping list: sticky header + SortableList owns the scroll.
-  return (
-    <View style={styles.container}>
-      <View style={styles.topSection}>
-        <View style={styles.inviteBox}>
-          <Text style={styles.inviteLabel}>Invite Code</Text>
-          <Text style={styles.inviteCode}>{household?.invite_code}</Text>
-          <Text style={styles.inviteHint}>Share this code to invite members</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>Members ({members.length})</Text>
-        {members.map((m) => (
-          <View key={m.id} style={styles.memberRow}>
-            <Text style={styles.memberName}>{m.display_name}</Text>
-            <Text style={styles.memberRole}>{m.role}</Text>
-          </View>
-        ))}
-
-        <Text style={[styles.sectionTitle, styles.storesSectionTitle]}>
-          Stores ({stores.length})
-        </Text>
-        {stores.map((s) => (
-          <View key={s.id} style={styles.storeRow}>
-            <Text style={styles.storeName}>{s.name}</Text>
-            <Pressable onPress={() => deleteStore(s.id)}>
-              <Text style={styles.storeDelete}>×</Text>
-            </Pressable>
-          </View>
-        ))}
-        <View style={styles.storeInputRow}>
-          <TextInput
-            style={styles.storeInputField}
-            placeholder="Add a store…"
-            value={storeInput}
-            onChangeText={setStoreInput}
-            returnKeyType="done"
-            onSubmitEditing={addStore}
-            autoCapitalize="words"
-          />
-          <Pressable style={styles.storeAddButton} onPress={addStore}>
-            <Text style={styles.storeAddButtonText}>Add</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.aisleHeader}>
-          <Text style={[styles.sectionTitle, styles.aisleSectionTitle]}>
-            Aisle order ({aisleCategories.length})
-          </Text>
-          {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
-        </View>
+  const listHeader = (
+    <View style={styles.topSection}>
+      <View style={styles.inviteBox}>
+        <Text style={styles.inviteLabel}>Invite Code</Text>
+        <Text style={styles.inviteCode}>{household?.invite_code}</Text>
+        <Text style={styles.inviteHint}>Share this code to invite members</Text>
       </View>
 
+      <Text style={styles.sectionTitle}>Members ({members.length})</Text>
+      {members.map((m) => (
+        <View key={m.id} style={styles.memberRow}>
+          <Text style={styles.memberName}>{m.display_name}</Text>
+          <Text style={styles.memberRole}>{m.role}</Text>
+        </View>
+      ))}
+
+      <Text style={[styles.sectionTitle, styles.storesSectionTitle]}>
+        Stores ({stores.length})
+      </Text>
+      {stores.map((s) => (
+        <View key={s.id} style={styles.storeRow}>
+          <Text style={styles.storeName}>{s.name}</Text>
+          <Pressable onPress={() => deleteStore(s.id)}>
+            <Text style={styles.storeDelete}>×</Text>
+          </Pressable>
+        </View>
+      ))}
+      <View style={styles.storeInputRow}>
+        <TextInput
+          style={styles.storeInputField}
+          placeholder="Add a store…"
+          value={storeInput}
+          onChangeText={setStoreInput}
+          returnKeyType="done"
+          onSubmitEditing={addStore}
+          autoCapitalize="words"
+        />
+        <Pressable style={styles.storeAddButton} onPress={addStore}>
+          <Text style={styles.storeAddButtonText}>Add</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.aisleHeader}>
+        <Text style={[styles.sectionTitle, styles.aisleSectionTitle]}>
+          Aisle order ({aisleCategories.length})
+        </Text>
+        {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
+      </View>
+    </View>
+  );
+
+  const listFooter = (
+    <Pressable style={styles.signOut} onPress={signOut}>
+      <Text style={styles.signOutText}>Sign Out</Text>
+    </Pressable>
+  );
+
+  // Same pattern as shopping list: one SortableList owns scroll + drag.
+  return (
+    <View style={styles.container}>
       <SortableList
         items={aisleCategories}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
         onReorder={(next) => {
           void saveAisleOrder(next);
         }}
@@ -212,10 +222,6 @@ export default function HouseholdEditScreen() {
           </View>
         )}
       />
-
-      <Pressable style={styles.signOut} onPress={signOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </Pressable>
     </View>
   );
 }
@@ -310,6 +316,6 @@ const styles = StyleSheet.create({
   aisleRowActive: { backgroundColor: "#f0f7ff" },
   aisleDragHit: { flex: 1 },
   aisleLabel: { flex: 1, fontSize: 16 },
-  signOut: { paddingVertical: 20, alignSelf: "center" },
+  signOut: { paddingVertical: 28, alignSelf: "center" },
   signOutText: { color: "#999", fontSize: 14 },
 });
