@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -27,8 +27,6 @@ import {
   normalizeIngredient,
   titleCaseIngredient,
 } from "../../lib/normalize-ingredient";
-import { useTheme } from "../../lib/theme-context";
-import type { ThemeColors } from "../../lib/theme";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,8 +67,6 @@ export default function ShoppingListScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
   const navigation = useNavigation();
   const router = useRouter();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [items, setItems] = useState<ConsolidatedItem[]>([]);
   const [catalog, setCatalog] = useState<CatalogIngredient[]>([]);
@@ -316,14 +312,14 @@ export default function ShoppingListScreen() {
           accessibilityRole="button"
           accessibilityLabel="Back to household"
         >
-          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "600" }}>‹ Back</Text>
+          <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>‹ Back</Text>
         </Pressable>
       ),
       headerRight: () => (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           {items.length > 0 && (
             <Pressable onPress={shareList} style={{ paddingHorizontal: 16 }}>
-              <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "600" }}>
+              <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
                 Share
               </Text>
             </Pressable>
@@ -331,7 +327,7 @@ export default function ShoppingListScreen() {
         </View>
       ),
     });
-  }, [items, shareList, householdId, navigation, router, colors]);
+  }, [items, shareList, householdId, navigation, router]);
 
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {
@@ -596,7 +592,7 @@ export default function ShoppingListScreen() {
         disabled={!newItemText.trim() || addingItem}
       >
         {addingItem ? (
-          <ActivityIndicator color={colors.primaryText} size="small" />
+          <ActivityIndicator color="#fff" size="small" />
         ) : (
           <Text style={styles.addButtonText}>Add</Text>
         )}
@@ -672,7 +668,7 @@ export default function ShoppingListScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -689,7 +685,7 @@ export default function ShoppingListScreen() {
               style={clearingWeek && styles.clearActionDisabled}
             >
               {clearingWeek ? (
-                <ActivityIndicator size="small" color={colors.danger} />
+                <ActivityIndicator size="small" color="#ff3b30" />
               ) : (
                 <Text style={styles.clearActionText}>Clear week</Text>
               )}
@@ -745,7 +741,7 @@ export default function ShoppingListScreen() {
                 disabled={clearingWeek}
               >
                 {clearingWeek ? (
-                  <ActivityIndicator color={colors.primaryText} />
+                  <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.confirmModalDangerText}>Clear all</Text>
                 )}
@@ -760,10 +756,9 @@ export default function ShoppingListScreen() {
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 
-function makeStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
-  container: { flex: 1, backgroundColor: colors.background },
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, backgroundColor: "#fff" },
   content: { paddingBottom: 48 },
   addRow: {
     flexDirection: "row",
@@ -775,23 +770,22 @@ function makeStyles(colors: ThemeColors) {
   },
   addInput: {
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: "#ddd",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: colors.background,
-    color: colors.text,
+    backgroundColor: "#fff",
   },
   addButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#2f95dc",
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
     minWidth: 64,
     alignItems: "center",
   },
-  addButtonText: { color: colors.primaryText, fontSize: 16, fontWeight: "600" },
+  addButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   clearActionsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -801,9 +795,9 @@ function makeStyles(colors: ThemeColors) {
     paddingBottom: 4,
     minHeight: 28,
   },
-  clearActionText: { fontSize: 13, color: colors.danger, fontWeight: "600" },
+  clearActionText: { fontSize: 13, color: "#ff3b30", fontWeight: "600" },
   clearActionDisabled: { opacity: 0.6 },
-  emptyText: { color: colors.textMuted, textAlign: "center", marginTop: 32, paddingHorizontal: 24 },
+  emptyText: { color: "#999", textAlign: "center", marginTop: 32, paddingHorizontal: 24 },
 
   confirmModalOverlay: {
     flex: 1,
@@ -812,7 +806,7 @@ function makeStyles(colors: ThemeColors) {
     paddingHorizontal: 28,
   },
   confirmModalSheet: {
-    backgroundColor: colors.background,
+    backgroundColor: "#fff",
     borderRadius: 14,
     padding: 22,
   },
@@ -820,11 +814,11 @@ function makeStyles(colors: ThemeColors) {
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 10,
-    color: colors.text,
+    color: "#111",
   },
   confirmModalBody: {
     fontSize: 15,
-    color: colors.textSecondary,
+    color: "#555",
     lineHeight: 22,
     marginBottom: 22,
   },
@@ -841,22 +835,22 @@ function makeStyles(colors: ThemeColors) {
     alignItems: "center",
   },
   confirmModalCancelBtn: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: "#f2f2f2",
   },
   confirmModalCancelText: {
     fontSize: 16,
     fontWeight: "600",
-    color: colors.text,
+    color: "#333",
   },
   confirmModalDangerBtn: {
-    backgroundColor: colors.danger,
+    backgroundColor: "#ff3b30",
     minHeight: 44,
     justifyContent: "center",
   },
   confirmModalDangerText: {
     fontSize: 16,
     fontWeight: "600",
-    color: colors.primaryText,
+    color: "#fff",
   },
 
 
@@ -866,20 +860,20 @@ function makeStyles(colors: ThemeColors) {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.background,
+    borderBottomColor: "#f2f2f2",
+    backgroundColor: "#fff",
   },
   itemRowChecked: { opacity: 0.45 },
-  itemRowActive: { backgroundColor: colors.primarySoft, elevation: 4 },
+  itemRowActive: { backgroundColor: "#f0f7ff", elevation: 4 },
 
   checkbox: { paddingRight: 10, paddingTop: 2 },
-  checkboxIcon: { fontSize: 18, color: colors.textMuted },
-  checkboxIconChecked: { color: colors.success },
+  checkboxIcon: { fontSize: 18, color: "#ccc" },
+  checkboxIconChecked: { color: "#34c759" },
 
   itemContent: { flex: 1 },
-  itemName: { fontSize: 16, fontWeight: "600", color: colors.text, marginBottom: 2 },
-  itemNameChecked: { textDecorationLine: "line-through", color: colors.textMuted },
-  occurrence: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+  itemName: { fontSize: 16, fontWeight: "600", color: "#222", marginBottom: 2 },
+  itemNameChecked: { textDecorationLine: "line-through", color: "#999" },
+  occurrence: { fontSize: 13, color: "#888", lineHeight: 18 },
   occurrenceChecked: { textDecorationLine: "line-through" },
 
   removeButton: {
@@ -890,10 +884,9 @@ function makeStyles(colors: ThemeColors) {
   },
   removeButtonText: {
     fontSize: 16,
-    color: colors.danger,
+    color: "#ff3b30",
     fontWeight: "600",
   },
 
   buttonDisabled: { opacity: 0.6 },
-  });
-}
+});

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -13,8 +13,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../lib/auth-context";
 import { showError, throwOnError } from "../../../lib/db";
-import { useTheme } from "../../../lib/theme-context";
-import type { ThemeColors } from "../../../lib/theme";
 import { formatQuantity } from "../../../lib/format-quantity";
 import TagEditor from "../../../components/TagEditor";
 
@@ -43,8 +41,6 @@ export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +153,7 @@ export default function RecipeDetailScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -165,7 +161,7 @@ export default function RecipeDetailScreen() {
   if (!recipe) {
     return (
       <View style={styles.center}>
-        <Text style={styles.notFoundText}>Recipe not found.</Text>
+        <Text>Recipe not found.</Text>
       </View>
     );
   }
@@ -322,21 +318,15 @@ export default function RecipeDetailScreen() {
   );
 }
 
-function makeStyles(colors: ThemeColors) {
-  return StyleSheet.create({
+const styles = StyleSheet.create({
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.background,
-  },
-  notFoundText: {
-    color: colors.text,
-    fontSize: 16,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#fff",
   },
   content: {
     paddingBottom: 48,
@@ -344,7 +334,7 @@ function makeStyles(colors: ThemeColors) {
   image: {
     width: "100%",
     height: 220,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: "#eee",
     marginBottom: 16,
   },
   title: {
@@ -352,11 +342,10 @@ function makeStyles(colors: ThemeColors) {
     fontWeight: "700",
     marginBottom: 12,
     paddingHorizontal: 24,
-    color: colors.text,
   },
   sourceLink: {
     fontSize: 14,
-    color: colors.primary,
+    color: "#2f95dc",
     paddingHorizontal: 24,
     marginBottom: 12,
   },
@@ -369,7 +358,7 @@ function makeStyles(colors: ThemeColors) {
   },
   meta: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: "#555",
   },
   tagsSection: {
     paddingHorizontal: 24,
@@ -388,11 +377,11 @@ function makeStyles(colors: ThemeColors) {
   },
   noTagsHint: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: "#bbb",
   },
   editTagsLink: {
     fontSize: 12,
-    color: colors.primary,
+    color: "#2f95dc",
     fontWeight: "600",
     marginLeft: 8,
     marginTop: 2,
@@ -407,13 +396,13 @@ function makeStyles(colors: ThemeColors) {
     alignItems: "center",
   },
   saveTagsButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#2f95dc",
     borderRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   saveTagsText: {
-    color: colors.primaryText,
+    color: "#fff",
     fontWeight: "600",
     fontSize: 14,
   },
@@ -422,38 +411,38 @@ function makeStyles(colors: ThemeColors) {
   },
   cancelTagsText: {
     fontSize: 14,
-    color: colors.textMuted,
+    color: "#999",
   },
   tag: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: "#f0f7ff",
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   tagText: {
     fontSize: 12,
-    color: colors.primary,
+    color: "#2f95dc",
     fontWeight: "600",
   },
   queueButton: {
     marginHorizontal: 24,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: colors.success,
+    borderColor: "#34c759",
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
   },
   queueButtonActive: {
-    backgroundColor: colors.success,
+    backgroundColor: "#34c759",
   },
   queueButtonText: {
-    color: colors.success,
+    color: "#34c759",
     fontWeight: "600",
     fontSize: 15,
   },
   queueButtonTextActive: {
-    color: colors.primaryText,
+    color: "#fff",
   },
   sectionTitle: {
     fontSize: 18,
@@ -461,10 +450,9 @@ function makeStyles(colors: ThemeColors) {
     marginBottom: 12,
     marginTop: 24,
     paddingHorizontal: 24,
-    color: colors.text,
   },
   emptyText: {
-    color: colors.textMuted,
+    color: "#999",
     paddingHorizontal: 24,
   },
   row: {
@@ -476,12 +464,12 @@ function makeStyles(colors: ThemeColors) {
   },
   bullet: {
     fontSize: 16,
-    color: colors.primary,
+    color: "#2f95dc",
     marginTop: 2,
   },
   stepNumber: {
     fontSize: 15,
-    color: colors.primary,
+    color: "#2f95dc",
     fontWeight: "600",
     marginTop: 2,
     minWidth: 20,
@@ -490,14 +478,13 @@ function makeStyles(colors: ThemeColors) {
     fontSize: 15,
     flex: 1,
     lineHeight: 22,
-    color: colors.text,
   },
   deleteButton: {
     marginTop: 40,
     alignSelf: "center",
   },
   deleteText: {
-    color: colors.danger,
+    color: "#ff3b30",
     fontSize: 14,
   },
   confirmRow: {
@@ -507,7 +494,7 @@ function makeStyles(colors: ThemeColors) {
   },
   confirmText: {
     fontSize: 14,
-    color: colors.text,
+    color: "#333",
   },
   confirmButtons: {
     flexDirection: "row",
@@ -515,7 +502,6 @@ function makeStyles(colors: ThemeColors) {
   },
   cancelText: {
     fontSize: 14,
-    color: colors.textMuted,
+    color: "#999",
   },
-  });
-}
+});

@@ -13,8 +13,6 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { showError, throwOnError } from "../../lib/db";
-import { useTheme } from "../../lib/theme-context";
-import type { ThemeColors } from "../../lib/theme";
 import TagEditor from "../../components/TagEditor";
 
 type Recipe = { id: string; title: string; tags: string[] | null };
@@ -29,8 +27,6 @@ export default function HouseholdScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const router = useRouter();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [household, setHousehold] = useState<Household | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,7 +196,7 @@ export default function HouseholdScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -309,7 +305,6 @@ export default function HouseholdScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Search by title or ingredient…"
-          placeholderTextColor={colors.textMuted}
           value={query}
           onChangeText={setQuery}
           clearButtonMode="while-editing"
@@ -320,7 +315,7 @@ export default function HouseholdScreen() {
 
       {query.trim() ? (
         searching ? (
-          <ActivityIndicator style={styles.searchSpinner} color={colors.primary} />
+          <ActivityIndicator style={styles.searchSpinner} />
         ) : searchResults.length === 0 ? (
           <Text style={styles.emptyText}>No recipes found.</Text>
         ) : (
@@ -431,7 +426,7 @@ export default function HouseholdScreen() {
                 disabled={savingTags}
               >
                 {savingTags ? (
-                  <ActivityIndicator color={colors.primaryText} />
+                  <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.modalSaveText}>Save</Text>
                 )}
@@ -447,10 +442,9 @@ export default function HouseholdScreen() {
   );
 }
 
-function makeStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
-  container: { flex: 1, backgroundColor: colors.background },
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, backgroundColor: "#fff" },
   content: { padding: 24, paddingBottom: 48 },
 
   headerRow: {
@@ -463,21 +457,20 @@ function makeStyles(colors: ThemeColors) {
     fontSize: 28,
     fontWeight: "700",
     flex: 1,
-    color: colors.text,
   },
   editLink: {
     fontSize: 15,
-    color: colors.textMuted,
+    color: "#aaa",
     paddingLeft: 12,
   },
 
   weekSection: {
     borderRadius: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: "#f6fff8",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#b8edc6",
     borderLeftWidth: 4,
-    borderLeftColor: colors.success,
+    borderLeftColor: "#34c759",
     marginBottom: 28,
     padding: 14,
   },
@@ -496,22 +489,22 @@ function makeStyles(colors: ThemeColors) {
   weekTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: colors.success,
+    color: "#1a7a35",
   },
   weekCount: {
     fontSize: 13,
-    color: colors.success,
+    color: "#34c759",
     fontWeight: "600",
   },
   manageLink: {
     fontSize: 13,
-    color: colors.success,
+    color: "#34c759",
     fontWeight: "600",
     paddingLeft: 12,
   },
   weekEmpty: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: "#666",
     marginBottom: 12,
     lineHeight: 20,
   },
@@ -520,33 +513,33 @@ function makeStyles(colors: ThemeColors) {
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: "#d4f0dd",
   },
   weekRowTitleArea: { flex: 1 },
-  weekRowTitle: { fontSize: 15, color: colors.text },
+  weekRowTitle: { fontSize: 15, color: "#222" },
 
   shoppingButton: {
     marginTop: 14,
-    backgroundColor: colors.success,
+    backgroundColor: "#34c759",
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: "center",
   },
   shoppingButtonMuted: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: "#e8f5ec",
   },
   shoppingButtonText: {
-    color: colors.primaryText,
+    color: "#fff",
     fontSize: 15,
     fontWeight: "700",
   },
   shoppingButtonTextMuted: {
-    color: colors.textMuted,
+    color: "#7aab88",
   },
   shoppingHint: {
     marginTop: 8,
     fontSize: 12,
-    color: colors.textMuted,
+    color: "#7aab88",
     textAlign: "center",
   },
 
@@ -558,10 +551,10 @@ function makeStyles(colors: ThemeColors) {
   ingredientsLinkText: {
     fontSize: 13,
     fontWeight: "500",
-    color: colors.textMuted,
+    color: "#999",
   },
 
-  sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8, color: colors.text },
+  sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },
   recipesHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -570,33 +563,32 @@ function makeStyles(colors: ThemeColors) {
   },
   recipeActions: { flexDirection: "row", gap: 8 },
   actionButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#2f95dc",
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  addButtonText: { color: colors.primaryText, fontSize: 14, fontWeight: "600" },
+  addButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   importButton: {
-    backgroundColor: colors.background,
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: "#2f95dc",
   },
-  importButtonText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
+  importButtonText: { color: "#2f95dc", fontSize: 14, fontWeight: "600" },
 
   searchBar: { marginBottom: 8, marginTop: 4 },
   searchInput: {
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: "#e0e0e0",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
-    backgroundColor: colors.surface,
-    color: colors.text,
+    backgroundColor: "#fafafa",
   },
   searchSpinner: { marginTop: 24 },
 
-  emptyText: { color: colors.textMuted, textAlign: "center", marginTop: 16 },
+  emptyText: { color: "#999", textAlign: "center", marginTop: 16 },
 
   tagHeader: {
     flexDirection: "row",
@@ -604,19 +596,19 @@ function makeStyles(colors: ThemeColors) {
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 4,
-    backgroundColor: colors.surface,
+    backgroundColor: "#f8f8f8",
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderStrong,
+    borderBottomColor: "#e0e0e0",
     marginTop: 8,
   },
   tagHeaderText: {
     fontSize: 13,
     fontWeight: "700",
-    color: colors.textSecondary,
+    color: "#555",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  tagChevron: { fontSize: 18, color: colors.textMuted },
+  tagChevron: { fontSize: 18, color: "#aaa" },
 
   recipeRow: {
     flexDirection: "row",
@@ -625,25 +617,25 @@ function makeStyles(colors: ThemeColors) {
     paddingVertical: 10,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: "#eee",
   },
   recipeTitleArea: { flex: 1 },
-  recipeTitle: { fontSize: 16, color: colors.text },
+  recipeTitle: { fontSize: 16 },
   recipeTagsArea: { marginTop: 4 },
   inlineTags: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   inlineTag: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: "#f0f7ff",
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  inlineTagText: { fontSize: 11, color: colors.primary },
-  addTagHint: { fontSize: 12, color: colors.textMuted },
-  chevron: { fontSize: 24, color: colors.textMuted, paddingLeft: 8 },
+  inlineTagText: { fontSize: 11, color: "#2f95dc" },
+  addTagHint: { fontSize: 12, color: "#bbb" },
+  chevron: { fontSize: 24, color: "#ccc", paddingLeft: 8 },
 
   queueToggle: { paddingHorizontal: 8, paddingVertical: 4 },
-  queueDot: { fontSize: 18, color: colors.textMuted },
-  queueDotActive: { color: colors.success },
+  queueDot: { fontSize: 18, color: "#ccc" },
+  queueDotActive: { color: "#34c759" },
 
   modalOverlay: {
     flex: 1,
@@ -651,24 +643,23 @@ function makeStyles(colors: ThemeColors) {
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: colors.background,
+    backgroundColor: "#fff",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 24,
     paddingBottom: 40,
   },
-  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4, color: colors.text },
-  modalSubtitle: { fontSize: 14, color: colors.textMuted, marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
+  modalSubtitle: { fontSize: 14, color: "#888", marginBottom: 16 },
   modalActions: { marginTop: 24, gap: 12 },
   modalSave: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#2f95dc",
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
   },
   buttonDisabled: { opacity: 0.6 },
-  modalSaveText: { color: colors.primaryText, fontSize: 16, fontWeight: "600" },
+  modalSaveText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   modalCancel: { alignItems: "center", paddingVertical: 8 },
-  modalCancelText: { color: colors.textMuted, fontSize: 14 },
-  });
-}
+  modalCancelText: { color: "#999", fontSize: 14 },
+});

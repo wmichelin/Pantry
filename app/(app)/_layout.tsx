@@ -1,23 +1,14 @@
 import { Redirect, Stack } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
-import { useTheme } from "../../lib/theme-context";
 import { ActivityIndicator, View } from "react-native";
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
-  const { colors } = useTheme();
 
   if (loading) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: colors.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -27,14 +18,7 @@ export default function AppLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
-        headerTitleStyle: { color: colors.text },
-        contentStyle: { backgroundColor: colors.background },
-      }}
-    >
+    <Stack>
       <Stack.Screen name="index" options={{ title: "Pantry" }} />
       <Stack.Screen name="create-household" options={{ title: "New Household" }} />
       <Stack.Screen name="join-household" options={{ title: "Join Household" }} />
