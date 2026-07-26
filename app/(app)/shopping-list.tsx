@@ -12,8 +12,6 @@ import {
   Platform,
   TextInput,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
-import { File, Paths } from "expo-file-system";
 import { useLocalSearchParams, useNavigation, useFocusEffect, useRouter } from "expo-router";
 import { SortableList } from "../../components/SortableList";
 import { IngredientAutocomplete } from "../../components/IngredientAutocomplete";
@@ -242,33 +240,23 @@ export default function ShoppingListScreen() {
     const message = exportText();
     if (!message) return;
     try {
-      // Share a .md file so Apple Notes can Import Markdown → interactive checklists.
-      // Plain ☐/☑ (and even pasted Markdown on older iOS) stay as dead text in Notes.
-      if (Platform.OS === "ios" || Platform.OS === "android") {
-        const file = new File(Paths.cache, "Shopping List.md");
-        file.create({ overwrite: true });
-        file.write(message);
-        await Share.share(
-          Platform.OS === "ios"
-            ? { url: file.uri }
-            : { message, url: file.uri, title: "Shopping List.md" }
-        );
+      // Plain text via the system share sheet (includes Copy on iOS/Android).
+      // Web without Web Share API: fall back to clipboard.
+      if (
+        Platform.OS === "web" &&
+        typeof navigator !== "undefined" &&
+        typeof navigator.share !== "function"
+      ) {
+        await navigator.clipboard.writeText(message);
+        Alert.alert("Copied", "Shopping list copied to clipboard.");
         return;
       }
-      await Share.share({ message });
+      await Share.share({ message, title: "Shopping List" });
     } catch (err) {
+      // User dismissing the sheet is not an error on some platforms.
+      const messageText = err instanceof Error ? err.message : String(err);
+      if (/cancel|dismiss/i.test(messageText)) return;
       showError("Couldn't share the list", err);
-    }
-  }, [exportText]);
-
-  const copyList = useCallback(async () => {
-    const message = exportText();
-    if (!message) return;
-    try {
-      await Clipboard.setStringAsync(message);
-      Alert.alert("Copied", "Markdown checklist copied to clipboard.");
-    } catch (err) {
-      showError("Couldn't copy the list", err);
     }
   }, [exportText]);
 
@@ -294,18 +282,11 @@ export default function ShoppingListScreen() {
       headerRight: () => (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           {!editMode && items.length > 0 && (
-            <>
-              <Pressable onPress={copyList} style={{ paddingHorizontal: 10 }}>
-                <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
-                  Copy
-                </Text>
-              </Pressable>
-              <Pressable onPress={shareList} style={{ paddingHorizontal: 10 }}>
-                <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
-                  Share
-                </Text>
-              </Pressable>
-            </>
+            <Pressable onPress={shareList} style={{ paddingHorizontal: 10 }}>
+              <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
+                Share
+              </Text>
+            </Pressable>
           )}
           <Pressable
             onPress={() => {
@@ -321,7 +302,7 @@ export default function ShoppingListScreen() {
         </View>
       ),
     });
-  }, [editMode, items, copyList, shareList, householdId, navigation, router]);
+  }, [editMode, items, shareList, householdId, navigation, router]);
 
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {

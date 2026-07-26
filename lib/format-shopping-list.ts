@@ -17,16 +17,15 @@ const formatQty = (quantity: number | null, unit: string | null): string => {
 const displayName = (name: string) =>
   name.replace(/\b\w/g, (c) => c.toUpperCase());
 
-/** Markdown task-list line — Apple Notes converts these to interactive checklists on .md import (and on paste in newer iOS). */
+/** Plain-text line for Share (Messages, Notes paste, etc.). */
 const formatLine = (item: ShoppingListExportItem): string => {
-  const mark = item.checked ? "- [x]" : "- [ ]";
   const name = displayName(item.normalizedName);
   const first = item.occurrences[0];
   const qty = first ? formatQty(first.quantity, first.unit) : "";
-  return qty ? `${mark} ${name} · ${qty}` : `${mark} ${name}`;
+  return qty ? `${name} · ${qty}` : name;
 };
 
-/** Format a shopping list as Markdown task lists for Share / Copy (Apple Notes, Messages, etc.). */
+/** Format a shopping list as plain text for the system share sheet. */
 export function formatShoppingList(items: ShoppingListExportItem[]): string {
   return items.map(formatLine).join("\n");
 }
