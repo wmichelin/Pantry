@@ -5,9 +5,7 @@ import { insertionIndexFromY, moveItemBefore } from "../lib/sortable-reorder";
  * Web sortable list via Pointer Events.
  *
  * Mobile / coarse pointer: drag from the ≡ handle only (immediate, no press-hold).
- * Desktop mouse: drag from the whole row after a small move threshold —
- * except when scrollEnabled is false (nested in a page ScrollView), which is
- * always handle-only so parent scroll wins.
+ * Desktop mouse: drag from the whole row after a small move threshold.
  *
  * Pointer tracking uses window listeners + ancestor scroll lock so nesting
  * inside React Native Web ScrollView does not corrupt clientY / jump the ghost.
@@ -103,10 +101,7 @@ export function SortableList<T>({
   itemsRef.current = items;
   onReorderRef.current = onReorder;
 
-  const mobileUi = useMobileDragUi();
-  // Nested in a page ScrollView: always require the handle so scrolling stays reliable.
-  const nestedInScroll = !scrollEnabled;
-  const showHandle = mobileUi || nestedInScroll;
+  const showHandle = useMobileDragUi();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
