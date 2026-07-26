@@ -16,8 +16,6 @@ import {
 } from "react-native";
 import type { CatalogIngredient } from "../lib/ingredient-catalog";
 import { searchableIngredient } from "../lib/normalize-ingredient";
-import { useTheme } from "../lib/theme-context";
-import type { ThemeColors } from "../lib/theme";
 
 type Props = {
   value: string;
@@ -69,8 +67,6 @@ export function IngredientAutocomplete({
   returnKeyType,
   editable = true,
 }: Props) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [focused, setFocused] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -216,7 +212,6 @@ export function IngredientAutocomplete({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.textMuted}
         autoFocus={autoFocus}
         autoCorrect={false}
         editable={editable}
@@ -278,59 +273,56 @@ export function IngredientAutocomplete({
   );
 }
 
-function makeStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-    wrap: {
-      position: "relative",
-      zIndex: 1,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 16,
-      backgroundColor: colors.surface,
-      color: colors.text,
-    },
-    dropdown: {
-      position: "absolute",
-      left: 0,
-      right: 0,
-      top: "100%",
-      marginTop: 4,
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-      borderRadius: 8,
-      maxHeight: 200,
-      zIndex: 20,
-      elevation: 6,
-      shadowColor: "#000",
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
-    },
-    dropdownScroll: {
-      maxHeight: 200,
-    },
-    suggestion: {
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    suggestionHighlighted: {
-      backgroundColor: colors.primarySoft,
-    },
-    suggestionText: {
-      fontSize: 15,
-      color: colors.text,
-    },
-    suggestionTextHighlighted: {
-      color: colors.primary,
-      fontWeight: "600",
-    },
-  });
-}
+const styles = StyleSheet.create({
+  wrap: {
+    position: "relative",
+    zIndex: 1,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: "#fafafa",
+  },
+  dropdown: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "100%",
+    marginTop: 4,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 8,
+    maxHeight: 200,
+    zIndex: 20,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  suggestion: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f2f2f2",
+  },
+  suggestionHighlighted: {
+    backgroundColor: "#eaf4fc",
+  },
+  suggestionText: {
+    fontSize: 15,
+    color: "#222",
+  },
+  suggestionTextHighlighted: {
+    color: "#1a6fa8",
+    fontWeight: "600",
+  },
+});

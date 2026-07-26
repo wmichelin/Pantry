@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -10,14 +10,10 @@ import {
 import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
-import { useTheme } from "../../lib/theme-context";
-import type { ThemeColors } from "../../lib/theme";
 
 export default function JoinHouseholdScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -75,7 +71,6 @@ export default function JoinHouseholdScreen() {
       <TextInput
         style={styles.input}
         placeholder="Enter 6-character code"
-        placeholderTextColor={colors.textMuted}
         value={code}
         onChangeText={setCode}
         autoCapitalize="characters"
@@ -96,45 +91,41 @@ export default function JoinHouseholdScreen() {
   );
 }
 
-function makeStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      padding: 24,
-      backgroundColor: colors.background,
-    },
-    label: {
-      fontSize: 16,
-      fontWeight: "600",
-      marginBottom: 8,
-      marginTop: 16,
-      color: colors.text,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-      borderRadius: 8,
-      padding: 14,
-      fontSize: 20,
-      backgroundColor: colors.surface,
-      color: colors.text,
-      letterSpacing: 4,
-      textAlign: "center",
-    },
-    button: {
-      backgroundColor: colors.primary,
-      borderRadius: 8,
-      padding: 16,
-      alignItems: "center",
-      marginTop: 24,
-    },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
-    buttonText: {
-      color: colors.primaryText,
-      fontSize: 16,
-      fontWeight: "600",
-    },
-  });
-}
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 24,
+    backgroundColor: "#fff",
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 14,
+    fontSize: 20,
+    backgroundColor: "#fafafa",
+    letterSpacing: 4,
+    textAlign: "center",
+  },
+  button: {
+    backgroundColor: "#2f95dc",
+    borderRadius: 8,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 24,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});

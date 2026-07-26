@@ -1,10 +1,8 @@
 import { Slot, useRouter } from "expo-router";
 import { useEffect } from "react";
 import * as Linking from "expo-linking";
-import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "../lib/auth-context";
-import { ThemeProvider, useTheme } from "../lib/theme-context";
 import { supabase } from "../lib/supabase";
 
 function DeepLinkHandler() {
@@ -48,24 +46,13 @@ function DeepLinkHandler() {
   return null;
 }
 
-function ThemedApp() {
-  const { colors, resolvedScheme } = useTheme();
-
+export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar style={resolvedScheme === "dark" ? "light" : "dark"} />
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
         <DeepLinkHandler />
         <Slot />
       </AuthProvider>
     </GestureHandlerRootView>
-  );
-}
-
-export default function RootLayout() {
-  return (
-    <ThemeProvider>
-      <ThemedApp />
-    </ThemeProvider>
   );
 }

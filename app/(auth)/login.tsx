@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -12,13 +12,9 @@ import {
 import { Link } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { FormView } from "../../components/FormView";
-import { useTheme } from "../../lib/theme-context";
-import type { ThemeColors } from "../../lib/theme";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,7 +39,6 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor={colors.textMuted}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -54,7 +49,6 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor={colors.textMuted}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -78,69 +72,61 @@ export default function LoginScreen() {
       </Link>
 
       <Link href="/(auth)/forgot-password" style={styles.link}>
-        <Text style={styles.linkTextMuted}>Forgot password?</Text>
+        <Text style={[styles.linkText, { color: "#999" }]}>Forgot password?</Text>
       </Link>
     </KeyboardAvoidingView>
   );
 }
 
-function makeStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      justifyContent: "center",
-      padding: 24,
-      backgroundColor: colors.background,
-    },
-    title: {
-      fontSize: 36,
-      fontWeight: "700",
-      textAlign: "center",
-      marginBottom: 4,
-      color: colors.text,
-    },
-    subtitle: {
-      fontSize: 16,
-      color: colors.textSecondary,
-      textAlign: "center",
-      marginBottom: 32,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-      borderRadius: 8,
-      padding: 14,
-      fontSize: 16,
-      marginBottom: 12,
-      backgroundColor: colors.surface,
-      color: colors.text,
-    },
-    button: {
-      backgroundColor: colors.primary,
-      borderRadius: 8,
-      padding: 16,
-      alignItems: "center",
-      marginTop: 8,
-    },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
-    buttonText: {
-      color: colors.primaryText,
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    link: {
-      marginTop: 20,
-      alignSelf: "center",
-    },
-    linkText: {
-      color: colors.primary,
-      fontSize: 14,
-    },
-    linkTextMuted: {
-      color: colors.textMuted,
-      fontSize: 14,
-    },
-  });
-}
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "#fff",
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 32,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 12,
+    backgroundColor: "#fafafa",
+  },
+  button: {
+    backgroundColor: "#2f95dc",
+    borderRadius: 8,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  link: {
+    marginTop: 20,
+    alignSelf: "center",
+  },
+  linkText: {
+    color: "#2f95dc",
+    fontSize: 14,
+  },
+});
