@@ -7,7 +7,6 @@ import {
   ScrollView,
   ActivityIndicator,
   TextInput,
-  Platform,
 } from "react-native";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
@@ -169,7 +168,7 @@ export default function HouseholdEditScreen() {
         </Text>
         {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
       </View>
-      <Text style={styles.aisleHint}>Drag to match your store walk path</Text>
+      <Text style={styles.aisleHint}>Drag ≡ to match your store walk path</Text>
       <SortableList
         items={aisleCategories}
         keyExtractor={(item) => item.id}
@@ -186,9 +185,6 @@ export default function HouseholdEditScreen() {
             ) : (
               <Text style={styles.aisleLabel}>{item.label}</Text>
             )}
-            {Platform.OS !== "web" ? (
-              <Text style={styles.aisleHandle}>≡</Text>
-            ) : null}
           </View>
         )}
       />
@@ -290,7 +286,6 @@ const styles = StyleSheet.create({
   aisleRowActive: { backgroundColor: "#f0f7ff" },
   aisleDragHit: { flex: 1 },
   aisleLabel: { flex: 1, fontSize: 16 },
-  aisleHandle: { fontSize: 20, color: "#bbb", paddingHorizontal: 8 },
   signOut: { marginTop: 40, alignSelf: "center" },
   signOutText: { color: "#999", fontSize: 14 },
 });

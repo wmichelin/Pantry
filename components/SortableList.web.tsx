@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { insertionIndexFromY, moveItemBefore } from "../lib/sortable-reorder";
 
 /**
  * Web sortable list via Pointer Events.
  *
  * Mobile / coarse pointer: drag from the ≡ handle only (immediate, no press-hold).
- * Desktop mouse: drag from the whole row after a small move threshold.
+ * Desktop mouse: drag from the whole row after a small move threshold —
+ * except when nestedInScroll, which is always handle-only so parent scroll wins.
  */
 
 type Props<T> = {
@@ -28,14 +30,40 @@ function isNoDragTarget(target: EventTarget | null): boolean {
   return !!target.closest("[data-no-drag]");
 }
 
-function indexFromY(clientY: number, listEl: HTMLElement): number {
-  const rows = Array.from(listEl.querySelectorAll<HTMLElement>("[data-sortable-id]"));
-  if (rows.length === 0) return 0;
-  for (let i = 0; i < rows.length; i++) {
-    const rect = rows[i].getBoundingClientRect();
-    if (clientY < rect.top + rect.height / 2) return i;
+function lockAncestorScroll(fromEl: HTMLElement | null): () => void {
+  if (!fromEl || typeof document === "undefined") return () => {};
+  const locked: { el: HTMLElement; overflow: string; overflowY: string }[] = [];
+  let el: HTMLElement | null = fromEl;
+  while (el) {
+    const style = window.getComputedStyle(el);
+    const oy = style.overflowY;
+    if (
+      (oy === "auto" || oy === "scroll" || oy === "overlay") &&
+      el.scrollHeight > el.clientHeight + 1
+    ) {
+      locked.push({
+        el,
+        overflow: el.style.overflow,
+        overflowY: el.style.overflowY,
+      });
+      el.style.overflow = "hidden";
+      el.style.overflowY = "hidden";
+    }
+    el = el.parentElement;
   }
-  return rows.length - 1;
+  const prevUserSelect = document.body.style.userSelect;
+  document.body.style.userSelect = "none";
+  return () => {
+    for (const entry of locked) {
+      entry.el.style.overflow = entry.overflow;
+      entry.el.style.overflowY = entry.overflowY;
+    }
+    document.body.style.userSelect = prevUserSelect;
+  };
+}
+
+function rowsFromList(listEl: HTMLElement) {
+  return Array.from(listEl.querySelectorAll<HTMLElement>("[data-sortable-id]"));
 }
 
 /** Phones / Chrome device-mode: no hover. Keeps desktop mouse whole-row drag. */
@@ -65,7 +93,9 @@ export function SortableList<T>({
   itemsRef.current = items;
   onReorderRef.current = onReorder;
 
-  const showHandle = useMobileDragUi();
+  const mobileUi = useMobileDragUi();
+  // Nested in a page ScrollView: always require the handle so scrolling stays reliable.
+  const showHandle = mobileUi || nestedInScroll;
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -90,6 +120,9 @@ export function SortableList<T>({
     rowEl: HTMLElement;
   } | null>(null);
 
+  const unlockScrollRef = useRef<(() => void) | null>(null);
+  const detachDocRef = useRef<(() => void) | null>(null);
+
   const cleanup = useCallback(() => {
     const s = sessionRef.current;
     if (s?.rowEl) s.rowEl.style.touchAction = "";
@@ -97,6 +130,10 @@ export function SortableList<T>({
     setActiveId(null);
     setOverIndex(null);
     setGhost(null);
+    unlockScrollRef.current?.();
+    unlockScrollRef.current = null;
+    detachDocRef.current?.();
+    detachDocRef.current = null;
   }, []);
 
   const activate = useCallback((clientX: number, clientY: number) => {
@@ -117,12 +154,74 @@ export function SortableList<T>({
       offsetY: clientY - rect.top,
     });
     s.rowEl.style.touchAction = "none";
+    unlockScrollRef.current = lockAncestorScroll(listRef.current);
     try {
       s.rowEl.setPointerCapture(s.pointerId);
     } catch {
       /* pointer may already be up */
     }
   }, []);
+
+  const onDocPointerMove = useCallback(
+    (e: PointerEvent) => {
+      const s = sessionRef.current;
+      if (!s || e.pointerId !== s.pointerId) return;
+
+      if (!s.activated) {
+        const dist = Math.hypot(e.clientX - s.startX, e.clientY - s.startY);
+        if (dist < MOUSE_ACTIVATE_PX) return;
+        activate(e.clientX, e.clientY);
+      }
+
+      if (!sessionRef.current?.activated) return;
+
+      e.preventDefault();
+      const listEl = listRef.current;
+      if (!listEl) return;
+
+      setGhost((g) => (g ? { ...g, x: e.clientX, y: e.clientY } : g));
+      setOverIndex(insertionIndexFromY(e.clientY, rowsFromList(listEl)));
+    },
+    [activate]
+  );
+
+  const onDocPointerUp = useCallback(
+    (e: PointerEvent) => {
+      const s = sessionRef.current;
+      if (!s || e.pointerId !== s.pointerId) return;
+
+      const listEl = listRef.current;
+      if (s.activated && listEl) {
+        const from = s.startIndex;
+        const insertBefore = insertionIndexFromY(e.clientY, rowsFromList(listEl));
+        const next = moveItemBefore(itemsRef.current, from, insertBefore);
+        if (next !== itemsRef.current) {
+          onReorderRef.current(next);
+        }
+        try {
+          s.rowEl.releasePointerCapture(s.pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
+      cleanup();
+    },
+    [cleanup]
+  );
+
+  const attachDocListeners = useCallback(() => {
+    detachDocRef.current?.();
+    const move = onDocPointerMove;
+    const up = onDocPointerUp;
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    detachDocRef.current = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  }, [onDocPointerMove, onDocPointerUp]);
 
   useEffect(() => () => cleanup(), [cleanup]);
 
@@ -135,7 +234,7 @@ export function SortableList<T>({
       showHandle || e.pointerType === "touch" || e.pointerType === "pen";
     const fromHandle = isDragHandleTarget(e.target);
 
-    // Mobile: only the handle starts a drag. Desktop mouse: whole row.
+    // Handle-only modes: ignore presses on the row body.
     if (touchLike && !fromHandle) return;
 
     sessionRef.current = {
@@ -149,55 +248,24 @@ export function SortableList<T>({
       rowEl,
     };
 
-    // Handle (mobile): grab immediately. Mouse row: wait for a few pixels.
+    attachDocListeners();
+
+    // Handle: grab immediately. Mouse whole-row: wait for a few pixels.
     if (fromHandle) {
       e.preventDefault();
       activate(e.clientX, e.clientY);
     }
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    const s = sessionRef.current;
-    if (!s || e.pointerId !== s.pointerId) return;
-
-    if (!s.activated) {
-      const dist = Math.hypot(e.clientX - s.startX, e.clientY - s.startY);
-      if (dist < MOUSE_ACTIVATE_PX) return;
-      activate(e.clientX, e.clientY);
-    }
-
-    if (!sessionRef.current?.activated) return;
-
-    e.preventDefault();
-    const listEl = listRef.current;
-    if (!listEl) return;
-
-    setGhost((g) => (g ? { ...g, x: e.clientX, y: e.clientY } : g));
-    setOverIndex(indexFromY(e.clientY, listEl));
-  };
-
-  const onPointerUp = (e: React.PointerEvent) => {
-    const s = sessionRef.current;
-    if (!s || e.pointerId !== s.pointerId) return;
-
-    const listEl = listRef.current;
-    if (s.activated && listEl) {
-      const from = s.startIndex;
-      const to = indexFromY(e.clientY, listEl);
-      if (from !== to) {
-        const next = [...itemsRef.current];
-        const [moved] = next.splice(from, 1);
-        next.splice(to, 0, moved);
-        onReorderRef.current(next);
-      }
-      try {
-        s.rowEl.releasePointerCapture(s.pointerId);
-      } catch {
-        /* ignore */
-      }
-    }
-    cleanup();
-  };
+  const rowCount = items.length;
+  const dropIsNoOp =
+    overIndex !== null &&
+    activeId !== null &&
+    (() => {
+      const from = items.findIndex((it) => keyExtractor(it) === activeId);
+      if (from < 0 || overIndex === null) return true;
+      return overIndex === from || overIndex === from + 1;
+    })();
 
   return (
     <div
@@ -207,18 +275,21 @@ export function SortableList<T>({
           ? { overflowY: "visible", position: "relative" }
           : { overflowY: "auto", flex: 1, position: "relative" }
       }
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={cleanup}
     >
       {items.map((item, index) => {
         const id = keyExtractor(item);
         const isActive = activeId === id;
-        const showLine =
+        const showLineTop =
           overIndex !== null &&
           activeId !== null &&
-          !isActive &&
+          !dropIsNoOp &&
           overIndex === index;
+        const showLineBottom =
+          overIndex !== null &&
+          activeId !== null &&
+          !dropIsNoOp &&
+          overIndex === rowCount &&
+          index === rowCount - 1;
 
         return (
           <div
@@ -233,19 +304,33 @@ export function SortableList<T>({
               userSelect: "none",
               WebkitUserSelect: "none",
               WebkitTouchCallout: "none",
-              touchAction: "pan-y",
+              touchAction: showHandle ? "pan-y" : "pan-y",
               display: "flex",
               flexDirection: "row",
               alignItems: "stretch",
             }}
           >
-            {showLine ? (
+            {showLineTop ? (
               <div
                 style={{
                   position: "absolute",
                   left: 0,
                   right: 0,
                   top: 0,
+                  height: 3,
+                  backgroundColor: "#2f95dc",
+                  pointerEvents: "none",
+                  zIndex: 2,
+                }}
+              />
+            ) : null}
+            {showLineBottom ? (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                   height: 3,
                   backgroundColor: "#2f95dc",
                   pointerEvents: "none",
