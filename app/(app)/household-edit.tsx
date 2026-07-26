@@ -191,6 +191,7 @@ export default function HouseholdEditScreen() {
         </Text>
         {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
       </View>
+      <Text style={styles.aisleHint}>Drag ≡ to match your store walk path</Text>
 
       <SortableList
         items={aisleCategories}
@@ -297,6 +298,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   aisleSectionTitle: { marginBottom: 0, flex: 1 },
+  aisleHint: { fontSize: 13, color: "#999", marginTop: 4, marginBottom: 8 },
   aisleRow: {
     flexDirection: "row",
     alignItems: "center",
