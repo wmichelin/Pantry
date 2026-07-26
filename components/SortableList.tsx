@@ -21,8 +21,8 @@ type Props<T> = {
   keyExtractor: (item: T) => string;
   renderItem: (item: T, drag: () => void, isActive: boolean) => React.ReactNode;
   onReorder: (items: T[]) => void;
-  /** When true, FlatList does not scroll — parent ScrollView owns scrolling. */
-  nestedInScroll?: boolean;
+  ListHeaderComponent?: React.ReactElement | null;
+  ListFooterComponent?: React.ReactElement | null;
 };
 
 export function SortableList<T>({
@@ -30,7 +30,8 @@ export function SortableList<T>({
   keyExtractor,
   renderItem,
   onReorder,
-  nestedInScroll = false,
+  ListHeaderComponent,
+  ListFooterComponent,
 }: Props<T>) {
   const handleReorder = ({ from, to }: ReorderableListReorderEvent) => {
     onReorder(reorderItems(items, from, to));
@@ -46,10 +47,8 @@ export function SortableList<T>({
         </DraggableWrapper>
       )}
       onReorder={handleReorder}
-      scrollEnabled={!nestedInScroll}
-      {...(nestedInScroll
-        ? { style: { flexGrow: 0 }, nestedScrollEnabled: true }
-        : {})}
+      ListHeaderComponent={ListHeaderComponent}
+      ListFooterComponent={ListFooterComponent}
     />
   );
 }

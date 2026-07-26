@@ -4,7 +4,6 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   TextInput,
 } from "react-native";
@@ -120,8 +119,8 @@ export default function HouseholdEditScreen() {
     );
   }
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+  const listHeader = (
+    <View style={styles.topSection}>
       <View style={styles.inviteBox}>
         <Text style={styles.inviteLabel}>Invite Code</Text>
         <Text style={styles.inviteCode}>{household?.invite_code}</Text>
@@ -168,11 +167,23 @@ export default function HouseholdEditScreen() {
         </Text>
         {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
       </View>
-      <Text style={styles.aisleHint}>Drag ≡ to match your store walk path</Text>
+    </View>
+  );
+
+  const listFooter = (
+    <Pressable style={styles.signOut} onPress={signOut}>
+      <Text style={styles.signOutText}>Sign Out</Text>
+    </Pressable>
+  );
+
+  // Same pattern as shopping list: one SortableList owns scroll + drag.
+  return (
+    <View style={styles.container}>
       <SortableList
         items={aisleCategories}
         keyExtractor={(item) => item.id}
-        nestedInScroll
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
         onReorder={(next) => {
           void saveAisleOrder(next);
         }}
@@ -188,18 +199,14 @@ export default function HouseholdEditScreen() {
           </View>
         )}
       />
-
-      <Pressable style={styles.signOut} onPress={signOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </Pressable>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 24, paddingBottom: 48 },
+  topSection: { paddingHorizontal: 24, paddingTop: 24 },
   inviteBox: {
     backgroundColor: "#f0f7ff",
     borderRadius: 8,
@@ -268,17 +275,17 @@ const styles = StyleSheet.create({
   storeAddButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   aisleHeader: {
     marginTop: 28,
+    marginBottom: 4,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   aisleSectionTitle: { marginBottom: 0, flex: 1 },
-  aisleHint: { fontSize: 13, color: "#999", marginTop: 4, marginBottom: 8 },
   aisleRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 4,
+    paddingHorizontal: 24,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
     backgroundColor: "#fff",
@@ -286,6 +293,6 @@ const styles = StyleSheet.create({
   aisleRowActive: { backgroundColor: "#f0f7ff" },
   aisleDragHit: { flex: 1 },
   aisleLabel: { flex: 1, fontSize: 16 },
-  signOut: { marginTop: 40, alignSelf: "center" },
+  signOut: { paddingVertical: 28, alignSelf: "center" },
   signOutText: { color: "#999", fontSize: 14 },
 });
