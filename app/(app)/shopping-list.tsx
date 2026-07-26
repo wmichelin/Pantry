@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { File, Paths } from "expo-file-system";
-import { useLocalSearchParams, useNavigation, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useNavigation, useFocusEffect, useRouter } from "expo-router";
 import { SortableList } from "../../components/SortableList";
 import { IngredientAutocomplete } from "../../components/IngredientAutocomplete";
 import { supabase } from "../../lib/supabase";
@@ -58,6 +58,7 @@ const formatQty = (quantity: number | null, unit: string | null): string => {
 export default function ShoppingListScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
   const navigation = useNavigation();
+  const router = useRouter();
 
   const [items, setItems] = useState<ConsolidatedItem[]>([]);
   const [catalog, setCatalog] = useState<CatalogIngredient[]>([]);
@@ -274,6 +275,22 @@ export default function ShoppingListScreen() {
   // ── Header buttons ──────────────────────────────────────────────────────────
   useEffect(() => {
     navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          onPress={() => {
+            if (householdId) {
+              router.replace({ pathname: "/(app)/household", params: { id: householdId } });
+              return;
+            }
+            if (router.canGoBack()) router.back();
+          }}
+          style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back to household"
+        >
+          <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>‹ Back</Text>
+        </Pressable>
+      ),
       headerRight: () => (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           {!editMode && items.length > 0 && (
@@ -304,7 +321,7 @@ export default function ShoppingListScreen() {
         </View>
       ),
     });
-  }, [editMode, items, copyList, shareList]);
+  }, [editMode, items, copyList, shareList, householdId, navigation, router]);
 
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {
