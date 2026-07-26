@@ -23,7 +23,7 @@ describe("formatShoppingList", () => {
         occurrences: [],
       },
     ]);
-    expect(text).toBe("Milk (1 gallon)\nEggs\nBread");
+    expect(text).toBe("• Milk (1 gallon)\n• Eggs\n• Bread");
   });
 
   it("stays flat even when items have storeIds", () => {
@@ -41,7 +41,7 @@ describe("formatShoppingList", () => {
         occurrences: [],
       },
     ]);
-    expect(text).toBe("Apples\nPaper Towels");
+    expect(text).toBe("• Apples\n• Paper Towels");
   });
 
   it("returns empty string for empty list", () => {
@@ -57,6 +57,6 @@ describe("formatShoppingList", () => {
         occurrences: [{ quantity: 1 / 3, unit: "cup" }],
       },
     ]);
-    expect(text).toBe("Tahini (1/3 cup)");
+    expect(text).toBe("• Tahini (1/3 cup)");
   });
 });
