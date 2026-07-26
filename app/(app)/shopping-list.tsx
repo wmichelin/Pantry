@@ -516,29 +516,49 @@ export default function ShoppingListScreen() {
       <View
         style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}
       >
-        <Pressable style={styles.checkbox} onPress={() => toggleCheck(item)}>
+        <Pressable
+          style={styles.checkbox}
+          onPress={() => toggleCheck(item)}
+          // Web SortableList skips drag when the pointer starts on [data-no-drag].
+          {...(Platform.OS === "web" ? { dataSet: { noDrag: "true" } } : {})}
+        >
           <Text style={[styles.checkboxIcon, item.checked && styles.checkboxIconChecked]}>
             {item.checked ? "●" : "○"}
           </Text>
         </Pressable>
-        {/* Native: press content to drag. Web SortableList owns whole-row drag. */}
-        <Pressable style={styles.itemContent} onPressIn={drag}>
-          <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
-            {item.displayName}
-          </Text>
-          {item.occurrences.map((occ, i) => {
-            const qty = formatQty(occ.quantity, occ.unit);
-            const line = [qty, occ.recipeTitle].filter(Boolean).join(" · ");
-            if (!line) return null;
-            return (
-              <Text key={i} style={[styles.occurrence, item.checked && styles.occurrenceChecked]}>
-                {line}
+        {/* Native: press content to drag. Web: plain View — SortableList owns row drag. */}
+        {(() => {
+          const body = (
+            <>
+              <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
+                {item.displayName}
               </Text>
-            );
-          })}
-        </Pressable>
+              {item.occurrences.map((occ, i) => {
+                const qty = formatQty(occ.quantity, occ.unit);
+                const line = [qty, occ.recipeTitle].filter(Boolean).join(" · ");
+                if (!line) return null;
+                return (
+                  <Text key={i} style={[styles.occurrence, item.checked && styles.occurrenceChecked]}>
+                    {line}
+                  </Text>
+                );
+              })}
+            </>
+          );
+          return drag ? (
+            <Pressable style={styles.itemContent} onPressIn={drag}>
+              {body}
+            </Pressable>
+          ) : (
+            <View style={styles.itemContent}>{body}</View>
+          );
+        })()}
         {canRemove && (
-          <Pressable style={styles.removeButton} onPress={() => removeManualItem(item)}>
+          <Pressable
+            style={styles.removeButton}
+            onPress={() => removeManualItem(item)}
+            {...(Platform.OS === "web" ? { dataSet: { noDrag: "true" } } : {})}
+          >
             <Text style={styles.removeButtonText}>✕</Text>
           </Pressable>
         )}
