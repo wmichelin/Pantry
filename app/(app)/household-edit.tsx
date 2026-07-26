@@ -7,14 +7,25 @@ import {
   ScrollView,
   ActivityIndicator,
   TextInput,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { showError } from "../../lib/db";
+import { SortableList } from "../../components/SortableList";
+import {
+  resolveAisleCategoryOrder,
+  type IngredientCategory,
+} from "../../lib/ingredient-categories";
 
 type Member = { id: string; display_name: string; role: string };
-type Household = { id: string; name: string; invite_code: string };
+type Household = {
+  id: string;
+  name: string;
+  invite_code: string;
+  aisle_category_order: string[] | null;
+};
 type Store = { id: string; name: string; sort_order: number };
 
 export default function HouseholdEditScreen() {
@@ -24,19 +35,26 @@ export default function HouseholdEditScreen() {
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [aisleCategories, setAisleCategories] = useState<IngredientCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [storeInput, setStoreInput] = useState("");
+  const [savingAisles, setSavingAisles] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!id) return;
     try {
       const [hRes, mRes, sRes] = await Promise.all([
-        supabase.from("households").select("id, name, invite_code").eq("id", id).single(),
+        supabase
+          .from("households")
+          .select("id, name, invite_code, aisle_category_order")
+          .eq("id", id)
+          .single(),
         supabase.from("household_members").select("id, display_name, role").eq("household_id", id),
         supabase.from("stores").select("id, name, sort_order").eq("household_id", id).order("sort_order"),
       ]);
       if (hRes.error) throw hRes.error;
       setHousehold(hRes.data);
+      setAisleCategories(resolveAisleCategoryOrder(hRes.data.aisle_category_order));
       if (mRes.data) setMembers(mRes.data);
       if (sRes.data) setStores(sRes.data);
     } catch (err) {
@@ -74,8 +92,24 @@ export default function HouseholdEditScreen() {
     setStores((prev) => prev.filter((s) => s.id !== storeId));
     const { error } = await supabase.from("stores").delete().eq("id", storeId);
     if (error) {
-      setStores(previous); // revert the optimistic removal
+      setStores(previous);
       showError("Couldn't delete store", error);
+    }
+  };
+
+  const saveAisleOrder = async (ordered: IngredientCategory[]) => {
+    if (!id) return;
+    setSavingAisles(true);
+    const previous = aisleCategories;
+    setAisleCategories(ordered);
+    const { error } = await supabase
+      .from("households")
+      .update({ aisle_category_order: ordered.map((c) => c.id) })
+      .eq("id", id);
+    setSavingAisles(false);
+    if (error) {
+      setAisleCategories(previous);
+      showError("Couldn't save aisle order", error);
     }
   };
 
@@ -128,6 +162,36 @@ export default function HouseholdEditScreen() {
           <Text style={styles.storeAddButtonText}>Add</Text>
         </Pressable>
       </View>
+
+      <View style={styles.aisleHeader}>
+        <Text style={[styles.sectionTitle, styles.aisleSectionTitle]}>
+          Aisle order ({aisleCategories.length})
+        </Text>
+        {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
+      </View>
+      <Text style={styles.aisleHint}>Drag to match your store walk path</Text>
+      <SortableList
+        items={aisleCategories}
+        keyExtractor={(item) => item.id}
+        nestedInScroll
+        onReorder={(next) => {
+          void saveAisleOrder(next);
+        }}
+        renderItem={(item, drag, isActive) => (
+          <View style={[styles.aisleRow, isActive && styles.aisleRowActive]}>
+            {drag ? (
+              <Pressable style={styles.aisleDragHit} onPressIn={drag}>
+                <Text style={styles.aisleLabel}>{item.label}</Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.aisleLabel}>{item.label}</Text>
+            )}
+            {Platform.OS !== "web" ? (
+              <Text style={styles.aisleHandle}>≡</Text>
+            ) : null}
+          </View>
+        )}
+      />
 
       <Pressable style={styles.signOut} onPress={signOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
@@ -206,6 +270,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   storeAddButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  aisleHeader: {
+    marginTop: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  aisleSectionTitle: { marginBottom: 0, flex: 1 },
+  aisleHint: { fontSize: 13, color: "#999", marginTop: 4, marginBottom: 8 },
+  aisleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    backgroundColor: "#fff",
+  },
+  aisleRowActive: { backgroundColor: "#f0f7ff" },
+  aisleDragHit: { flex: 1 },
+  aisleLabel: { flex: 1, fontSize: 16 },
+  aisleHandle: { fontSize: 20, color: "#bbb", paddingHorizontal: 8 },
   signOut: { marginTop: 40, alignSelf: "center" },
   signOutText: { color: "#999", fontSize: 14 },
 });

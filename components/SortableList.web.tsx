@@ -12,6 +12,8 @@ type Props<T> = {
   keyExtractor: (item: T) => string;
   renderItem: (item: T, drag?: () => void, isActive?: boolean) => React.ReactNode;
   onReorder: (items: T[]) => void;
+  /** When true, list grows with content and parent scroll owns scrolling (e.g. ScrollView). */
+  nestedInScroll?: boolean;
 };
 
 const MOUSE_ACTIVATE_PX = 4;
@@ -50,7 +52,13 @@ function useMobileDragUi(): boolean {
   return mobile;
 }
 
-export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: Props<T>) {
+export function SortableList<T>({
+  items,
+  keyExtractor,
+  renderItem,
+  onReorder,
+  nestedInScroll = false,
+}: Props<T>) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const itemsRef = useRef(items);
   const onReorderRef = useRef(onReorder);
@@ -194,7 +202,11 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
   return (
     <div
       ref={listRef}
-      style={{ overflowY: "auto", flex: 1, position: "relative" }}
+      style={
+        nestedInScroll
+          ? { overflowY: "visible", position: "relative" }
+          : { overflowY: "auto", flex: 1, position: "relative" }
+      }
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={cleanup}
