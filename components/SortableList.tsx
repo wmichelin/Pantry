@@ -23,6 +23,8 @@ type Props<T> = {
   onReorder: (items: T[]) => void;
   ListHeaderComponent?: React.ReactElement | null;
   ListFooterComponent?: React.ReactElement | null;
+  /** When false, FlatList does not scroll — parent owns scrolling. Default true. */
+  scrollEnabled?: boolean;
 };
 
 export function SortableList<T>({
@@ -32,6 +34,7 @@ export function SortableList<T>({
   onReorder,
   ListHeaderComponent,
   ListFooterComponent,
+  scrollEnabled = true,
 }: Props<T>) {
   const handleReorder = ({ from, to }: ReorderableListReorderEvent) => {
     onReorder(reorderItems(items, from, to));
@@ -49,6 +52,8 @@ export function SortableList<T>({
       onReorder={handleReorder}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
+      scrollEnabled={scrollEnabled}
+      {...(!scrollEnabled ? { style: { flexGrow: 0 } } : {})}
     />
   );
 }

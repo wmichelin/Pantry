@@ -4,6 +4,7 @@ import {
   Text,
   Pressable,
   StyleSheet,
+  ScrollView,
   ActivityIndicator,
   TextInput,
 } from "react-native";
@@ -147,8 +148,8 @@ export default function HouseholdEditScreen() {
     );
   }
 
-  const listHeader = (
-    <View style={styles.topSection}>
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.inviteBox}>
         <Text style={styles.inviteLabel}>Invite Code</Text>
         <Text style={styles.inviteCode}>{household?.invite_code}</Text>
@@ -196,26 +197,11 @@ export default function HouseholdEditScreen() {
         </Text>
         {savingAisles ? <ActivityIndicator size="small" color={colors.primary} /> : null}
       </View>
-    </View>
-  );
 
-  const listFooter = (
-    <View style={{ paddingHorizontal: 24 }}>
-      <ThemePreferencePicker />
-      <Pressable style={styles.signOut} onPress={signOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </Pressable>
-    </View>
-  );
-
-  // Same pattern as shopping list: one SortableList owns scroll + drag.
-  return (
-    <View style={styles.container}>
       <SortableList
         items={aisleCategories}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={listHeader}
-        ListFooterComponent={listFooter}
+        scrollEnabled={false}
         onReorder={(next) => {
           void saveAisleOrder(next);
         }}
@@ -231,7 +217,13 @@ export default function HouseholdEditScreen() {
           </View>
         )}
       />
-    </View>
+
+      <ThemePreferencePicker />
+
+      <Pressable style={styles.signOut} onPress={signOut}>
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </Pressable>
+    </ScrollView>
   );
 }
 
@@ -244,7 +236,7 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.background,
     },
     container: { flex: 1, backgroundColor: colors.background },
-    topSection: { paddingHorizontal: 24, paddingTop: 24 },
+    content: { padding: 24, paddingBottom: 48 },
     inviteBox: {
       backgroundColor: colors.primarySoft,
       borderRadius: 8,
@@ -329,7 +321,7 @@ function makeStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 12,
-      paddingHorizontal: 24,
+      paddingHorizontal: 4,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
       backgroundColor: colors.background,
@@ -337,7 +329,7 @@ function makeStyles(colors: ThemeColors) {
     aisleRowActive: { backgroundColor: colors.primarySoft },
     aisleDragHit: { flex: 1 },
     aisleLabel: { flex: 1, fontSize: 16, color: colors.text },
-    signOut: { paddingVertical: 28, alignSelf: "center" },
+    signOut: { marginTop: 24, alignSelf: "center" },
     signOutText: { color: colors.textMuted, fontSize: 14 },
   });
 }

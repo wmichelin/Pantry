@@ -18,6 +18,8 @@ type Props<T> = {
   ListHeaderComponent?: React.ReactNode;
   /** Optional content below the rows; scrolls with the list. */
   ListFooterComponent?: React.ReactNode;
+  /** When false, list grows with content (no internal scrollbar). Default true. */
+  scrollEnabled?: boolean;
 };
 
 const MOUSE_ACTIVATE_PX = 4;
@@ -57,6 +59,7 @@ export function SortableList<T>({
   onReorder,
   ListHeaderComponent,
   ListFooterComponent,
+  scrollEnabled = true,
 }: Props<T>) {
   const { colors } = useTheme();
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -210,7 +213,11 @@ export function SortableList<T>({
   return (
     <div
       ref={listRef}
-      style={{ overflowY: "auto", flex: 1, position: "relative" }}
+      style={
+        scrollEnabled
+          ? { overflowY: "auto", flex: 1, position: "relative" }
+          : { overflowY: "visible", position: "relative" }
+      }
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={cleanup}
