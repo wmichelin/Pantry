@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "../lib/theme-context";
+import { insertionIndexFromY, moveItemBefore } from "../lib/sortable-reorder";
 
 /**
  * Web sortable list via Pointer Events.
@@ -13,8 +14,10 @@ type Props<T> = {
   keyExtractor: (item: T) => string;
   renderItem: (item: T, drag?: () => void, isActive?: boolean) => React.ReactNode;
   onReorder: (items: T[]) => void;
-  /** When true, list grows with content and parent scroll owns scrolling (e.g. ScrollView). */
-  nestedInScroll?: boolean;
+  /** Optional content above the rows; scrolls with the list. */
+  ListHeaderComponent?: React.ReactNode;
+  /** Optional content below the rows; scrolls with the list. */
+  ListFooterComponent?: React.ReactNode;
 };
 
 const MOUSE_ACTIVATE_PX = 4;
@@ -29,14 +32,8 @@ function isNoDragTarget(target: EventTarget | null): boolean {
   return !!target.closest("[data-no-drag]");
 }
 
-function indexFromY(clientY: number, listEl: HTMLElement): number {
-  const rows = Array.from(listEl.querySelectorAll<HTMLElement>("[data-sortable-id]"));
-  if (rows.length === 0) return 0;
-  for (let i = 0; i < rows.length; i++) {
-    const rect = rows[i].getBoundingClientRect();
-    if (clientY < rect.top + rect.height / 2) return i;
-  }
-  return rows.length - 1;
+function rowsFromList(listEl: HTMLElement) {
+  return Array.from(listEl.querySelectorAll<HTMLElement>("[data-sortable-id]"));
 }
 
 /** Phones / Chrome device-mode: no hover. Keeps desktop mouse whole-row drag. */
@@ -58,7 +55,8 @@ export function SortableList<T>({
   keyExtractor,
   renderItem,
   onReorder,
-  nestedInScroll = false,
+  ListHeaderComponent,
+  ListFooterComponent,
 }: Props<T>) {
   const { colors } = useTheme();
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -175,7 +173,7 @@ export function SortableList<T>({
     if (!listEl) return;
 
     setGhost((g) => (g ? { ...g, x: e.clientX, y: e.clientY } : g));
-    setOverIndex(indexFromY(e.clientY, listEl));
+    setOverIndex(insertionIndexFromY(e.clientY, rowsFromList(listEl)));
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -185,11 +183,9 @@ export function SortableList<T>({
     const listEl = listRef.current;
     if (s.activated && listEl) {
       const from = s.startIndex;
-      const to = indexFromY(e.clientY, listEl);
-      if (from !== to) {
-        const next = [...itemsRef.current];
-        const [moved] = next.splice(from, 1);
-        next.splice(to, 0, moved);
+      const insertBefore = insertionIndexFromY(e.clientY, rowsFromList(listEl));
+      const next = moveItemBefore(itemsRef.current, from, insertBefore);
+      if (next !== itemsRef.current) {
         onReorderRef.current(next);
       }
       try {
@@ -201,26 +197,39 @@ export function SortableList<T>({
     cleanup();
   };
 
+  const rowCount = items.length;
+  const dropIsNoOp =
+    overIndex !== null &&
+    activeId !== null &&
+    (() => {
+      const from = items.findIndex((it) => keyExtractor(it) === activeId);
+      if (from < 0 || overIndex === null) return true;
+      return overIndex === from || overIndex === from + 1;
+    })();
+
   return (
     <div
       ref={listRef}
-      style={
-        nestedInScroll
-          ? { overflowY: "visible", position: "relative" }
-          : { overflowY: "auto", flex: 1, position: "relative" }
-      }
+      style={{ overflowY: "auto", flex: 1, position: "relative" }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={cleanup}
     >
+      {ListHeaderComponent}
       {items.map((item, index) => {
         const id = keyExtractor(item);
         const isActive = activeId === id;
-        const showLine =
+        const showLineTop =
           overIndex !== null &&
           activeId !== null &&
-          !isActive &&
+          !dropIsNoOp &&
           overIndex === index;
+        const showLineBottom =
+          overIndex !== null &&
+          activeId !== null &&
+          !dropIsNoOp &&
+          overIndex === rowCount &&
+          index === rowCount - 1;
 
         return (
           <div
@@ -241,7 +250,7 @@ export function SortableList<T>({
               alignItems: "stretch",
             }}
           >
-            {showLine ? (
+            {showLineTop ? (
               <div
                 style={{
                   position: "absolute",
@@ -250,6 +259,20 @@ export function SortableList<T>({
                   top: 0,
                   height: 3,
                   backgroundColor: colors.primary,
+                  pointerEvents: "none",
+                  zIndex: 2,
+                }}
+              />
+            ) : null}
+            {showLineBottom ? (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 3,
+                  backgroundColor: "#2f95dc",
                   pointerEvents: "none",
                   zIndex: 2,
                 }}
@@ -282,6 +305,8 @@ export function SortableList<T>({
         );
       })}
 
+      {ListFooterComponent}
+
       {ghost ? (
         <div
           aria-hidden
@@ -297,6 +322,11 @@ export function SortableList<T>({
             boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
             backgroundColor: colors.background,
             overflow: "hidden",
+            // Match the source row: innerHTML is the flex children, not the flex container.
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "stretch",
+            boxSizing: "border-box",
           }}
           dangerouslySetInnerHTML={{ __html: ghost.html }}
         />

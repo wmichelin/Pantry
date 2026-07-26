@@ -4,10 +4,8 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   TextInput,
-  Platform,
 } from "react-native";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
@@ -126,8 +124,8 @@ export default function HouseholdEditScreen() {
     );
   }
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+  const listHeader = (
+    <View style={styles.topSection}>
       <View style={styles.inviteBox}>
         <Text style={styles.inviteLabel}>Invite Code</Text>
         <Text style={styles.inviteCode}>{household?.invite_code}</Text>
@@ -175,11 +173,26 @@ export default function HouseholdEditScreen() {
         </Text>
         {savingAisles ? <ActivityIndicator size="small" color={colors.primary} /> : null}
       </View>
-      <Text style={styles.aisleHint}>Drag to match your store walk path</Text>
+    </View>
+  );
+
+  const listFooter = (
+    <View style={{ paddingHorizontal: 24 }}>
+      <ThemePreferencePicker />
+      <Pressable style={styles.signOut} onPress={signOut}>
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </Pressable>
+    </View>
+  );
+
+  // Same pattern as shopping list: one SortableList owns scroll + drag.
+  return (
+    <View style={styles.container}>
       <SortableList
         items={aisleCategories}
         keyExtractor={(item) => item.id}
-        nestedInScroll
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
         onReorder={(next) => {
           void saveAisleOrder(next);
         }}
@@ -192,19 +205,10 @@ export default function HouseholdEditScreen() {
             ) : (
               <Text style={styles.aisleLabel}>{item.label}</Text>
             )}
-            {Platform.OS !== "web" ? (
-              <Text style={styles.aisleHandle}>≡</Text>
-            ) : null}
           </View>
         )}
       />
-
-      <ThemePreferencePicker />
-
-      <Pressable style={styles.signOut} onPress={signOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </Pressable>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -217,7 +221,7 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.background,
     },
     container: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 24, paddingBottom: 48 },
+    topSection: { paddingHorizontal: 24, paddingTop: 24 },
     inviteBox: {
       backgroundColor: colors.primarySoft,
       borderRadius: 8,
@@ -292,17 +296,17 @@ function makeStyles(colors: ThemeColors) {
     storeAddButtonText: { color: colors.primaryText, fontSize: 14, fontWeight: "600" },
     aisleHeader: {
       marginTop: 28,
+      marginBottom: 4,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
     },
     aisleSectionTitle: { marginBottom: 0, flex: 1 },
-    aisleHint: { fontSize: 13, color: colors.textMuted, marginTop: 4, marginBottom: 8 },
     aisleRow: {
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 12,
-      paddingHorizontal: 4,
+      paddingHorizontal: 24,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
       backgroundColor: colors.background,
@@ -310,8 +314,7 @@ function makeStyles(colors: ThemeColors) {
     aisleRowActive: { backgroundColor: colors.primarySoft },
     aisleDragHit: { flex: 1 },
     aisleLabel: { flex: 1, fontSize: 16, color: colors.text },
-    aisleHandle: { fontSize: 20, color: colors.textMuted, paddingHorizontal: 8 },
-    signOut: { marginTop: 40, alignSelf: "center" },
+    signOut: { paddingVertical: 28, alignSelf: "center" },
     signOutText: { color: colors.textMuted, fontSize: 14 },
   });
 }
