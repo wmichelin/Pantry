@@ -11,7 +11,8 @@ const formatQty = (quantity: number | null, unit: string | null): string => {
   const parts: string[] = [];
   if (quantity) parts.push(formatQuantity(quantity));
   if (unit) parts.push(unit);
-  return parts.join(" ");
+  if (parts.length === 0) return "";
+  return `(${parts.join(" ")})`;
 };
 
 const displayName = (name: string) =>
@@ -22,7 +23,7 @@ const formatLine = (item: ShoppingListExportItem): string => {
   const name = displayName(item.normalizedName);
   const first = item.occurrences[0];
   const qty = first ? formatQty(first.quantity, first.unit) : "";
-  return qty ? `${name} · ${qty}` : name;
+  return qty ? `${name} ${qty}` : name;
 };
 
 /** Format a shopping list as plain text for the system share sheet. */
