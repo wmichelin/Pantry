@@ -14,9 +14,25 @@ import {
 import { getReorderDestinationIndex } from "@atlaskit/pragmatic-drag-and-drop-hitbox/util/get-reorder-destination-index";
 // Vendored without `import.meta` — Expo web serves a classic script, so the npm
 // package's ESM autoload footer breaks the entire app bundle at parse time.
+// Patched so React/Pragmatic preventDefault on mousedown/dragstart does not abort touch drags.
 import { enableDragDropTouch } from "../lib/drag-drop-touch.js";
 
 const ITEM_TYPE = "sortable-item";
+
+let touchDndEnabled = false;
+
+function ensureTouchDnD() {
+  if (touchDndEnabled || typeof document === "undefined") return;
+  touchDndEnabled = true;
+  // forceListen: Chrome device-mode often reports maxTouchPoints === 0.
+  // isPressHoldMode: lets the list scroll; hold briefly then drag to reorder.
+  enableDragDropTouch(document, document, {
+    forceListen: true,
+    isPressHoldMode: true,
+    pressHoldDelayMS: 200,
+    dragThresholdPixels: 5,
+  });
+}
 
 type ItemData = {
   type: typeof ITEM_TYPE;
@@ -84,6 +100,8 @@ function SortableRow<T>({ item, index, id, renderItem }: RowProps<T>) {
         cursor: "grab",
         userSelect: "none",
         WebkitUserSelect: "none",
+        // Prefer vertical pan until press-hold drag arms; helps mobile scroll + reorder.
+        touchAction: "manipulation",
       }}
     >
       {renderItem(item, undefined, dragging)}
@@ -112,7 +130,7 @@ export function SortableList<T>({ items, keyExtractor, renderItem, onReorder }: 
   onReorderRef.current = onReorder;
 
   useEffect(() => {
-    enableDragDropTouch();
+    ensureTouchDnD();
   }, []);
 
   useEffect(() => {
