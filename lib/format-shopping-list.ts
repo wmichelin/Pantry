@@ -26,7 +26,7 @@ const formatLine = (item: ShoppingListExportItem): string => {
   return qty ? `${name} ${qty}` : name;
 };
 
-/** Format a shopping list as plain text for the system share sheet. */
+/** Format a shopping list as a bulleted plain-text list for the share sheet. */
 export function formatShoppingList(items: ShoppingListExportItem[]): string {
-  return items.map(formatLine).join("\n");
+  return items.map((item) => `• ${formatLine(item)}`).join("\n");
 }
