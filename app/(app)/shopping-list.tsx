@@ -48,7 +48,8 @@ const formatQty = (quantity: number | null, unit: string | null): string => {
   const parts: string[] = [];
   if (quantity) parts.push(formatQuantity(quantity));
   if (unit) parts.push(unit);
-  return parts.join(" ");
+  if (parts.length === 0) return "";
+  return `(${parts.join(" ")})`;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
