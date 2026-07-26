@@ -26,30 +26,7 @@ const formatLine = (item: ShoppingListExportItem): string => {
   return qty ? `${mark} ${name} · ${qty}` : `${mark} ${name}`;
 };
 
-const formatSection = (
-  label: string | null,
-  unchecked: ShoppingListExportItem[],
-  checked: ShoppingListExportItem[]
-): string[] => {
-  if (unchecked.length === 0 && checked.length === 0) return [];
-  const lines: string[] = [];
-  if (label) lines.push(`## ${label}`);
-  for (const item of unchecked) lines.push(formatLine(item));
-  for (const item of checked) lines.push(formatLine(item));
-  return lines;
-};
-
 /** Format a shopping list as Markdown task lists for Share / Copy (Apple Notes, Messages, etc.). */
 export function formatShoppingList(items: ShoppingListExportItem[]): string {
-  const unchecked = items.filter((i) => !i.checked);
-  const checked = items.filter((i) => i.checked);
-  const lines: string[] = [];
-
-  lines.push(...formatSection(null, unchecked, []));
-  if (checked.length > 0) {
-    if (lines.length > 0) lines.push("");
-    lines.push(...formatSection("Got it", [], checked));
-  }
-
-  return lines.join("\n");
+  return items.map(formatLine).join("\n");
 }
