@@ -29,7 +29,10 @@ function ensureTouchDnD() {
   enableDragDropTouch(document, document, {
     forceListen: true,
     isPressHoldMode: true,
-    pressHoldDelayMS: 200,
+    // Short hold so reorder feels snappy; scroll still wins if you move first.
+    pressHoldDelayMS: 180,
+    pressHoldMargin: 18,
+    pressHoldThresholdPixels: 0,
     dragThresholdPixels: 5,
   });
 }
@@ -100,8 +103,10 @@ function SortableRow<T>({ item, index, id, renderItem }: RowProps<T>) {
         cursor: "grab",
         userSelect: "none",
         WebkitUserSelect: "none",
-        // Prefer vertical pan until press-hold drag arms; helps mobile scroll + reorder.
-        touchAction: "manipulation",
+        // Kill iOS callout/selection that steals the press-hold.
+        WebkitTouchCallout: "none",
+        // pan-y keeps list scrolling; polyfill preventDefault once drag arms.
+        touchAction: "pan-y",
       }}
     >
       {renderItem(item, undefined, dragging)}
