@@ -1,9 +1,11 @@
 import {
   INGREDIENT_CATEGORIES,
+  aisleKeyFromLabel,
   categoryPitch,
   compareCategoryPitch,
   getIngredientCategory,
   isIngredientCategoryId,
+  isReservedOtherAisle,
   resolveAisleCategoryOrder,
 } from "../ingredient-categories";
 
@@ -47,5 +49,12 @@ describe("ingredient categories", () => {
     expect(custom.map((c) => c.id)).toContain("frozen");
     expect(custom.map((c) => c.id)).not.toContain("bogus");
     expect(custom).toHaveLength(INGREDIENT_CATEGORIES.length);
+  });
+
+  it("slugifies aisle labels and protects other", () => {
+    expect(aisleKeyFromLabel("Meat & Seafood")).toBe("meat_seafood");
+    expect(aisleKeyFromLabel("  ")).toBe("aisle");
+    expect(isReservedOtherAisle("other")).toBe(true);
+    expect(isReservedOtherAisle("produce")).toBe(false);
   });
 });

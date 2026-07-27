@@ -1,6 +1,5 @@
 import {
   DEFAULT_INGREDIENT_CATEGORY,
-  isIngredientCategoryId,
   type IngredientCategory,
   type IngredientCategoryId,
 } from "./ingredient-categories";
@@ -25,7 +24,7 @@ export function sortShoppingListByAisle<T extends AisleSortableItem>(
     indexById.get(DEFAULT_INGREDIENT_CATEGORY) ?? aisleOrder.length;
 
   const categoryIndex = (category: string | null | undefined): number => {
-    if (category && isIngredientCategoryId(category) && indexById.has(category)) {
+    if (category && indexById.has(category)) {
       return indexById.get(category)!;
     }
     return otherIndex;
@@ -43,6 +42,7 @@ export function sortShoppingListByAisle<T extends AisleSortableItem>(
 export function coerceIngredientCategory(
   value: string | null | undefined
 ): IngredientCategoryId {
-  if (value && isIngredientCategoryId(value)) return value;
-  return DEFAULT_INGREDIENT_CATEGORY;
+  const trimmed = value?.trim();
+  if (!trimmed) return DEFAULT_INGREDIENT_CATEGORY;
+  return trimmed;
 }

@@ -13,10 +13,12 @@ import {
 import { useLocalSearchParams, useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { showError } from "../../lib/db";
 import {
-  INGREDIENT_CATEGORIES,
+  DEFAULT_INGREDIENT_CATEGORY,
   getIngredientCategory,
+  type IngredientCategory,
   type IngredientCategoryId,
 } from "../../lib/ingredient-categories";
+import { listHouseholdAisles } from "../../lib/household-aisles";
 import {
   ensureCatalogIngredient,
   listCatalogIngredients,
@@ -31,6 +33,7 @@ export default function IngredientsScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const [items, setItems] = useState<CatalogIngredient[]>([]);
+  const [aisles, setAisles] = useState<IngredientCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
@@ -38,7 +41,9 @@ export default function IngredientsScreen() {
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<CatalogIngredient | null>(null);
   const [editName, setEditName] = useState("");
-  const [editCategory, setEditCategory] = useState<IngredientCategoryId>("other");
+  const [editCategory, setEditCategory] = useState<IngredientCategoryId>(
+    DEFAULT_INGREDIENT_CATEGORY
+  );
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -70,8 +75,12 @@ export default function IngredientsScreen() {
   const load = useCallback(async () => {
     if (!householdId) return;
     try {
-      const list = await listCatalogIngredients(householdId);
+      const [list, householdAisles] = await Promise.all([
+        listCatalogIngredients(householdId),
+        listHouseholdAisles(householdId),
+      ]);
       setItems(list);
+      setAisles(householdAisles);
     } catch (err) {
       showError("Couldn't load ingredients", err);
     } finally {
@@ -265,7 +274,7 @@ export default function IngredientsScreen() {
               <Pressable style={styles.rowMain} onPress={() => openEdit(item)}>
                 <Text style={styles.rowName}>{item.display_name}</Text>
                 <Text style={styles.rowMeta}>
-                  {getIngredientCategory(item.category).label} · Tap to edit
+                  {getIngredientCategory(item.category, aisles).label} · Tap to edit
                 </Text>
               </Pressable>
               <Pressable
@@ -302,7 +311,7 @@ export default function IngredientsScreen() {
               nestedScrollEnabled
               keyboardShouldPersistTaps="handled"
             >
-              {INGREDIENT_CATEGORIES.map((cat) => {
+              {aisles.map((cat) => {
                 const selected = editCategory === cat.id;
                 return (
                   <Pressable

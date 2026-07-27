@@ -1,4 +1,5 @@
 import {
+  DEFAULT_INGREDIENT_CATEGORY,
   type IngredientCategory,
   type IngredientCategoryId,
 } from "./ingredient-categories";
@@ -36,14 +37,14 @@ export function buildAisleSectionRows<T extends AisleSectionItem>(
   items: T[],
   aisleOrder: IngredientCategory[]
 ): AisleSectionRow<T>[] {
+  const known = new Set(aisleOrder.map((c) => c.id));
   const byCategory = new Map<string, T[]>();
   for (const cat of aisleOrder) byCategory.set(cat.id, []);
 
   for (const item of items) {
-    const id = coerceIngredientCategory(item.category);
-    const group = byCategory.get(id);
-    if (group) group.push(item);
-    else byCategory.set(id, [item]);
+    let id = coerceIngredientCategory(item.category);
+    if (!known.has(id)) id = DEFAULT_INGREDIENT_CATEGORY;
+    byCategory.get(id)!.push(item);
   }
 
   const rows: AisleSectionRow<T>[] = [];

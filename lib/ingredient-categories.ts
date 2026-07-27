@@ -1,10 +1,12 @@
 /**
- * Ingredient categories mapped to store departments.
+ * Ingredient / aisle categories.
  *
- * Default pitch = household walk order (produce-first). Households can override
- * via `households.aisle_category_order`.
+ * Defaults seed new households; live aisle lists come from `household_aisles`.
  */
 
+export const DEFAULT_INGREDIENT_CATEGORY = "other";
+
+/** Built-in seed catalog (used when creating/seeding household aisles). */
 export const INGREDIENT_CATEGORIES = [
   { id: "produce", label: "Produce", pitch: 10 },
   { id: "meat_seafood", label: "Meat & Seafood", pitch: 20 },
@@ -25,42 +27,66 @@ export const INGREDIENT_CATEGORIES = [
   { id: "other", label: "Other", pitch: 999 },
 ] as const;
 
-export type IngredientCategoryId = (typeof INGREDIENT_CATEGORIES)[number]["id"];
+/** Aisle key stored on ingredient_metadata.category (built-in or custom). */
+export type IngredientCategoryId = string;
 
-export type IngredientCategory = (typeof INGREDIENT_CATEGORIES)[number];
+export type IngredientCategory = {
+  id: IngredientCategoryId;
+  label: string;
+  /** Sort weight — lower walks first. */
+  pitch: number;
+};
 
-const byId = new Map<string, IngredientCategory>(
+const defaultById = new Map<string, IngredientCategory>(
   INGREDIENT_CATEGORIES.map((c) => [c.id, c])
 );
 
-export const DEFAULT_INGREDIENT_CATEGORY: IngredientCategoryId = "other";
+export function isReservedOtherAisle(id: string): boolean {
+  return id === DEFAULT_INGREDIENT_CATEGORY;
+}
 
-export function isIngredientCategoryId(value: string): value is IngredientCategoryId {
-  return byId.has(value);
+/** True for known built-in ids (scripts / legacy validation). */
+export function isBuiltinIngredientCategoryId(value: string): boolean {
+  return defaultById.has(value);
+}
+
+/** @deprecated Prefer household aisle list; kept for scripts that validate builtins. */
+export function isIngredientCategoryId(value: string): boolean {
+  return isBuiltinIngredientCategoryId(value);
 }
 
 export function getIngredientCategory(
-  id: string | null | undefined
+  id: string | null | undefined,
+  aisles?: IngredientCategory[] | null
 ): IngredientCategory {
-  if (id && byId.has(id)) return byId.get(id)!;
-  return byId.get(DEFAULT_INGREDIENT_CATEGORY)!;
+  if (id && aisles?.length) {
+    const found = aisles.find((c) => c.id === id);
+    if (found) return found;
+  }
+  if (id && defaultById.has(id)) return defaultById.get(id)!;
+  return defaultById.get(DEFAULT_INGREDIENT_CATEGORY)!;
 }
 
 /** Default pitch; unknown ids sort last with Other. */
-export function categoryPitch(id: string | null | undefined): number {
-  return getIngredientCategory(id).pitch;
+export function categoryPitch(
+  id: string | null | undefined,
+  aisles?: IngredientCategory[] | null
+): number {
+  return getIngredientCategory(id, aisles).pitch;
 }
 
 export function compareCategoryPitch(
   a: string | null | undefined,
-  b: string | null | undefined
+  b: string | null | undefined,
+  aisles?: IngredientCategory[] | null
 ): number {
-  return categoryPitch(a) - categoryPitch(b);
+  return categoryPitch(a, aisles) - categoryPitch(b, aisles);
 }
 
 /**
- * Merge a saved household order with the known catalog.
+ * Merge a saved household order with the known default catalog.
  * Empty/null → default pitch order. Unknown ids dropped; new catalog ids appended.
+ * Prefer `listHouseholdAisles` when aisles live in the DB.
  */
 export function resolveAisleCategoryOrder(
   saved: string[] | null | undefined
@@ -69,7 +95,7 @@ export function resolveAisleCategoryOrder(
   const seen = new Set<string>();
 
   for (const id of saved ?? []) {
-    const cat = byId.get(id);
+    const cat = defaultById.get(id);
     if (!cat || seen.has(id)) continue;
     result.push(cat);
     seen.add(id);
@@ -82,4 +108,15 @@ export function resolveAisleCategoryOrder(
   }
 
   return result;
+}
+
+/** Slugify a label into an aisle key (a-z0-9_). */
+export function aisleKeyFromLabel(label: string): string {
+  const base = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+  return base || "aisle";
 }
