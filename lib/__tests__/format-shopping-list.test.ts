@@ -32,9 +32,16 @@ describe("formatShoppingList", () => {
       aisleOrder
     );
     expect(text).toBe(
-      ["Dairy", "• Milk (1 gallon)", "", "Produce", "• Apples", "• Lettuce"].join(
-        "\n"
-      )
+      [
+        "Shopping List",
+        "",
+        "Dairy",
+        "• Milk (1 gallon)",
+        "",
+        "Produce",
+        "• Apples",
+        "• Lettuce",
+      ].join("\n")
     );
   });
 
@@ -55,7 +62,7 @@ describe("formatShoppingList", () => {
         occurrences: [],
       },
     ]);
-    expect(text).toBe("Dairy\n• Eggs");
+    expect(text).toBe("Shopping List\n\nDairy\n• Eggs");
     expect(text).not.toContain("Milk");
   });
 
@@ -83,7 +90,7 @@ describe("formatShoppingList", () => {
         occurrences: [],
       },
     ]);
-    expect(text).toBe("Dairy\n• Eggs");
+    expect(text).toBe("Shopping List\n\nDairy\n• Eggs");
     expect(text).not.toContain("Produce");
   });
 
@@ -101,7 +108,7 @@ describe("formatShoppingList", () => {
         occurrences: [{ quantity: 1 / 3, unit: "cup" }],
       },
     ]);
-    expect(text).toBe("Condiments\n• Tahini (1/3 cup)");
+    expect(text).toBe("Shopping List\n\nCondiments\n• Tahini (1/3 cup)");
   });
 
   it("emits all occurrence quantities as separate parentheses", () => {
@@ -117,7 +124,7 @@ describe("formatShoppingList", () => {
         ],
       },
     ]);
-    expect(text).toBe("Dairy\n• Milk (1 cup) (1 gallon)");
+    expect(text).toBe("Shopping List\n\nDairy\n• Milk (1 cup) (1 gallon)");
   });
 
   it("puts unknown categories under Other", () => {
@@ -130,6 +137,6 @@ describe("formatShoppingList", () => {
         occurrences: [],
       },
     ]);
-    expect(text).toBe("Other\n• Mystery");
+    expect(text).toBe("Shopping List\n\nOther\n• Mystery");
   });
 });

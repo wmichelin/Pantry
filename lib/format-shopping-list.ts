@@ -69,5 +69,5 @@ export function formatShoppingList(
     sections.push(lines.join("\n"));
   }
 
-  return sections.join("\n\n");
+  return `Shopping List\n\n${sections.join("\n\n")}`;
 }
