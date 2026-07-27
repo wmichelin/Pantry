@@ -1,13 +1,45 @@
 import { supabase } from "./supabase";
+import {
+  DEFAULT_INGREDIENT_CATEGORY,
+  isIngredientCategoryId,
+  type IngredientCategoryId,
+} from "./ingredient-categories";
 import { normalizeIngredient, titleCaseIngredient } from "./normalize-ingredient";
 import { parseIngredient } from "./parse-ingredient";
+
+const CATALOG_SELECT =
+  "id, normalized_name, display_name, sort_order, category" as const;
 
 export type CatalogIngredient = {
   id: string;
   normalized_name: string;
   display_name: string;
   sort_order: number;
+  category: IngredientCategoryId;
 };
+
+function normalizeCategory(
+  value: string | null | undefined
+): IngredientCategoryId {
+  if (value && isIngredientCategoryId(value)) return value;
+  return DEFAULT_INGREDIENT_CATEGORY;
+}
+
+function asCatalogIngredient(row: {
+  id: string;
+  normalized_name: string;
+  display_name: string;
+  sort_order: number;
+  category?: string | null;
+}): CatalogIngredient {
+  return {
+    id: row.id,
+    normalized_name: row.normalized_name,
+    display_name: row.display_name,
+    sort_order: row.sort_order,
+    category: normalizeCategory(row.category),
+  };
+}
 
 /** Strip qty/units/bullets from a raw ingredient string for catalog use. */
 export function catalogNameFromRaw(raw: string): { normalized: string; display: string } | null {
@@ -26,7 +58,7 @@ export function catalogNameFromRaw(raw: string): { normalized: string; display: 
 export async function ensureCatalogIngredient(
   householdId: string,
   name: string,
-  opts?: { displayName?: string; sortOrder?: number }
+  opts?: { displayName?: string; sortOrder?: number; category?: IngredientCategoryId }
 ): Promise<CatalogIngredient | null> {
   const cleaned = catalogNameFromRaw(name);
   if (!cleaned) return null;
@@ -34,14 +66,17 @@ export async function ensureCatalogIngredient(
 
   const { data: existing, error: existingError } = await supabase
     .from("ingredient_metadata")
-    .select("id, normalized_name, display_name, sort_order")
+    .select(CATALOG_SELECT)
     .eq("household_id", householdId)
     .eq("normalized_name", normalized)
     .maybeSingle();
   if (existingError) throw existingError;
-  if (existing) return existing;
+  if (existing) return asCatalogIngredient(existing);
 
   const display_name = opts?.displayName?.trim() || display;
+  const category = opts?.category
+    ? normalizeCategory(opts.category)
+    : DEFAULT_INGREDIENT_CATEGORY;
 
   let sort_order = opts?.sortOrder;
   if (sort_order == null) {
@@ -62,8 +97,9 @@ export async function ensureCatalogIngredient(
       normalized_name: normalized,
       display_name,
       sort_order,
+      category,
     })
-    .select("id, normalized_name, display_name, sort_order")
+    .select(CATALOG_SELECT)
     .single();
 
   if (error) {
@@ -71,16 +107,16 @@ export async function ensureCatalogIngredient(
     if (error.code === "23505") {
       const { data: raced, error: raceError } = await supabase
         .from("ingredient_metadata")
-        .select("id, normalized_name, display_name, sort_order")
+        .select(CATALOG_SELECT)
         .eq("household_id", householdId)
         .eq("normalized_name", normalized)
         .single();
       if (raceError) throw raceError;
-      return raced;
+      return asCatalogIngredient(raced);
     }
     throw error;
   }
-  return data;
+  return asCatalogIngredient(data);
 }
 
 /**
@@ -118,6 +154,7 @@ export async function seedCatalogFromRecipes(householdId: string): Promise<numbe
     normalized_name: string;
     display_name: string;
     sort_order: number;
+    category: IngredientCategoryId;
   }[] = [];
 
   const seen = new Set<string>();
@@ -133,6 +170,7 @@ export async function seedCatalogFromRecipes(householdId: string): Promise<numbe
       normalized_name: normalized,
       display_name: display,
       sort_order: maxOrder,
+      category: DEFAULT_INGREDIENT_CATEGORY,
     });
   }
 
@@ -153,9 +191,21 @@ export async function listCatalogIngredients(
 ): Promise<CatalogIngredient[]> {
   const { data, error } = await supabase
     .from("ingredient_metadata")
-    .select("id, normalized_name, display_name, sort_order")
+    .select(CATALOG_SELECT)
     .eq("household_id", householdId)
     .order("display_name");
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map(asCatalogIngredient);
+}
+
+export async function updateCatalogIngredientCategory(
+  id: string,
+  category: IngredientCategoryId
+): Promise<void> {
+  const next = normalizeCategory(category);
+  const { error } = await supabase
+    .from("ingredient_metadata")
+    .update({ category: next })
+    .eq("id", id);
+  if (error) throw error;
 }

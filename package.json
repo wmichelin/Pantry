@@ -8,7 +8,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "bun test",
-    "migrate:ingredients": "bun run scripts/migrate-ingredients.ts"
+    "migrate:ingredients": "bun run scripts/migrate-ingredients.ts",
+    "export:ingredient-categories": "bun run scripts/export-ingredient-categories.ts",
+    "import:ingredient-categories": "bun run scripts/import-ingredient-categories.ts"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
