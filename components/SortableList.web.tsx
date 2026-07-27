@@ -19,6 +19,8 @@ type Props<T> = {
   keyExtractor: (item: T) => string;
   renderItem: (item: T, drag?: () => void, isActive?: boolean) => React.ReactNode;
   onReorder: (items: T[]) => void;
+  /** When false, row cannot start a drag. Default: all rows draggable. */
+  isDraggable?: (item: T) => boolean;
   /** Optional content above the rows; scrolls with the list. */
   ListHeaderComponent?: React.ReactNode;
   /** Optional content below the rows; scrolls with the list. */
@@ -102,6 +104,7 @@ export function SortableList<T>({
   keyExtractor,
   renderItem,
   onReorder,
+  isDraggable,
   ListHeaderComponent,
   ListFooterComponent,
   scrollEnabled = true,
@@ -109,8 +112,10 @@ export function SortableList<T>({
   const listRef = useRef<HTMLDivElement | null>(null);
   const itemsRef = useRef(items);
   const onReorderRef = useRef(onReorder);
+  const isDraggableRef = useRef(isDraggable);
   itemsRef.current = items;
   onReorderRef.current = onReorder;
+  isDraggableRef.current = isDraggable;
 
   const showHandle = useMobileDragUi();
   const nestedInScroll = !scrollEnabled;
@@ -256,6 +261,9 @@ export function SortableList<T>({
     if (isNoDragTarget(e.target)) return;
     if (sessionRef.current) return;
 
+    const item = itemsRef.current[index];
+    if (item && isDraggableRef.current && !isDraggableRef.current(item)) return;
+
     const touchLike =
       showHandle || e.pointerType === "touch" || e.pointerType === "pen";
     const fromHandle = isDragHandleTarget(e.target);
@@ -344,6 +352,7 @@ export function SortableList<T>({
       {items.map((item, index) => {
         const id = keyExtractor(item);
         const isActive = activeId === id;
+        const draggable = isDraggable ? isDraggable(item) : true;
         const showLineTop =
           overIndex !== null &&
           activeId !== null &&
@@ -360,12 +369,17 @@ export function SortableList<T>({
           <div
             key={id}
             data-sortable-id={id}
-            onPointerDown={(e) => onPointerDown(e, index, id, e.currentTarget)}
+            {...(!draggable ? { "data-no-drag": "true" } : {})}
+            onPointerDown={
+              draggable
+                ? (e) => onPointerDown(e, index, id, e.currentTarget)
+                : undefined
+            }
             style={{
               position: "relative",
               opacity: isActive ? 0.35 : 1,
               boxSizing: "border-box",
-              cursor: showHandle ? "default" : "grab",
+              cursor: !draggable ? "default" : showHandle ? "default" : "grab",
               userSelect: "none",
               WebkitUserSelect: "none",
               WebkitTouchCallout: "none",
@@ -404,7 +418,7 @@ export function SortableList<T>({
               />
             ) : null}
             <div style={{ flex: 1, minWidth: 0 }}>{renderItem(item, undefined, isActive)}</div>
-            {showHandle ? (
+            {showHandle && draggable ? (
               <div
                 data-drag-handle
                 role="button"

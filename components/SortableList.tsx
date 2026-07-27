@@ -21,6 +21,8 @@ type Props<T> = {
   keyExtractor: (item: T) => string;
   renderItem: (item: T, drag: () => void, isActive: boolean) => React.ReactNode;
   onReorder: (items: T[]) => void;
+  /** When false, row cannot start a drag. Default: all rows draggable. */
+  isDraggable?: (item: T) => boolean;
   ListHeaderComponent?: React.ReactElement | null;
   ListFooterComponent?: React.ReactElement | null;
   /** When false, FlatList does not scroll — parent owns scrolling. Default true. */
@@ -32,11 +34,14 @@ export function SortableList<T>({
   keyExtractor,
   renderItem,
   onReorder,
+  isDraggable,
   ListHeaderComponent,
   ListFooterComponent,
   scrollEnabled = true,
 }: Props<T>) {
   const handleReorder = ({ from, to }: ReorderableListReorderEvent) => {
+    // If a non-draggable row somehow moved, still report — caller normalizes.
+    if (isDraggable && !isDraggable(items[from])) return;
     onReorder(reorderItems(items, from, to));
   };
 
@@ -44,11 +49,17 @@ export function SortableList<T>({
     <ReorderableList
       data={items}
       keyExtractor={keyExtractor}
-      renderItem={({ item }) => (
-        <DraggableWrapper>
-          {(drag, isActive) => renderItem(item, drag, isActive)}
-        </DraggableWrapper>
-      )}
+      renderItem={({ item }) => {
+        const draggable = isDraggable ? isDraggable(item) : true;
+        if (!draggable) {
+          return <>{renderItem(item, () => {}, false)}</>;
+        }
+        return (
+          <DraggableWrapper>
+            {(drag, isActive) => renderItem(item, drag, isActive)}
+          </DraggableWrapper>
+        );
+      }}
       onReorder={handleReorder}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}

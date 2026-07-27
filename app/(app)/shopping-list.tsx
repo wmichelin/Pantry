@@ -10,7 +10,6 @@ import {
   Alert,
   Platform,
   TextInput,
-  ScrollView,
 } from "react-native";
 import { useLocalSearchParams, useNavigation, useFocusEffect, useRouter } from "expo-router";
 import { SortableList } from "../../components/SortableList";
@@ -22,11 +21,9 @@ import { formatQuantity } from "../../lib/format-quantity";
 import {
   ensureCatalogIngredient,
   listCatalogIngredients,
-  updateCatalogIngredientCategory,
   type CatalogIngredient,
 } from "../../lib/ingredient-catalog";
 import {
-  INGREDIENT_CATEGORIES,
   resolveAisleCategoryOrder,
   type IngredientCategory,
   type IngredientCategoryId,
@@ -39,6 +36,12 @@ import {
   coerceIngredientCategory,
   sortShoppingListByAisle,
 } from "../../lib/sort-shopping-list-by-aisle";
+import {
+  aisleSectionRowKey,
+  buildAisleSectionRows,
+  normalizeAisleRows,
+  type AisleSectionRow,
+} from "../../lib/aisle-section-list";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +58,8 @@ type ConsolidatedItem = {
   isManual: boolean;
   manualItemId?: string;
 };
+
+type ShoppingSectionRow = AisleSectionRow<ConsolidatedItem>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,9 +97,9 @@ export default function ShoppingListScreen() {
   const addInputRef = useRef<TextInput>(null);
   const [clearingWeek, setClearingWeek] = useState(false);
   const [clearWeekModalVisible, setClearWeekModalVisible] = useState(false);
-  const [editingCategoryItem, setEditingCategoryItem] =
-    useState<ConsolidatedItem | null>(null);
-  const [savingCategory, setSavingCategory] = useState(false);
+  /** Session-only: flat until Sort by aisle, then section headers. */
+  const [aisleGrouped, setAisleGrouped] = useState(false);
+  const [sectionRows, setSectionRows] = useState<ShoppingSectionRow[]>([]);
 
   // ── Load ────────────────────────────────────────────────────────────────────
   const loadList = useCallback(async () => {
@@ -279,6 +284,8 @@ export default function ShoppingListScreen() {
 
       const sorted = [...grouped.values()].sort((a, b) => a.sortOrder - b.sortOrder);
       setItems(sorted);
+      setAisleGrouped(false);
+      setSectionRows([]);
     } catch (err) {
       showError("Couldn't load the shopping list", err);
     } finally {
@@ -526,21 +533,25 @@ export default function ShoppingListScreen() {
   const saveOrder = useCallback(async (ordered: ConsolidatedItem[]) => {
     if (!householdId) return;
 
-    const metaUpdates = ordered
-      .map((item, i) => ({ item, sort_order: (i + 1) * 10 }))
-      .filter(({ item }) => !isStandaloneManual(item) && !!item.metadataId)
-      .map(({ item, sort_order }) => ({
+    const withOrder = ordered.map((item, i) => ({
+      ...item,
+      sortOrder: (i + 1) * 10,
+    }));
+
+    const metaUpdates = withOrder
+      .filter((item) => !!item.metadataId)
+      .map((item) => ({
         id: item.metadataId,
         household_id: householdId,
         normalized_name: item.normalizedName,
         display_name: item.displayName,
-        sort_order,
+        sort_order: item.sortOrder,
         category: item.category,
       }));
 
-    const manualUpdates = ordered
-      .map((item, i) => ({ item, sort_order: (i + 1) * 10 }))
-      .filter(({ item }) => isStandaloneManual(item) && !!item.manualItemId);
+    const manualUpdates = withOrder.filter(
+      (item) => isStandaloneManual(item) && !!item.manualItemId
+    );
 
     if (metaUpdates.length > 0) {
       const { error } = await supabase
@@ -552,10 +563,10 @@ export default function ShoppingListScreen() {
       }
     }
 
-    for (const { item, sort_order } of manualUpdates) {
+    for (const item of manualUpdates) {
       const { error } = await supabase
         .from("shopping_list_manual_items")
-        .update({ sort_order })
+        .update({ sort_order: item.sortOrder })
         .eq("id", item.manualItemId!);
       if (error) {
         showError("Couldn't save the order", error);
@@ -563,13 +574,23 @@ export default function ShoppingListScreen() {
       }
     }
 
-    setItems(ordered.map((item, i) => ({ ...item, sortOrder: (i + 1) * 10 })));
+    setItems(withOrder);
+    setCatalog((prev) => {
+      const byId = new Map(withOrder.map((i) => [i.metadataId, i.category]));
+      return prev.map((c) => {
+        const next = byId.get(c.id);
+        return next && next !== c.category ? { ...c, category: next } : c;
+      });
+    });
   }, [householdId]);
 
   const sortByAisle = useCallback(() => {
     if (items.length === 0) return;
     const ordered = sortShoppingListByAisle(items, aisleOrder);
+    const rows = buildAisleSectionRows(ordered, aisleOrder);
     setItems(ordered);
+    setSectionRows(rows);
+    setAisleGrouped(true);
     void saveOrder(ordered);
   }, [items, aisleOrder, saveOrder]);
 
@@ -618,27 +639,21 @@ export default function ShoppingListScreen() {
     void saveOrder(data);
   };
 
-  const saveCategory = async (category: IngredientCategoryId) => {
-    const item = editingCategoryItem;
-    if (!item?.metadataId || savingCategory) return;
-    setSavingCategory(true);
-    try {
-      await updateCatalogIngredientCategory(item.metadataId, category);
-      setItems((prev) =>
-        prev.map((i) =>
-          i.metadataId === item.metadataId ? { ...i, category } : i
-        )
-      );
-      setCatalog((prev) =>
-        prev.map((c) => (c.id === item.metadataId ? { ...c, category } : c))
-      );
-      setEditingCategoryItem(null);
-    } catch (err) {
-      showError("Couldn't update category", err);
-    } finally {
-      setSavingCategory(false);
-    }
+  const handleSectionReorder = (rows: ShoppingSectionRow[]) => {
+    const { items: nextItems, rows: nextRows } = normalizeAisleRows(
+      rows,
+      aisleOrder
+    );
+    setSectionRows(nextRows);
+    setItems(nextItems);
+    void saveOrder(nextItems);
   };
+
+  // Keep section headers in sync when items change while grouped (check/add/remove).
+  useEffect(() => {
+    if (!aisleGrouped) return;
+    setSectionRows(buildAisleSectionRows(items, aisleOrder));
+  }, [items, aisleGrouped, aisleOrder]);
 
   // ── Render helpers ──────────────────────────────────────────────────────────
   const renderAddRow = () => (
@@ -673,6 +688,12 @@ export default function ShoppingListScreen() {
           <Text style={styles.addButtonText}>Add</Text>
         )}
       </Pressable>
+    </View>
+  );
+
+  const renderAisleHeader = (label: string) => (
+    <View style={styles.aisleHeaderRow}>
+      <Text style={styles.aisleHeaderText}>{label}</Text>
     </View>
   );
 
@@ -725,17 +746,6 @@ export default function ShoppingListScreen() {
             <View style={styles.itemContent}>{body}</View>
           );
         })()}
-        {!!item.metadataId && (
-          <Pressable
-            style={styles.gearButton}
-            onPress={() => setEditingCategoryItem(item)}
-            accessibilityRole="button"
-            accessibilityLabel={`Change aisle category for ${item.displayName}`}
-            {...(Platform.OS === "web" ? { dataSet: { noDrag: "true" } } : {})}
-          >
-            <Text style={styles.gearButtonText}>⚙</Text>
-          </Pressable>
-        )}
         {canRemove && (
           <Pressable
             style={styles.removeButton}
@@ -788,6 +798,18 @@ export default function ShoppingListScreen() {
           <Text style={styles.emptyText}>
             No items yet. Add something below, or queue recipes from the week queue.
           </Text>
+        ) : aisleGrouped ? (
+          <SortableList
+            items={sectionRows}
+            keyExtractor={aisleSectionRowKey}
+            isDraggable={(row) => row.kind === "item"}
+            renderItem={(row, drag, isActive) =>
+              row.kind === "header"
+                ? renderAisleHeader(row.label)
+                : renderItemRow(row.item, drag, isActive)
+            }
+            onReorder={handleSectionReorder}
+          />
         ) : (
           <SortableList
             items={items}
@@ -834,61 +856,6 @@ export default function ShoppingListScreen() {
                 )}
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal
-        visible={editingCategoryItem !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !savingCategory && setEditingCategoryItem(null)}
-      >
-        <Pressable
-          style={styles.confirmModalOverlay}
-          onPress={() => !savingCategory && setEditingCategoryItem(null)}
-        >
-          <Pressable style={styles.categoryModalSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.confirmModalTitle}>
-              {editingCategoryItem
-                ? `Aisle · ${editingCategoryItem.displayName}`
-                : "Aisle category"}
-            </Text>
-            <ScrollView
-              style={styles.categoryModalList}
-              keyboardShouldPersistTaps="handled"
-            >
-              {INGREDIENT_CATEGORIES.map((cat) => {
-                const selected = editingCategoryItem?.category === cat.id;
-                return (
-                  <Pressable
-                    key={cat.id}
-                    style={[
-                      styles.categoryOption,
-                      selected && styles.categoryOptionSelected,
-                    ]}
-                    disabled={savingCategory}
-                    onPress={() => void saveCategory(cat.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryOptionText,
-                        selected && styles.categoryOptionTextSelected,
-                      ]}
-                    >
-                      {cat.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            {savingCategory ? (
-              <ActivityIndicator style={{ marginTop: 8 }} />
-            ) : (
-              <Pressable onPress={() => setEditingCategoryItem(null)}>
-                <Text style={styles.categoryModalCancel}>Cancel</Text>
-              </Pressable>
-            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -1030,43 +997,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  gearButton: {
-    marginLeft: 4,
-    marginTop: 2,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  gearButtonText: {
-    fontSize: 18,
-    color: "#888",
-  },
-
-  categoryModalSheet: {
+  aisleHeaderRow: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 6,
     backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 22,
-    maxHeight: "80%",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e8e8e8",
   },
-  categoryModalList: {
-    maxHeight: 360,
-    marginBottom: 8,
-  },
-  categoryOption: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 4,
-  },
-  categoryOptionSelected: {
-    backgroundColor: "#e8f4fc",
-  },
-  categoryOptionText: { fontSize: 15, color: "#333" },
-  categoryOptionTextSelected: { color: "#2f95dc", fontWeight: "600" },
-  categoryModalCancel: {
-    textAlign: "center",
-    color: "#999",
-    paddingVertical: 10,
-    fontSize: 16,
+  aisleHeaderText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
 
   buttonDisabled: { opacity: 0.6 },
