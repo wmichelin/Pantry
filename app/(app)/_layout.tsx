@@ -24,6 +24,7 @@ export default function AppLayout() {
       <Stack.Screen name="join-household" options={{ title: "Join Household" }} />
       <Stack.Screen name="household" options={{ title: "Household" }} />
       <Stack.Screen name="household-edit" options={{ title: "Edit Household" }} />
+      <Stack.Screen name="edit-aisles" options={{ title: "Edit Aisles" }} />
       <Stack.Screen name="create-recipe" options={{ title: "New Recipe" }} />
       <Stack.Screen name="recipe/[id]" options={{ title: "Recipe" }} />
       <Stack.Screen name="import-recipe" options={{ title: "Import Recipe" }} />

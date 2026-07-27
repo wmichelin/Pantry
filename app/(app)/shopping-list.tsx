@@ -759,6 +759,21 @@ export default function ShoppingListScreen() {
     );
   };
 
+  const renderEditAislesLink = () => (
+    <Pressable
+      style={styles.editAislesLink}
+      onPress={() => {
+        if (!householdId) return;
+        router.push({
+          pathname: "/(app)/edit-aisles",
+          params: { householdId },
+        });
+      }}
+    >
+      <Text style={styles.editAislesLinkText}>Edit aisles</Text>
+    </Pressable>
+  );
+
   const hasChecked = items.some((i) => i.checked);
 
   // ── Loading / empty ─────────────────────────────────────────────────────────
@@ -795,9 +810,12 @@ export default function ShoppingListScreen() {
           </View>
         )}
         {items.length === 0 ? (
-          <Text style={styles.emptyText}>
-            No items yet. Add something below, or queue recipes from the week queue.
-          </Text>
+          <>
+            <Text style={styles.emptyText}>
+              No items yet. Add something below, or queue recipes from the week queue.
+            </Text>
+            {renderEditAislesLink()}
+          </>
         ) : aisleGrouped ? (
           <SortableList
             items={sectionRows}
@@ -809,6 +827,7 @@ export default function ShoppingListScreen() {
                 : renderItemRow(row.item, drag, isActive)
             }
             onReorder={handleSectionReorder}
+            ListFooterComponent={renderEditAislesLink()}
           />
         ) : (
           <SortableList
@@ -816,6 +835,7 @@ export default function ShoppingListScreen() {
             keyExtractor={(item) => item.listKey}
             renderItem={(item, drag, isActive) => renderItemRow(item, drag, isActive)}
             onReorder={handleReorder}
+            ListFooterComponent={renderEditAislesLink()}
           />
         )}
       </View>
@@ -1011,6 +1031,17 @@ const styles = StyleSheet.create({
     color: "#666",
     textTransform: "uppercase",
     letterSpacing: 0.4,
+  },
+
+  editAislesLink: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  editAislesLinkText: {
+    color: "#2f95dc",
+    fontSize: 15,
+    fontWeight: "600",
   },
 
   buttonDisabled: { opacity: 0.6 },
