@@ -23,7 +23,7 @@ describe("formatShoppingList", () => {
         },
         {
           normalizedName: "lettuce",
-          checked: true,
+          checked: false,
           storeIds: [],
           category: "produce",
           occurrences: [],
@@ -36,6 +36,41 @@ describe("formatShoppingList", () => {
         "\n"
       )
     );
+  });
+
+  it("omits checked items from the export", () => {
+    const text = formatShoppingList([
+      {
+        normalizedName: "milk",
+        checked: true,
+        storeIds: [],
+        category: "dairy",
+        occurrences: [],
+      },
+      {
+        normalizedName: "eggs",
+        checked: false,
+        storeIds: [],
+        category: "dairy",
+        occurrences: [],
+      },
+    ]);
+    expect(text).toBe("Dairy\n• Eggs");
+    expect(text).not.toContain("Milk");
+  });
+
+  it("returns empty string when every item is checked", () => {
+    expect(
+      formatShoppingList([
+        {
+          normalizedName: "milk",
+          checked: true,
+          storeIds: [],
+          category: "dairy",
+          occurrences: [],
+        },
+      ])
+    ).toBe("");
   });
 
   it("omits empty aisle sections", () => {

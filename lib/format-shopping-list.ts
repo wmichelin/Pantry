@@ -43,12 +43,15 @@ export function formatShoppingList(
 ): string {
   if (items.length === 0) return "";
 
+  const unchecked = items.filter((item) => !item.checked);
+  if (unchecked.length === 0) return "";
+
   const order = resolveAisleCategoryOrder(
     aisleOrder?.map((c) => c.id) ?? null
   );
 
   const byCategory = new Map<string, ShoppingListExportItem[]>();
-  for (const item of items) {
+  for (const item of unchecked) {
     const id = coerceIngredientCategory(item.category);
     const group = byCategory.get(id);
     if (group) group.push(item);
