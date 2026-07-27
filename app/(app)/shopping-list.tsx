@@ -299,10 +299,12 @@ export default function ShoppingListScreen() {
           normalizedName: i.displayName,
           checked: i.checked,
           storeIds: [],
+          category: i.category,
           occurrences: i.occurrences,
-        }))
+        })),
+        aisleOrder
       ),
-    [items]
+    [items, aisleOrder]
   );
 
   const shareList = useCallback(async () => {

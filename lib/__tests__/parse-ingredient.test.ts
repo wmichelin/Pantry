@@ -541,6 +541,13 @@ describe("parseIngredients — filter cases", () => {
     expect(results[1].name).toBe("pepper");
   });
 
+  it("strips additional/for topping then expands compound garnish", () => {
+    const results = parseIngredients([
+      "Additional Cilantro And Sesame Seeds For Topping",
+    ]);
+    expect(results.map((r) => r.name)).toEqual(["cilantro", "sesame seeds"]);
+  });
+
   it("does not expand 'avocado oil or olive oil' (has digit)", () => {
     // "4 tbsp avocado oil or olive oil" — the "or" is an alternative, not compound
     // expandCompound only splits purely alphabetic sides with no digits before "and"

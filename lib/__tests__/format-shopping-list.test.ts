@@ -1,47 +1,55 @@
 import { describe, expect, it } from "bun:test";
 import { formatShoppingList } from "../format-shopping-list";
+import { resolveAisleCategoryOrder } from "../ingredient-categories";
 
 describe("formatShoppingList", () => {
-  it("formats bulleted lines in list order without checkbox markup", () => {
-    const text = formatShoppingList([
-      {
-        normalizedName: "milk",
-        checked: false,
-        storeIds: [],
-        occurrences: [{ quantity: 1, unit: "gallon" }],
-      },
-      {
-        normalizedName: "eggs",
-        checked: true,
-        storeIds: [],
-        occurrences: [],
-      },
-      {
-        normalizedName: "bread",
-        checked: false,
-        storeIds: [],
-        occurrences: [],
-      },
-    ]);
-    expect(text).toBe("• Milk (1 gallon)\n• Eggs\n• Bread");
+  it("groups by aisle headers in household order without bullets on headers", () => {
+    const aisleOrder = resolveAisleCategoryOrder(["dairy", "produce"]);
+    const text = formatShoppingList(
+      [
+        {
+          normalizedName: "apples",
+          checked: false,
+          storeIds: [],
+          category: "produce",
+          occurrences: [],
+        },
+        {
+          normalizedName: "milk",
+          checked: false,
+          storeIds: [],
+          category: "dairy",
+          occurrences: [{ quantity: 1, unit: "gallon" }],
+        },
+        {
+          normalizedName: "lettuce",
+          checked: true,
+          storeIds: [],
+          category: "produce",
+          occurrences: [],
+        },
+      ],
+      aisleOrder
+    );
+    expect(text).toBe(
+      ["Dairy", "• Milk (1 gallon)", "", "Produce", "• Apples", "• Lettuce"].join(
+        "\n"
+      )
+    );
   });
 
-  it("stays flat even when items have storeIds", () => {
+  it("omits empty aisle sections", () => {
     const text = formatShoppingList([
       {
-        normalizedName: "apples",
-        checked: false,
-        storeIds: ["s1"],
-        occurrences: [],
-      },
-      {
-        normalizedName: "paper towels",
+        normalizedName: "eggs",
         checked: false,
         storeIds: [],
+        category: "dairy",
         occurrences: [],
       },
     ]);
-    expect(text).toBe("• Apples\n• Paper Towels");
+    expect(text).toBe("Dairy\n• Eggs");
+    expect(text).not.toContain("Produce");
   });
 
   it("returns empty string for empty list", () => {
@@ -54,10 +62,11 @@ describe("formatShoppingList", () => {
         normalizedName: "tahini",
         checked: false,
         storeIds: [],
+        category: "condiments",
         occurrences: [{ quantity: 1 / 3, unit: "cup" }],
       },
     ]);
-    expect(text).toBe("• Tahini (1/3 cup)");
+    expect(text).toBe("Condiments\n• Tahini (1/3 cup)");
   });
 
   it("emits all occurrence quantities as separate parentheses", () => {
@@ -66,12 +75,26 @@ describe("formatShoppingList", () => {
         normalizedName: "milk",
         checked: false,
         storeIds: [],
+        category: "dairy",
         occurrences: [
           { quantity: 1, unit: "cup" },
           { quantity: 1, unit: "gallon" },
         ],
       },
     ]);
-    expect(text).toBe("• Milk (1 cup) (1 gallon)");
+    expect(text).toBe("Dairy\n• Milk (1 cup) (1 gallon)");
+  });
+
+  it("puts unknown categories under Other", () => {
+    const text = formatShoppingList([
+      {
+        normalizedName: "mystery",
+        checked: false,
+        storeIds: [],
+        category: "not-a-real-aisle",
+        occurrences: [],
+      },
+    ]);
+    expect(text).toBe("Other\n• Mystery");
   });
 });
