@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,13 @@ import {
   Alert,
   Modal,
 } from "react-native";
-import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { showError } from "../../lib/db";
+import {
+  INGREDIENT_CATEGORIES,
+  getIngredientCategory,
+  type IngredientCategoryId,
+} from "../../lib/ingredient-categories";
 import {
   ensureCatalogIngredient,
   listCatalogIngredients,
@@ -23,15 +28,44 @@ import { supabase } from "../../lib/supabase";
 
 export default function IngredientsScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
+  const navigation = useNavigation();
+  const router = useRouter();
   const [items, setItems] = useState<CatalogIngredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [filter, setFilter] = useState("");
-  const [renaming, setRenaming] = useState<CatalogIngredient | null>(null);
-  const [renameText, setRenameText] = useState("");
-  const [savingRename, setSavingRename] = useState(false);
+  const [editing, setEditing] = useState<CatalogIngredient | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCategory, setEditCategory] = useState<IngredientCategoryId>("other");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          onPress={() => {
+            if (householdId) {
+              router.replace({
+                pathname: "/(app)/household",
+                params: { id: householdId },
+              });
+              return;
+            }
+            if (router.canGoBack()) router.back();
+          }}
+          style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back to household"
+        >
+          <Text style={{ color: "#2f95dc", fontSize: 16, fontWeight: "600" }}>
+            ‹ Back
+          </Text>
+        </Pressable>
+      ),
+    });
+  }, [householdId, navigation, router]);
 
   const load = useCallback(async () => {
     if (!householdId) return;
@@ -88,26 +122,30 @@ export default function IngredientsScreen() {
     }
   };
 
-  const openRename = (item: CatalogIngredient) => {
-    setRenaming(item);
-    setRenameText(item.display_name);
+  const openEdit = (item: CatalogIngredient) => {
+    setEditing(item);
+    setEditName(item.display_name);
+    setEditCategory(item.category);
   };
 
-  const saveRename = async () => {
-    if (!renaming || !renameText.trim()) return;
-    setSavingRename(true);
+  const saveEdit = async () => {
+    if (!editing || !editName.trim()) return;
+    setSavingEdit(true);
     try {
       const { error } = await supabase
         .from("ingredient_metadata")
-        .update({ display_name: renameText.trim() })
-        .eq("id", renaming.id);
+        .update({
+          display_name: editName.trim(),
+          category: editCategory,
+        })
+        .eq("id", editing.id);
       if (error) throw error;
-      setRenaming(null);
+      setEditing(null);
       await load();
     } catch (err) {
-      showError("Couldn't rename ingredient", err);
+      showError("Couldn't update ingredient", err);
     } finally {
-      setSavingRename(false);
+      setSavingEdit(false);
     }
   };
 
@@ -141,7 +179,8 @@ export default function IngredientsScreen() {
     if (!q) return true;
     return (
       i.normalized_name.includes(q) ||
-      i.display_name.toLowerCase().includes(q)
+      i.display_name.toLowerCase().includes(q) ||
+      getIngredientCategory(i.category).label.toLowerCase().includes(q)
     );
   });
 
@@ -223,9 +262,11 @@ export default function IngredientsScreen() {
         ) : (
           filtered.map((item) => (
             <View key={item.id} style={styles.row}>
-              <Pressable style={styles.rowMain} onPress={() => openRename(item)}>
+              <Pressable style={styles.rowMain} onPress={() => openEdit(item)}>
                 <Text style={styles.rowName}>{item.display_name}</Text>
-                <Text style={styles.rowMeta}>Tap to rename</Text>
+                <Text style={styles.rowMeta}>
+                  {getIngredientCategory(item.category).label} · Tap to edit
+                </Text>
               </Pressable>
               <Pressable
                 style={styles.deleteBtn}
@@ -239,34 +280,61 @@ export default function IngredientsScreen() {
       </ScrollView>
 
       <Modal
-        visible={renaming !== null}
+        visible={editing !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setRenaming(null)}
+        onRequestClose={() => setEditing(null)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Rename</Text>
+            <Text style={styles.modalTitle}>Edit ingredient</Text>
             <TextInput
               style={styles.modalInput}
-              value={renameText}
-              onChangeText={setRenameText}
+              value={editName}
+              onChangeText={setEditName}
               autoFocus
               autoCorrect={false}
+              placeholder="Display name"
             />
+            <Text style={styles.categoryLabel}>Aisle category</Text>
+            <ScrollView
+              style={styles.categoryList}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
+              {INGREDIENT_CATEGORIES.map((cat) => {
+                const selected = editCategory === cat.id;
+                return (
+                  <Pressable
+                    key={cat.id}
+                    style={[styles.categoryOption, selected && styles.categoryOptionSelected]}
+                    onPress={() => setEditCategory(cat.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryOptionText,
+                        selected && styles.categoryOptionTextSelected,
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
             <View style={styles.modalActions}>
               <Pressable
-                style={[styles.modalSave, savingRename && styles.disabled]}
-                onPress={saveRename}
-                disabled={savingRename || !renameText.trim()}
+                style={[styles.modalSave, savingEdit && styles.disabled]}
+                onPress={saveEdit}
+                disabled={savingEdit || !editName.trim()}
               >
-                {savingRename ? (
+                {savingEdit ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.modalSaveText}>Save</Text>
                 )}
               </Pressable>
-              <Pressable onPress={() => setRenaming(null)}>
+              <Pressable onPress={() => setEditing(null)}>
                 <Text style={styles.modalCancel}>Cancel</Text>
               </Pressable>
             </View>
@@ -345,6 +413,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 20,
+    maxHeight: "85%",
   },
   modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
   modalInput: {
@@ -353,8 +422,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    marginBottom: 12,
+  },
+  categoryLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+    marginBottom: 8,
+  },
+  categoryList: {
+    maxHeight: 240,
     marginBottom: 16,
   },
+  categoryOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  categoryOptionSelected: {
+    backgroundColor: "#e8f4fc",
+  },
+  categoryOptionText: { fontSize: 15, color: "#333" },
+  categoryOptionTextSelected: { color: "#2f95dc", fontWeight: "600" },
   modalActions: { gap: 12 },
   modalSave: {
     backgroundColor: "#2f95dc",
