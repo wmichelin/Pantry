@@ -12,18 +12,12 @@ import { useLocalSearchParams, useFocusEffect, useNavigation, useRouter } from "
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { showError } from "../../lib/db";
-import { SortableList } from "../../components/SortableList";
-import {
-  resolveAisleCategoryOrder,
-  type IngredientCategory,
-} from "../../lib/ingredient-categories";
 
 type Member = { id: string; display_name: string; role: string };
 type Household = {
   id: string;
   name: string;
   invite_code: string;
-  aisle_category_order: string[] | null;
 };
 type Store = { id: string; name: string; sort_order: number };
 
@@ -36,10 +30,8 @@ export default function HouseholdEditScreen() {
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
-  const [aisleCategories, setAisleCategories] = useState<IngredientCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [storeInput, setStoreInput] = useState("");
-  const [savingAisles, setSavingAisles] = useState(false);
 
   useEffect(() => {
     navigation.setOptions({
@@ -68,7 +60,7 @@ export default function HouseholdEditScreen() {
       const [hRes, mRes, sRes] = await Promise.all([
         supabase
           .from("households")
-          .select("id, name, invite_code, aisle_category_order")
+          .select("id, name, invite_code")
           .eq("id", id)
           .single(),
         supabase.from("household_members").select("id, display_name, role").eq("household_id", id),
@@ -76,7 +68,6 @@ export default function HouseholdEditScreen() {
       ]);
       if (hRes.error) throw hRes.error;
       setHousehold(hRes.data);
-      setAisleCategories(resolveAisleCategoryOrder(hRes.data.aisle_category_order));
       if (mRes.data) setMembers(mRes.data);
       if (sRes.data) setStores(sRes.data);
     } catch (err) {
@@ -119,22 +110,6 @@ export default function HouseholdEditScreen() {
     }
   };
 
-  const saveAisleOrder = async (ordered: IngredientCategory[]) => {
-    if (!id) return;
-    setSavingAisles(true);
-    const previous = aisleCategories;
-    setAisleCategories(ordered);
-    const { error } = await supabase
-      .from("households")
-      .update({ aisle_category_order: ordered.map((c) => c.id) })
-      .eq("id", id);
-    setSavingAisles(false);
-    if (error) {
-      setAisleCategories(previous);
-      showError("Couldn't save aisle order", error);
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.center}>
@@ -144,9 +119,13 @@ export default function HouseholdEditScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.inviteBox}>
-        <Text style={styles.inviteLabel}>Invite Code</Text>
+        <Text style={styles.inviteLabel}>Invite code</Text>
         <Text style={styles.inviteCode}>{household?.invite_code}</Text>
         <Text style={styles.inviteHint}>Share this code to invite members</Text>
       </View>
@@ -185,33 +164,17 @@ export default function HouseholdEditScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.aisleHeader}>
-        <Text style={[styles.sectionTitle, styles.aisleSectionTitle]}>
-          Aisle order ({aisleCategories.length})
-        </Text>
-        {savingAisles ? <ActivityIndicator size="small" color="#2f95dc" /> : null}
-      </View>
-      <Text style={styles.aisleHint}>Drag to match your store walk path</Text>
-
-      <SortableList
-        items={aisleCategories}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        onReorder={(next) => {
-          void saveAisleOrder(next);
-        }}
-        renderItem={(item, drag, isActive) => (
-          <View style={[styles.aisleRow, isActive && styles.aisleRowActive]}>
-            {drag ? (
-              <Pressable style={styles.aisleDragHit} onPressIn={drag}>
-                <Text style={styles.aisleLabel}>{item.label}</Text>
-              </Pressable>
-            ) : (
-              <Text style={styles.aisleLabel}>{item.label}</Text>
-            )}
-          </View>
-        )}
-      />
+      <Pressable
+        style={styles.aislesLink}
+        onPress={() =>
+          router.push({
+            pathname: "/(app)/edit-aisles",
+            params: { householdId: id },
+          })
+        }
+      >
+        <Text style={styles.aislesLinkText}>Edit aisle order →</Text>
+      </Pressable>
 
       <Pressable style={styles.signOut} onPress={signOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
@@ -290,27 +253,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   storeAddButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  aisleHeader: {
+  aislesLink: {
     marginTop: 28,
-    marginBottom: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  aisleSectionTitle: { marginBottom: 0, flex: 1 },
-  aisleHint: { fontSize: 13, color: "#999", marginTop: 4, marginBottom: 8 },
-  aisleRow: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    backgroundColor: "#fff",
+    alignItems: "center",
   },
-  aisleRowActive: { backgroundColor: "#f0f7ff" },
-  aisleDragHit: { flex: 1 },
-  aisleLabel: { flex: 1, fontSize: 16 },
+  aislesLinkText: {
+    color: "#2f95dc",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   signOut: { marginTop: 24, alignSelf: "center" },
   signOutText: { color: "#999", fontSize: 14 },
 });
