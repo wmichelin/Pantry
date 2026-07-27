@@ -200,6 +200,15 @@ export function parseIngredient(raw: string): ParsedIngredient {
   // Strip leading prep verbs when they precede the actual ingredient
   name = name.replace(/^(?:minced|beaten)\s+/i, "").trim();
 
+  // Strip leading filler words from scrapers ("Additional cilantro…")
+  name = name.replace(/^(?:additional|extra|optional)\s+/i, "").trim();
+
+  // Strip trailing purpose phrases without a comma ("…sesame seeds for topping")
+  name = name.replace(
+    /\s+for\s+(?:topping|garnish|serving|sprinkling)\s*$/i,
+    ""
+  ).trim();
+
   // Strip trailing footnote markers
   name = name.replace(/\*+$/, "").trim();
 
@@ -217,10 +226,21 @@ export function parseIngredient(raw: string): ParsedIngredient {
 // into separate raw strings. Only splits when both sides start alphabetically
 // (i.e., no leading quantity), to avoid splitting "4 tbsp oil or vinegar".
 function expandCompound(raw: string): string[] {
-  const stripped = raw.trim().replace(/^[-•–]\s*/, "");
+  const stripped = stripPurposeNoise(raw);
+  if (!stripped) return [raw];
   const match = stripped.match(/^([a-zA-Z][^,]*?)\s+(?:and|or)\s+([a-zA-Z].*)$/i);
   if (match) return [match[1].trim(), match[2].trim()];
-  return [raw];
+  return [stripped];
+}
+
+/** Drop garnish/filler phrasing so compound expand sees the real ingredient names. */
+function stripPurposeNoise(raw: string): string {
+  let s = raw.trim().replace(/^[-•–]\s*/, "");
+  s = s.replace(/^(?:additional|extra|optional)\s+/i, "");
+  s = s.replace(/\s+for\s+(?:topping|garnish|serving|sprinkling)\s*$/i, "");
+  // Em dash descriptions before expand ("flakes or sriracha – If you want heat")
+  s = s.replace(/\s+[–—]\s+.+$/, "");
+  return s.trim();
 }
 
 export function parseIngredients(raws: string[]): ParsedIngredient[] {
