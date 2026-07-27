@@ -24,10 +24,10 @@ import {
   type CatalogIngredient,
 } from "../../lib/ingredient-catalog";
 import {
-  resolveAisleCategoryOrder,
   type IngredientCategory,
   type IngredientCategoryId,
 } from "../../lib/ingredient-categories";
+import { listHouseholdAisles } from "../../lib/household-aisles";
 import {
   normalizeIngredient,
   titleCaseIngredient,
@@ -88,9 +88,7 @@ export default function ShoppingListScreen() {
 
   const [items, setItems] = useState<ConsolidatedItem[]>([]);
   const [catalog, setCatalog] = useState<CatalogIngredient[]>([]);
-  const [aisleOrder, setAisleOrder] = useState<IngredientCategory[]>(() =>
-    resolveAisleCategoryOrder(null)
-  );
+  const [aisleOrder, setAisleOrder] = useState<IngredientCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [newItemText, setNewItemText] = useState("");
   const [addingItem, setAddingItem] = useState(false);
@@ -106,7 +104,7 @@ export default function ShoppingListScreen() {
     if (!householdId) return;
 
     try {
-      const [queueRes, checksRes, manualRes, catalogList, householdRes] =
+      const [queueRes, checksRes, manualRes, catalogList, aisles] =
         await Promise.all([
           supabase
             .from("week_queues")
@@ -121,23 +119,15 @@ export default function ShoppingListScreen() {
             .select("id, normalized_name, quantity, unit, sort_order")
             .eq("household_id", householdId),
           listCatalogIngredients(householdId),
-          supabase
-            .from("households")
-            .select("aisle_category_order")
-            .eq("id", householdId)
-            .single(),
+          listHouseholdAisles(householdId),
         ]);
 
       if (queueRes.error) throw queueRes.error;
       if (checksRes.error) throw checksRes.error;
       if (manualRes.error) throw manualRes.error;
-      if (householdRes.error) throw householdRes.error;
 
       setCatalog(catalogList);
-      const resolvedAisle = resolveAisleCategoryOrder(
-        householdRes.data?.aisle_category_order
-      );
-      setAisleOrder(resolvedAisle);
+      setAisleOrder(aisles);
       const checkedNames = new Set((checksRes.data ?? []).map((c) => c.normalized_name));
       const queueData = queueRes.data ?? [];
       const manualItems = manualRes.data ?? [];
@@ -414,8 +404,12 @@ export default function ShoppingListScreen() {
         return;
       }
 
+      const finiteOrders = items
+        .map((i) => i.sortOrder)
+        .filter((n): n is number => Number.isFinite(n));
+      // New one-offs go to the top so the user sees them; Sort by aisle re-places them.
       const nextSort =
-        Math.max(0, ...items.map((i) => (Number.isFinite(i.sortOrder) ? i.sortOrder : 0))) + 10;
+        finiteOrders.length === 0 ? 10 : Math.min(...finiteOrders) - 10;
 
       const { data: manualRow, error: manualError } = await supabase
         .from("shopping_list_manual_items")
@@ -454,18 +448,20 @@ export default function ShoppingListScreen() {
           )
         );
       } else {
-        // Bare ad-hoc beside a recipe row, or no recipe match — own line.
+        // Bare ad-hoc beside a recipe row, or no recipe match — own line at top.
         const listKey = manualListKey(manualRow.id);
+        const sortOrder = manualRow.sort_order ?? nextSort;
+        setAisleGrouped(false);
+        setSectionRows([]);
         setItems((prev) => {
           const without = prev.filter((i) => i.listKey !== listKey);
           return [
-            ...without,
             {
               listKey,
               normalizedName: key,
               displayName: catalogRow.display_name,
               metadataId: catalogRow.id,
-              sortOrder: manualRow.sort_order ?? nextSort,
+              sortOrder,
               category: catalogRow.category,
               occurrences:
                 manualRow.quantity != null || !!manualRow.unit
@@ -479,6 +475,7 @@ export default function ShoppingListScreen() {
               isManual: true,
               manualItemId: manualRow.id,
             },
+            ...without,
           ];
         });
       }

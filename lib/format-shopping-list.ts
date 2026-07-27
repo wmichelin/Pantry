@@ -1,5 +1,6 @@
 import { formatQuantity } from "./format-quantity";
 import {
+  DEFAULT_INGREDIENT_CATEGORY,
   resolveAisleCategoryOrder,
   type IngredientCategory,
 } from "./ingredient-categories";
@@ -46,13 +47,17 @@ export function formatShoppingList(
   const unchecked = items.filter((item) => !item.checked);
   if (unchecked.length === 0) return "";
 
-  const order = resolveAisleCategoryOrder(
-    aisleOrder?.map((c) => c.id) ?? null
-  );
+  const order =
+    aisleOrder && aisleOrder.length > 0
+      ? aisleOrder
+      : resolveAisleCategoryOrder(null);
+
+  const known = new Set(order.map((c) => c.id));
 
   const byCategory = new Map<string, ShoppingListExportItem[]>();
   for (const item of unchecked) {
-    const id = coerceIngredientCategory(item.category);
+    let id = coerceIngredientCategory(item.category);
+    if (!known.has(id)) id = DEFAULT_INGREDIENT_CATEGORY;
     const group = byCategory.get(id);
     if (group) group.push(item);
     else byCategory.set(id, [item]);

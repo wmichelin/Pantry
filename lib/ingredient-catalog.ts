@@ -1,11 +1,11 @@
 import { supabase } from "./supabase";
 import {
   DEFAULT_INGREDIENT_CATEGORY,
-  isIngredientCategoryId,
   type IngredientCategoryId,
 } from "./ingredient-categories";
 import { normalizeIngredient, titleCaseIngredient } from "./normalize-ingredient";
 import { parseIngredient } from "./parse-ingredient";
+import { coerceIngredientCategory } from "./sort-shopping-list-by-aisle";
 
 const CATALOG_SELECT =
   "id, normalized_name, display_name, sort_order, category" as const;
@@ -17,13 +17,6 @@ export type CatalogIngredient = {
   sort_order: number;
   category: IngredientCategoryId;
 };
-
-function normalizeCategory(
-  value: string | null | undefined
-): IngredientCategoryId {
-  if (value && isIngredientCategoryId(value)) return value;
-  return DEFAULT_INGREDIENT_CATEGORY;
-}
 
 function asCatalogIngredient(row: {
   id: string;
@@ -37,7 +30,7 @@ function asCatalogIngredient(row: {
     normalized_name: row.normalized_name,
     display_name: row.display_name,
     sort_order: row.sort_order,
-    category: normalizeCategory(row.category),
+    category: coerceIngredientCategory(row.category),
   };
 }
 
@@ -75,7 +68,7 @@ export async function ensureCatalogIngredient(
 
   const display_name = opts?.displayName?.trim() || display;
   const category = opts?.category
-    ? normalizeCategory(opts.category)
+    ? coerceIngredientCategory(opts.category)
     : DEFAULT_INGREDIENT_CATEGORY;
 
   let sort_order = opts?.sortOrder;
@@ -202,7 +195,7 @@ export async function updateCatalogIngredientCategory(
   id: string,
   category: IngredientCategoryId
 ): Promise<void> {
-  const next = normalizeCategory(category);
+  const next = coerceIngredientCategory(category);
   const { error } = await supabase
     .from("ingredient_metadata")
     .update({ category: next })

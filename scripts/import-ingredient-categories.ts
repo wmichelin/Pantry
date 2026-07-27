@@ -17,7 +17,6 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { isIngredientCategoryId } from "../lib/ingredient-categories";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const fileArg = process.argv.find((a, i) => i >= 2 && !a.startsWith("--"));
@@ -60,13 +59,34 @@ if (assignments.length === 0) {
   process.exit(1);
 }
 
+/** Valid aisle keys for this household (or any non-empty string if unknown). */
+async function allowedCategoryKeys(householdId: string | undefined): Promise<Set<string> | null> {
+  if (!householdId) return null;
+  const { data, error } = await supabase
+    .from("household_aisles")
+    .select("key")
+    .eq("household_id", householdId);
+  if (error) throw error;
+  return new Set((data ?? []).map((r) => r.key));
+}
+
+const allowed = await allowedCategoryKeys(dump.household_id);
+
 type Update = { id: string; category: string; label: string };
 const updates: Update[] = [];
 let skipped = 0;
 
 for (const row of assignments) {
-  if (!isIngredientCategoryId(row.category)) {
-    console.warn(`Skip invalid category "${row.category}"`);
+  const category = row.category?.trim();
+  if (!category) {
+    console.warn("Skip empty category");
+    skipped++;
+    continue;
+  }
+  if (allowed && !allowed.has(category)) {
+    console.warn(
+      `Skip unknown aisle "${category}" (not in household_aisles; use Other or add the aisle first)`
+    );
     skipped++;
     continue;
   }
@@ -74,7 +94,7 @@ for (const row of assignments) {
   if (row.id) {
     updates.push({
       id: row.id,
-      category: row.category,
+      category,
       label: row.id,
     });
     continue;
@@ -113,7 +133,7 @@ for (const row of assignments) {
 
   updates.push({
     id: data.id,
-    category: row.category,
+    category,
     label: row.normalized_name,
   });
 }
