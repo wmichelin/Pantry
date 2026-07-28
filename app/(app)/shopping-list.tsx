@@ -42,6 +42,7 @@ import {
   normalizeAisleRows,
   type AisleSectionRow,
 } from "../../lib/aisle-section-list";
+import { useMobileDragUi } from "../../lib/use-mobile-drag-ui";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,8 @@ export default function ShoppingListScreen() {
   /** Session-only: flat until Sort by aisle, then section headers. */
   const [aisleGrouped, setAisleGrouped] = useState(false);
   const [sectionRows, setSectionRows] = useState<ShoppingSectionRow[]>([]);
+  /** Mobile / coarse: whole-row check + ≡ handle. Desktop web: checkbox check, text drags. */
+  const mobileDragUi = useMobileDragUi();
 
   // ── Load ────────────────────────────────────────────────────────────────────
   const loadList = useCallback(async () => {
@@ -701,53 +704,78 @@ export default function ShoppingListScreen() {
   ) => {
     // ✕ on standalone manuals and collapsed recipe+ad-hoc rows.
     const canRemove = item.isManual;
+    const webNoDrag =
+      Platform.OS === "web" ? ({ dataSet: { noDrag: "true" } } as const) : {};
+
+    const checkbox = (
+      <View style={styles.checkbox}>
+        <Text style={[styles.checkboxIcon, item.checked && styles.checkboxIconChecked]}>
+          {item.checked ? "●" : "○"}
+        </Text>
+      </View>
+    );
+
+    const body = (
+      <>
+        <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
+          {item.displayName}
+        </Text>
+        {item.occurrences.map((occ, i) => {
+          const qty = formatQty(occ.quantity, occ.unit);
+          const line = [qty, occ.recipeTitle].filter(Boolean).join(" · ");
+          if (!line) return null;
+          return (
+            <Text key={i} style={[styles.occurrence, item.checked && styles.occurrenceChecked]}>
+              {line}
+            </Text>
+          );
+        })}
+      </>
+    );
 
     return (
       <View
         style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}
       >
-        <Pressable
-          style={styles.itemMain}
-          onPress={() => toggleCheck(item)}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: item.checked }}
-          accessibilityLabel={item.displayName}
-          // Web SortableList skips drag when the pointer starts on [data-no-drag].
-          {...(Platform.OS === "web" ? { dataSet: { noDrag: "true" } } : {})}
-        >
-          <View style={styles.checkbox}>
-            <Text style={[styles.checkboxIcon, item.checked && styles.checkboxIconChecked]}>
-              {item.checked ? "●" : "○"}
-            </Text>
-          </View>
-          <View style={styles.itemContent}>
-            <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
-              {item.displayName}
-            </Text>
-            {item.occurrences.map((occ, i) => {
-              const qty = formatQty(occ.quantity, occ.unit);
-              const line = [qty, occ.recipeTitle].filter(Boolean).join(" · ");
-              if (!line) return null;
-              return (
-                <Text key={i} style={[styles.occurrence, item.checked && styles.occurrenceChecked]}>
-                  {line}
-                </Text>
-              );
-            })}
-          </View>
-        </Pressable>
+        {mobileDragUi ? (
+          <Pressable
+            style={styles.itemMain}
+            onPress={() => toggleCheck(item)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: item.checked }}
+            accessibilityLabel={item.displayName}
+            {...webNoDrag}
+          >
+            {checkbox}
+            <View style={styles.itemContent}>{body}</View>
+          </Pressable>
+        ) : (
+          <>
+            <Pressable
+              style={styles.checkboxHit}
+              onPress={() => toggleCheck(item)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: item.checked }}
+              accessibilityLabel={item.displayName}
+              {...webNoDrag}
+            >
+              {checkbox}
+            </Pressable>
+            <View style={styles.itemContent}>{body}</View>
+          </>
+        )}
         {canRemove && (
           <Pressable
             style={styles.removeButton}
             onPress={() => removeManualItem(item)}
             accessibilityRole="button"
             accessibilityLabel={`Remove ${item.displayName}`}
-            {...(Platform.OS === "web" ? { dataSet: { noDrag: "true" } } : {})}
+            {...webNoDrag}
           >
             <Text style={styles.removeButtonText}>✕</Text>
           </Pressable>
         )}
-        {/* Native: dedicated handle. Web: SortableList renders ≡ outside the row. */}
+        {/* Native: dedicated handle. Web mobile: SortableList renders ≡ outside the row. */}
         {Platform.OS !== "web" && drag ? (
           <Pressable
             style={styles.dragHandle}
@@ -1004,7 +1032,13 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     minWidth: 0,
   },
-  checkbox: { paddingRight: 10, paddingTop: 2 },
+  checkboxHit: {
+    paddingRight: 4,
+    paddingTop: 2,
+    paddingBottom: 2,
+    justifyContent: "flex-start",
+  },
+  checkbox: { paddingRight: 10, paddingTop: 0 },
   checkboxIcon: { fontSize: 18, color: "#ccc" },
   checkboxIconChecked: { color: "#34c759" },
 
@@ -1027,7 +1061,7 @@ const styles = StyleSheet.create({
   },
   dragHandle: {
     marginLeft: 4,
-    width: 36,
+    width: 72,
     paddingVertical: 4,
     alignItems: "center",
     justifyContent: "center",

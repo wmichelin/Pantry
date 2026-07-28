@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { insertionIndexFromY, moveItemBefore } from "../lib/sortable-reorder";
+import { useMobileDragUi } from "../lib/use-mobile-drag-ui";
 
 /**
  * Web sortable list via Pointer Events.
  *
- * Drag from the ≡ handle only (immediate on handle press). Row body stays
- * free for taps (checkboxes, links, etc.).
+ * Mobile / coarse pointer: drag from the ≡ handle only (immediate).
+ * Desktop mouse: no visible handle — drag from the row except [data-no-drag]
+ * regions (small move threshold before grab).
  *
  * Pointer tracking uses window listeners + ancestor scroll lock so nesting
  * inside React Native Web ScrollView does not corrupt clientY / jump the ghost.
@@ -103,6 +105,7 @@ export function SortableList<T>({
   onReorderRef.current = onReorder;
   isDraggableRef.current = isDraggable;
 
+  const showHandle = useMobileDragUi();
   const nestedInScroll = !scrollEnabled;
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -249,8 +252,12 @@ export function SortableList<T>({
     const item = itemsRef.current[index];
     if (item && isDraggableRef.current && !isDraggableRef.current(item)) return;
 
-    // Drag only from the ≡ handle so the row body can receive taps.
-    if (!isDragHandleTarget(e.target)) return;
+    const touchLike =
+      showHandle || e.pointerType === "touch" || e.pointerType === "pen";
+    const fromHandle = isDragHandleTarget(e.target);
+
+    // Mobile / touch: ≡ handle only. Desktop mouse: anywhere except [data-no-drag].
+    if (touchLike && !fromHandle) return;
 
     const rect = rowEl.getBoundingClientRect();
     sessionRef.current = {
@@ -260,7 +267,7 @@ export function SortableList<T>({
       startX: e.clientX,
       startY: e.clientY,
       activated: false,
-      fromHandle: true,
+      fromHandle,
       rowEl,
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top,
@@ -277,8 +284,11 @@ export function SortableList<T>({
 
     attachDocListeners();
 
-    e.preventDefault();
-    activate(e.clientX, e.clientY);
+    // Handle / touch: grab immediately. Mouse whole-row: wait for a few pixels.
+    if (fromHandle || touchLike) {
+      e.preventDefault();
+      activate(e.clientX, e.clientY);
+    }
   };
 
   const rowCount = items.length;
@@ -357,7 +367,7 @@ export function SortableList<T>({
               position: "relative",
               opacity: isActive ? 0.35 : 1,
               boxSizing: "border-box",
-              cursor: "default",
+              cursor: !draggable ? "default" : showHandle ? "default" : "grab",
               userSelect: "none",
               WebkitUserSelect: "none",
               WebkitTouchCallout: "none",
@@ -396,14 +406,14 @@ export function SortableList<T>({
               />
             ) : null}
             <div style={{ flex: 1, minWidth: 0 }}>{renderItem(item, undefined, isActive)}</div>
-            {draggable ? (
+            {showHandle && draggable ? (
               <div
                 data-drag-handle
                 role="button"
                 aria-label="Drag to reorder"
                 style={{
                   flexShrink: 0,
-                  width: 44,
+                  width: 88,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
