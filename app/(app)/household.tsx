@@ -140,6 +140,71 @@ export default function HouseholdScreen() {
     if (!wasQueued) loadData();
   };
 
+  const openRecipeDetail = (recipeId: string) => {
+    router.push({ pathname: "/(app)/recipe/[id]", params: { id: recipeId } });
+  };
+
+  const renderRecipeRow = (
+    item: Recipe,
+    { showTags = false }: { showTags?: boolean } = {}
+  ) => {
+    const queued = queuedIds.has(item.id);
+    return (
+      <Pressable
+        key={item.id}
+        style={styles.recipeRow}
+        onPress={() => handleQueueToggle(item)}
+        accessibilityRole="button"
+        accessibilityLabel={
+          queued
+            ? `Remove ${item.title} from weekly list`
+            : `Add ${item.title} to weekly list`
+        }
+      >
+        <View style={styles.recipeTitleArea}>
+          <Pressable
+            onPress={(e) => {
+              // Nested press on web: don't also toggle the week queue.
+              (e as { stopPropagation?: () => void })?.stopPropagation?.();
+              openRecipeDetail(item.id);
+            }}
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${item.title}`}
+          >
+            <Text style={styles.recipeTitleLink}>{item.title}</Text>
+          </Pressable>
+          {showTags ? (
+            <Pressable
+              style={styles.recipeTagsArea}
+              onPress={(e) => {
+                (e as { stopPropagation?: () => void })?.stopPropagation?.();
+                setEditingRecipe(item);
+                setEditingTags(item.tags ?? []);
+              }}
+            >
+              {item.tags && item.tags.length > 0 ? (
+                <View style={styles.inlineTags}>
+                  {item.tags.map((t) => (
+                    <View key={t} style={styles.inlineTag}>
+                      <Text style={styles.inlineTagText}>{t}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.addTagHint}>+ add tags</Text>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+        <View style={styles.queueToggle} pointerEvents="none">
+          <Text style={[styles.queueDot, queued && styles.queueDotActive]}>
+            {queued ? "●" : "○"}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  };
+
   useEffect(() => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -319,24 +384,7 @@ export default function HouseholdScreen() {
         ) : searchResults.length === 0 ? (
           <Text style={styles.emptyText}>No recipes found.</Text>
         ) : (
-          searchResults.map((item) => (
-            <View key={item.id} style={styles.recipeRow}>
-              <Pressable
-                style={styles.recipeTitleArea}
-                onPress={() => router.push({ pathname: "/(app)/recipe/[id]", params: { id: item.id } })}
-              >
-                <Text style={styles.recipeTitle}>{item.title}</Text>
-              </Pressable>
-              <Pressable style={styles.queueToggle} onPress={() => handleQueueToggle(item)}>
-                <Text style={[styles.queueDot, queuedIds.has(item.id) && styles.queueDotActive]}>
-                  {queuedIds.has(item.id) ? "●" : "○"}
-                </Text>
-              </Pressable>
-              <Pressable onPress={() => router.push({ pathname: "/(app)/recipe/[id]", params: { id: item.id } })}>
-                <Text style={styles.chevron}>&rsaquo;</Text>
-              </Pressable>
-            </View>
-          ))
+          searchResults.map((item) => renderRecipeRow(item))
         )
       ) : recipes.length === 0 ? (
         <Text style={styles.emptyText}>No recipes yet. Add your first one!</Text>
@@ -349,43 +397,8 @@ export default function HouseholdScreen() {
                 <Text style={styles.tagHeaderText}>{tag} ({sectionRecipes.length})</Text>
                 <Text style={styles.tagChevron}>{expanded ? "⌄" : "›"}</Text>
               </Pressable>
-              {expanded && sectionRecipes.map((item) => (
-                <View key={item.id} style={styles.recipeRow}>
-                  <Pressable
-                    style={styles.recipeTitleArea}
-                    onPress={() => router.push({ pathname: "/(app)/recipe/[id]", params: { id: item.id } })}
-                  >
-                    <Text style={styles.recipeTitle}>{item.title}</Text>
-                    <Pressable
-                      style={styles.recipeTagsArea}
-                      onPress={() => {
-                        setEditingRecipe(item);
-                        setEditingTags(item.tags ?? []);
-                      }}
-                    >
-                      {item.tags && item.tags.length > 0 ? (
-                        <View style={styles.inlineTags}>
-                          {item.tags.map((t) => (
-                            <View key={t} style={styles.inlineTag}>
-                              <Text style={styles.inlineTagText}>{t}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      ) : (
-                        <Text style={styles.addTagHint}>+ add tags</Text>
-                      )}
-                    </Pressable>
-                  </Pressable>
-                  <Pressable style={styles.queueToggle} onPress={() => handleQueueToggle(item)}>
-                    <Text style={[styles.queueDot, queuedIds.has(item.id) && styles.queueDotActive]}>
-                      {queuedIds.has(item.id) ? "●" : "○"}
-                    </Text>
-                  </Pressable>
-                  <Pressable onPress={() => router.push({ pathname: "/(app)/recipe/[id]", params: { id: item.id } })}>
-                    <Text style={styles.chevron}>&rsaquo;</Text>
-                  </Pressable>
-                </View>
-              ))}
+              {expanded &&
+                sectionRecipes.map((item) => renderRecipeRow(item, { showTags: true }))}
             </View>
           );
         })
@@ -398,6 +411,18 @@ export default function HouseholdScreen() {
         }
       >
         <Text style={styles.ingredientsLinkText}>Ingredients catalog →</Text>
+      </Pressable>
+
+      <Pressable
+        style={styles.aislesLink}
+        onPress={() =>
+          router.push({
+            pathname: "/(app)/edit-aisles",
+            params: { householdId: id },
+          })
+        }
+      >
+        <Text style={styles.aislesLinkText}>Edit aisles →</Text>
       </Pressable>
 
       <Modal
@@ -553,6 +578,17 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#999",
   },
+  aislesLink: {
+    marginTop: 4,
+    marginBottom: 24,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  aislesLinkText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#999",
+  },
 
   sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },
   recipesHeader: {
@@ -620,7 +656,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#eee",
   },
   recipeTitleArea: { flex: 1 },
-  recipeTitle: { fontSize: 16 },
+  recipeTitleLink: { fontSize: 16, color: "#2f95dc", fontWeight: "500" },
   recipeTagsArea: { marginTop: 4 },
   inlineTags: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   inlineTag: {
@@ -631,7 +667,6 @@ const styles = StyleSheet.create({
   },
   inlineTagText: { fontSize: 11, color: "#2f95dc" },
   addTagHint: { fontSize: 12, color: "#bbb" },
-  chevron: { fontSize: 24, color: "#ccc", paddingLeft: 8 },
 
   queueToggle: { paddingHorizontal: 8, paddingVertical: 4 },
   queueDot: { fontSize: 18, color: "#ccc" },

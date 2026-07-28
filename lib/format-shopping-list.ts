@@ -1,17 +1,24 @@
 import { formatQuantity } from "./format-quantity";
 import {
   DEFAULT_INGREDIENT_CATEGORY,
-  resolveAisleCategoryOrder,
   type IngredientCategory,
 } from "./ingredient-categories";
 import { coerceIngredientCategory } from "./sort-shopping-list-by-aisle";
 
 export type ShoppingListExportItem = {
   normalizedName: string;
+  /** Prefer this over title-casing normalizedName when set. */
+  displayName?: string;
   checked: boolean;
   storeIds: string[];
   category?: string | null;
   occurrences: { quantity: number | null; unit: string | null }[];
+};
+
+export type FormatShoppingListOptions = {
+  /** When true, emit aisle headers in aisleOrder (must match on-screen grouping). */
+  groupByAisle?: boolean;
+  aisleOrder?: IngredientCategory[] | null;
 };
 
 const formatQty = (quantity: number | null, unit: string | null): string => {
@@ -22,39 +29,62 @@ const formatQty = (quantity: number | null, unit: string | null): string => {
   return `(${parts.join(" ")})`;
 };
 
-const displayName = (name: string) =>
+const titleCase = (name: string) =>
   name.replace(/\b\w/g, (c) => c.toUpperCase());
 
 /** Plain-text line for Share (Messages, Notes paste, etc.). */
 const formatLine = (item: ShoppingListExportItem): string => {
-  const name = displayName(item.normalizedName);
+  const name = item.displayName?.trim() || titleCase(item.normalizedName);
   const qtys = item.occurrences
     .map((o) => formatQty(o.quantity, o.unit))
     .filter(Boolean);
   return qtys.length > 0 ? `${name} ${qtys.join(" ")}` : name;
 };
 
+const withHeader = (body: string) =>
+  body ? `Shopping List\n\n${body}` : "";
+
 /**
- * Format a shopping list as plain text grouped by aisle headers.
- * Headers have no bullet; items are bulleted. Sections separated by a blank line.
+ * Format a shopping list as plain text for Share.
+ * Matches the shopping-list screen: flat order by default; aisle headers only
+ * when `groupByAisle` is set (Sort by aisle mode). Checked items are omitted.
  */
 export function formatShoppingList(
   items: ShoppingListExportItem[],
-  aisleOrder?: IngredientCategory[] | null
+  options?: FormatShoppingListOptions | IngredientCategory[] | null
 ): string {
+  // Back-compat: second arg used to be aisleOrder alone (always grouped).
+  const opts: FormatShoppingListOptions = Array.isArray(options)
+    ? { groupByAisle: true, aisleOrder: options }
+    : options?.groupByAisle || options?.aisleOrder
+      ? {
+          groupByAisle: options.groupByAisle ?? true,
+          aisleOrder: options.aisleOrder,
+        }
+      : options ?? {};
+
   if (items.length === 0) return "";
 
   const unchecked = items.filter((item) => !item.checked);
   if (unchecked.length === 0) return "";
 
-  const order =
-    aisleOrder && aisleOrder.length > 0
-      ? aisleOrder
-      : resolveAisleCategoryOrder(null);
+  if (!opts.groupByAisle) {
+    const lines = unchecked.map((item) => `• ${formatLine(item)}`);
+    return withHeader(lines.join("\n"));
+  }
+
+  const order = opts.aisleOrder ?? [];
+  if (order.length === 0) {
+    const lines = unchecked.map((item) => `• ${formatLine(item)}`);
+    return withHeader(lines.join("\n"));
+  }
 
   const known = new Set(order.map((c) => c.id));
 
+  // Preserve relative order within each aisle from the input list.
   const byCategory = new Map<string, ShoppingListExportItem[]>();
+  for (const cat of order) byCategory.set(cat.id, []);
+
   for (const item of unchecked) {
     let id = coerceIngredientCategory(item.category);
     if (!known.has(id)) id = DEFAULT_INGREDIENT_CATEGORY;
@@ -67,12 +97,10 @@ export function formatShoppingList(
   for (const cat of order) {
     const group = byCategory.get(cat.id);
     if (!group?.length) continue;
-    const lines = [
-      cat.label,
-      ...group.map((item) => `• ${formatLine(item)}`),
-    ];
-    sections.push(lines.join("\n"));
+    sections.push(
+      [cat.label, ...group.map((item) => `• ${formatLine(item)}`)].join("\n")
+    );
   }
 
-  return `Shopping List\n\n${sections.join("\n\n")}`;
+  return withHeader(sections.join("\n\n"));
 }

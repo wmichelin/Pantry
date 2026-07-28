@@ -293,15 +293,19 @@ export default function ShoppingListScreen() {
     () =>
       formatShoppingList(
         items.map((i) => ({
-          normalizedName: i.displayName,
+          normalizedName: i.normalizedName,
+          displayName: i.displayName,
           checked: i.checked,
           storeIds: [],
           category: i.category,
           occurrences: i.occurrences,
         })),
-        aisleOrder
+        {
+          groupByAisle: aisleGrouped,
+          aisleOrder,
+        }
       ),
-    [items, aisleOrder]
+    [items, aisleOrder, aisleGrouped]
   );
 
   const shareList = useCallback(async () => {
