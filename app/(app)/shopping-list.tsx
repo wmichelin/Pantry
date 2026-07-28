@@ -1016,7 +1016,7 @@ const styles = StyleSheet.create({
 
   itemRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "stretch",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
@@ -1033,10 +1033,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   checkboxHit: {
+    justifyContent: "flex-start",
     paddingRight: 4,
     paddingTop: 2,
-    paddingBottom: 2,
-    justifyContent: "flex-start",
   },
   checkbox: { paddingRight: 10, paddingTop: 0 },
   checkboxIcon: { fontSize: 18, color: "#ccc" },
@@ -1050,9 +1049,9 @@ const styles = StyleSheet.create({
 
   removeButton: {
     marginLeft: 8,
-    marginTop: 2,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingTop: 2,
+    justifyContent: "flex-start",
   },
   removeButtonText: {
     fontSize: 16,
