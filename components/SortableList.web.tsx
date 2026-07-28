@@ -5,8 +5,8 @@ import { insertionIndexFromY, moveItemBefore } from "../lib/sortable-reorder";
 /**
  * Web sortable list via Pointer Events.
  *
- * Mobile / coarse pointer: drag from the ≡ handle only (immediate, no press-hold).
- * Desktop mouse: drag from the whole row after a small move threshold.
+ * Drag from the ≡ handle only (immediate on handle press). Row body stays
+ * free for taps (checkboxes, links, etc.).
  *
  * Pointer tracking uses window listeners + ancestor scroll lock so nesting
  * inside React Native Web ScrollView does not corrupt clientY / jump the ghost.
@@ -85,20 +85,6 @@ function rowsFromList(listEl: HTMLElement) {
   return Array.from(listEl.querySelectorAll<HTMLElement>("[data-sortable-id]"));
 }
 
-/** Phones / Chrome device-mode: no hover. Keeps desktop mouse whole-row drag. */
-function useMobileDragUi(): boolean {
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(hover: none), (pointer: coarse)");
-    const sync = () => setMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  return mobile;
-}
-
 export function SortableList<T>({
   items,
   keyExtractor,
@@ -117,7 +103,6 @@ export function SortableList<T>({
   onReorderRef.current = onReorder;
   isDraggableRef.current = isDraggable;
 
-  const showHandle = useMobileDragUi();
   const nestedInScroll = !scrollEnabled;
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -264,12 +249,8 @@ export function SortableList<T>({
     const item = itemsRef.current[index];
     if (item && isDraggableRef.current && !isDraggableRef.current(item)) return;
 
-    const touchLike =
-      showHandle || e.pointerType === "touch" || e.pointerType === "pen";
-    const fromHandle = isDragHandleTarget(e.target);
-
-    // Handle-only modes: ignore presses on the row body.
-    if (touchLike && !fromHandle) return;
+    // Drag only from the ≡ handle so the row body can receive taps.
+    if (!isDragHandleTarget(e.target)) return;
 
     const rect = rowEl.getBoundingClientRect();
     sessionRef.current = {
@@ -279,7 +260,7 @@ export function SortableList<T>({
       startX: e.clientX,
       startY: e.clientY,
       activated: false,
-      fromHandle,
+      fromHandle: true,
       rowEl,
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top,
@@ -296,11 +277,8 @@ export function SortableList<T>({
 
     attachDocListeners();
 
-    // Handle: grab immediately. Mouse whole-row: wait for a few pixels.
-    if (fromHandle) {
-      e.preventDefault();
-      activate(e.clientX, e.clientY);
-    }
+    e.preventDefault();
+    activate(e.clientX, e.clientY);
   };
 
   const rowCount = items.length;
@@ -379,7 +357,7 @@ export function SortableList<T>({
               position: "relative",
               opacity: isActive ? 0.35 : 1,
               boxSizing: "border-box",
-              cursor: !draggable ? "default" : showHandle ? "default" : "grab",
+              cursor: "default",
               userSelect: "none",
               WebkitUserSelect: "none",
               WebkitTouchCallout: "none",
@@ -418,7 +396,7 @@ export function SortableList<T>({
               />
             ) : null}
             <div style={{ flex: 1, minWidth: 0 }}>{renderItem(item, undefined, isActive)}</div>
-            {showHandle && draggable ? (
+            {draggable ? (
               <div
                 data-drag-handle
                 role="button"

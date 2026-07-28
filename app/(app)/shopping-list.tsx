@@ -707,51 +707,57 @@ export default function ShoppingListScreen() {
         style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowActive]}
       >
         <Pressable
-          style={styles.checkbox}
+          style={styles.itemMain}
           onPress={() => toggleCheck(item)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: item.checked }}
+          accessibilityLabel={item.displayName}
           // Web SortableList skips drag when the pointer starts on [data-no-drag].
           {...(Platform.OS === "web" ? { dataSet: { noDrag: "true" } } : {})}
         >
-          <Text style={[styles.checkboxIcon, item.checked && styles.checkboxIconChecked]}>
-            {item.checked ? "●" : "○"}
-          </Text>
+          <View style={styles.checkbox}>
+            <Text style={[styles.checkboxIcon, item.checked && styles.checkboxIconChecked]}>
+              {item.checked ? "●" : "○"}
+            </Text>
+          </View>
+          <View style={styles.itemContent}>
+            <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
+              {item.displayName}
+            </Text>
+            {item.occurrences.map((occ, i) => {
+              const qty = formatQty(occ.quantity, occ.unit);
+              const line = [qty, occ.recipeTitle].filter(Boolean).join(" · ");
+              if (!line) return null;
+              return (
+                <Text key={i} style={[styles.occurrence, item.checked && styles.occurrenceChecked]}>
+                  {line}
+                </Text>
+              );
+            })}
+          </View>
         </Pressable>
-        {/* Native: press content to drag. Web: plain View — SortableList owns row drag. */}
-        {(() => {
-          const body = (
-            <>
-              <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
-                {item.displayName}
-              </Text>
-              {item.occurrences.map((occ, i) => {
-                const qty = formatQty(occ.quantity, occ.unit);
-                const line = [qty, occ.recipeTitle].filter(Boolean).join(" · ");
-                if (!line) return null;
-                return (
-                  <Text key={i} style={[styles.occurrence, item.checked && styles.occurrenceChecked]}>
-                    {line}
-                  </Text>
-                );
-              })}
-            </>
-          );
-          return drag ? (
-            <Pressable style={styles.itemContent} onPressIn={drag}>
-              {body}
-            </Pressable>
-          ) : (
-            <View style={styles.itemContent}>{body}</View>
-          );
-        })()}
         {canRemove && (
           <Pressable
             style={styles.removeButton}
             onPress={() => removeManualItem(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${item.displayName}`}
             {...(Platform.OS === "web" ? { dataSet: { noDrag: "true" } } : {})}
           >
             <Text style={styles.removeButtonText}>✕</Text>
           </Pressable>
         )}
+        {/* Native: dedicated handle. Web: SortableList renders ≡ outside the row. */}
+        {Platform.OS !== "web" && drag ? (
+          <Pressable
+            style={styles.dragHandle}
+            onPressIn={drag}
+            accessibilityRole="button"
+            accessibilityLabel="Drag to reorder"
+          >
+            <Text style={styles.dragHandleIcon}>≡</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   };
@@ -992,11 +998,17 @@ const styles = StyleSheet.create({
   itemRowChecked: { opacity: 0.45 },
   itemRowActive: { backgroundColor: "#f0f7ff", elevation: 4 },
 
+  itemMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    minWidth: 0,
+  },
   checkbox: { paddingRight: 10, paddingTop: 2 },
   checkboxIcon: { fontSize: 18, color: "#ccc" },
   checkboxIconChecked: { color: "#34c759" },
 
-  itemContent: { flex: 1 },
+  itemContent: { flex: 1, minWidth: 0 },
   itemName: { fontSize: 16, fontWeight: "600", color: "#222", marginBottom: 2 },
   itemNameChecked: { textDecorationLine: "line-through", color: "#999" },
   occurrence: { fontSize: 13, color: "#888", lineHeight: 18 },
@@ -1013,6 +1025,14 @@ const styles = StyleSheet.create({
     color: "#ff3b30",
     fontWeight: "600",
   },
+  dragHandle: {
+    marginLeft: 4,
+    width: 36,
+    paddingVertical: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dragHandleIcon: { fontSize: 20, color: "#bbb", lineHeight: 22 },
 
   aisleHeaderRow: {
     paddingHorizontal: 16,
