@@ -54,10 +54,20 @@ terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
 terraform/*.tfstate
 terraform/*.tfstate.backup
+# Keep all Terraform machine-local working data out of Git, including files
+# created by `terraform init`, plans, crash logs, and local variable files.
+**/.terraform/
+**/.terraform.lock.hcl
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/crash.log
+**/crash.*.log
+**/*.tfvars
+**/*.tfvars.json
 
 # Supabase CLI local cache
 supabase/.temp/
 
 # local backfill working files
 scripts/.backfill*
-

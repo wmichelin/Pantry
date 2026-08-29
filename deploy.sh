@@ -1,17 +1,35 @@
 #!/bin/bash
-# Requires GITHUB_TOKEN with GitHub Packages scopes: read:packages and write:packages
-# (classic PAT). `gh auth token` alone often cannot pull private GHCR images (403).
+# Deploy from a Terraform + Docker-capable machine, including the G5/t3.code server.
+# Requires GITHUB_TOKEN with GitHub Packages scopes: read:packages and write:packages.
 set -e
+set -u
 
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
-IMAGE="ghcr.io/wmichelin/pantry:latest"
-DOMAIN="pantry.waltermichelin.com"
+IMAGE="${IMAGE:-ghcr.io/wmichelin/pantry:latest}"
+DOMAIN="${DOMAIN:-pantry.waltermichelin.com}"
+SSH_USER="${SSH_USER:-root}"
+SSH_PORT="${SSH_PORT:-22}"
+SSH_OPTS=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new)
 
 : "${GITHUB_TOKEN:?GITHUB_TOKEN is not set}"
-DROPLET_IP=$(cd terraform && terraform output -raw droplet_ip)
+command -v terraform >/dev/null 2>&1 || {
+  echo "Terraform is required. Run the G5 setup instructions in docs/DEPLOY.md." >&2
+  exit 1
+}
+command -v docker >/dev/null 2>&1 || {
+  echo "Docker is required. Install Docker on the G5 server before deploying." >&2
+  exit 1
+}
+
+if [ -n "${DROPLET_HOST:-}" ]; then
+  DEPLOY_HOST="$DROPLET_HOST"
+else
+  (cd terraform && terraform init -input=false >/dev/null)
+  DEPLOY_HOST=$(cd terraform && terraform output -raw droplet_ip)
+fi
 
 echo "Building $IMAGE for linux/amd64..."
 docker buildx build \
@@ -22,7 +40,7 @@ docker buildx build \
   --push \
   .
 
-echo "Deploying to $DROPLET_IP..."
+echo "Deploying to ${SSH_USER}@${DEPLOY_HOST}..."
 printf '%s\n' \
   '# Install Docker if missing' \
   'if ! command -v docker &>/dev/null; then' \
@@ -59,6 +77,6 @@ printf '%s\n' \
   'else' \
   '  nginx -t && systemctl reload nginx' \
   'fi' \
-  | ssh -o StrictHostKeyChecking=no root@"$DROPLET_IP" bash
+  | ssh "${SSH_OPTS[@]}" "${SSH_USER}@${DEPLOY_HOST}" bash
 
 echo "Done! Pantry available at https://$DOMAIN"

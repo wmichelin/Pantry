@@ -3,8 +3,8 @@
 Two ways to deploy the static web build to the DigitalOcean droplet
 (`pantry.waltermichelin.com`):
 
-1. **`./deploy.sh`** — runs from your laptop using your local `.env`, SSH key, and
-   `terraform/` state. Unchanged; still works.
+1. **`./deploy.sh`** — runs from the G5/t3.code server using Docker, Terraform,
+   SSH access, and the Terraform state stored on that server.
 2. **GitHub Actions `Deploy` workflow** (`.github/workflows/deploy.yml`) — runs on
    GitHub's runners using repo **secrets**, so it can be triggered without your
    laptop. This is how Claude Code can deploy: it has no droplet access or secrets
@@ -12,6 +12,43 @@ Two ways to deploy the static web build to the DigitalOcean droplet
 
 Both build the same image (`ghcr.io/wmichelin/pantry:latest`) and restart the
 `pantry` container on the droplet, mirroring `deploy.sh`.
+
+## Set up the G5/t3.code server
+
+Install Git, Docker, Terraform 1.9.8 (or use `tfenv`, which reads
+`.terraform-version`), and the DigitalOcean credentials used by Terraform. Then
+clone the repository and initialize Terraform:
+
+```sh
+git clone <repository-url> Pantry
+cd Pantry
+terraform -chdir=terraform init
+```
+
+Move the existing `terraform/terraform.tfstate` and
+`terraform/terraform.tfstate.backup` files to the G5 server, or configure a
+remote Terraform backend before running `terraform apply`. Do not commit state
+files or tokens. If the state is not available, import the existing resources
+before applying so Terraform does not attempt to recreate production.
+
+The G5 server needs Docker and SSH access to the droplet. Configure the
+deployment environment:
+
+```sh
+export DROPLET_HOST="<droplet-ip-or-hostname>"
+export GITHUB_TOKEN="<ghcr-push-and-pull-token>"
+export EXPO_PUBLIC_SUPABASE_URL="<supabase-url>"
+export EXPO_PUBLIC_SUPABASE_ANON_KEY="<supabase-anon-key>"
+./deploy.sh
+```
+
+`deploy.sh` now requires Terraform and automatically runs `terraform init`, then
+gets the deployment host from `terraform output -raw droplet_ip`. The optional
+`DROPLET_HOST` override is useful only for emergency targeting; normal G5
+deployments should use Terraform state.
+
+The image is built explicitly for `linux/amd64`, matching standard G5 x86
+servers; the remote host only needs to pull and run the image.
 
 ## One-time setup: add repo secrets
 
