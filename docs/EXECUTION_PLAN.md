@@ -15,7 +15,7 @@ Make Pantry safe and trustworthy as a shared, **online-first** household meal-pl
 
 Each phase is a separate, reversible slice. Before implementation, create an issue with the six-role review, acceptance criteria, rollback steps, test plan, and the actual staging URL. Do not deploy to production without explicit approval.
 
-## Phase 0 — establish recoverable backups, then contain security risks
+## Phase 0 — establish recoverable backups
 
 ### Backup gate — required before any database or production change
 
@@ -32,17 +32,54 @@ Use the existing [backup and restore runbook](BACKUPS.md) as the operating proce
 ### Scope
 
 1. Instrument and verify the backup gate above, including offsite object validation and restore-alert delivery.
-2. Replace direct household-member creation with server-controlled create/join operations.
-3. Validate an invite inside the operation; make codes high-entropy, expiring, revocable, and rate-limited.
-4. Deny client-controlled owner-role assignment and audit existing membership policies.
-5. Require authentication for `scrape-recipe`; apply per-user and per-household quotas.
-6. Restrict the scraper to public `http`/`https` targets, validate redirect targets, block private/reserved IP ranges, and set request, response-size, and board limits.
-7. Confirm production migration history, take a fresh verified backup, then apply and validate the outstanding invite privacy migration in staging.
+2. Document the recovery owner, secure credential location, retention policy, and the procedure for placing the application in maintenance mode during recovery.
+3. Schedule and record a monthly restore drill; retain the resulting evidence with the delivery records.
 
 ### Acceptance criteria
 
 - The latest offsite backup restores successfully into an isolated database, with expected tables and representative record counts.
 - The backup job's success and failure signals reach the designated alert channel; a simulated failure proves the failure path.
+- The recovery owner can restore the latest backup using the documented procedure without production credentials or data being exposed to the test environment.
+
+### Rollback
+
+If a backup or restore drill fails, stop all database-changing and production-release work. Preserve the failed artifact and logs, repair the recovery path, and complete a new successful restore before resuming.
+
+## Phase 1 — stand up and verify staging
+
+### Scope
+
+1. Provision a separate, documented staging URL and deployment target that cannot modify the production host or production database.
+2. Use a separate Supabase project or an equivalently isolated database/auth environment. Seed only synthetic or appropriately sanitized data; never copy production credentials or user data into staging without an approved, documented procedure.
+3. Configure the staging build with environment-specific public Supabase values, immutable image tags, and a recorded source commit.
+4. Add a health endpoint or equivalent static-app health check, deploy smoke test, and primary-path acceptance check.
+5. Give every delivery issue its exact staging URL and state (`pending`, `deploying`, `verified`, or `blocked`).
+6. Prove deployment isolation: deliberately deploy a harmless staging revision and verify production remains on its existing revision.
+
+### Acceptance criteria
+
+- The staging URL, deployed commit, and environment owner are documented.
+- Authentication, household onboarding, recipe import failure handling, queue/list mutations, and RLS-denied paths are exercised in staging using non-production data.
+- A failed staging deployment is observable and cannot affect production.
+- The current production deployment remains independently reachable while staging changes are deployed.
+
+### Rollback
+
+Retain the prior staging image digest and configuration. A failed staging check stops promotion; it never triggers a production change.
+
+## Phase 2 — contain security risks
+
+### Scope
+
+1. Replace direct household-member creation with server-controlled create/join operations.
+2. Validate an invite inside the operation; make codes high-entropy, expiring, revocable, and rate-limited.
+3. Deny client-controlled owner-role assignment and audit existing membership policies.
+4. Require authentication for `scrape-recipe`; apply per-user and per-household quotas.
+5. Restrict the scraper to public `http`/`https` targets, validate redirect targets, block private/reserved IP ranges, and set request, response-size, and board limits.
+6. Confirm production migration history, take a fresh verified backup, then apply and validate the outstanding invite privacy migration in staging.
+
+### Acceptance criteria
+
 - A migration issue records the verified backup object key, time, and restore-test result before deployment.
 - An authenticated non-member cannot join, read, or elevate access to an arbitrary household.
 - Only a valid invite can create a member role; an invite cannot create an owner.
@@ -51,9 +88,9 @@ Use the existing [backup and restore runbook](BACKUPS.md) as the operating proce
 
 ### Rollback
 
-Use an additive migration and retain the prior deployable image digest. Do not remove old policies until the replacement path is verified.
+Use an additive migration and retain the prior deployable image digest. Do not remove old policies until the replacement path is verified in staging.
 
-## Phase 1 — protect user data and shared-state correctness
+## Phase 3 — protect user data and shared-state correctness
 
 ### Scope
 
@@ -70,7 +107,7 @@ Use an additive migration and retain the prior deployable image digest. Do not r
 - Two household members cannot create cross-household associations.
 - A multi-household account can intentionally select and switch its active household.
 
-## Phase 2 — align product promise and complete the MVP
+## Phase 4 — align product promise and complete the MVP
 
 ### Scope
 
@@ -86,7 +123,7 @@ Use an additive migration and retain the prior deployable image digest. Do not r
 - First-household invite conversion.
 - Shopping-list completion without reported data loss.
 
-## Phase 3 — add shopping-grade offline and collaboration reliability
+## Phase 5 — add shopping-grade offline and collaboration reliability
 
 ### Scope
 
@@ -98,15 +135,14 @@ Use an additive migration and retain the prior deployable image digest. Do not r
 
 Only restore “offline-first” and real-time marketing claims after those workflows pass device-level acceptance tests.
 
-## Phase 4 — establish safe delivery operations
+## Phase 6 — strengthen ongoing delivery operations
 
 ### Scope
 
-1. Create a staging environment with a discovered, documented URL.
-2. Add CI gates for TypeScript, Bun tests, Expo web export, Docker/Nginx smoke tests, Edge Function checks, migration/RLS integration tests, and dependency review.
-3. Deploy immutable image tags/digests, run health and primary-path checks before cutover, retain the previous digest for rollback, and record the deployed commit.
-4. Add application error reporting and uptime alerts.
-5. Move Terraform state to encrypted remote storage; use a non-root deploy account and pinned host key.
+1. Add CI gates for TypeScript, Bun tests, Expo web export, Docker/Nginx smoke tests, Edge Function checks, migration/RLS integration tests, and dependency review.
+2. Deploy immutable image tags/digests, run health and primary-path checks before cutover, retain the previous digest for rollback, and record the deployed commit.
+3. Add application error reporting and uptime alerts.
+4. Move Terraform state to encrypted remote storage; use a non-root deploy account and pinned host key.
 
 ### Acceptance criteria
 
@@ -118,11 +154,11 @@ Only restore “offline-first” and real-time marketing claims after those work
 
 1. Open the Phase 0 issue; verify the existing backup job, offsite objects, and retention.
 2. Restore the latest offsite dump into a scratch database and verify it; wire and test backup alerts.
-3. Verify the production Supabase migration state and capture a fresh verified pre-migration backup.
-4. Implement and test membership/invite controls.
-5. Implement and test scraper authentication and egress controls.
-6. Provision staging and rerun Phase 0 acceptance checks there.
-7. Promote only with explicit approval; then begin Phase 1.
+3. Provision an isolated staging environment, deploy a harmless revision, and prove that production remains unchanged.
+4. Verify the production Supabase migration state and capture a fresh verified pre-migration backup.
+5. Implement and test membership/invite controls in staging.
+6. Implement and test scraper authentication and egress controls in staging.
+7. Promote only with explicit approval; then begin Phase 3.
 
 ## Decisions already made
 
@@ -130,5 +166,6 @@ Only restore “offline-first” and real-time marketing claims after those work
 | --- | --- | --- |
 | Position as online-first beta | Current client reads/writes directly through `supabase-js`; offline sync stack is not installed. | Reduced marketing scope until offline delivery is real. |
 | Backups before database changes | User data is irreplaceable at the current stage; a single untested backup is not a recovery capability. | Security-migration work waits for verified recovery evidence. |
+| Staging before security migration | High-impact authorization and migration changes require isolated end-to-end evidence and an environment that cannot damage production. | Urgent remediation waits for a short-lived, isolated verification gate. |
 | Security before feature expansion | Membership and scraper pathways permit material abuse/data-access risk. | Board import and advanced features wait. |
 | Keep releases small and reversible | Current production deploy lacks staging and automatic rollback. | More delivery checkpoints in exchange for lower release risk. |
