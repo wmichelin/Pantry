@@ -1,5 +1,7 @@
 # Pantry
 
+Read and follow [ENGINEERING_PHILOSOPHY.md](ENGINEERING_PHILOSOPHY.md) before making changes.
+
 Mobile + web app for household meal planning and grocery shopping.
 
 ## Stack (as implemented)
