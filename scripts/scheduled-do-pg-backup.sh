@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Logical backup of Postgres (Supabase direct URI) -> local custom-format dump -> optional cloud upload.
+# Logical backup of Postgres (Supabase connection URI) -> local custom-format dump -> verified offsite upload.
 # Run from repo root or any host that can reach the DB (DATABASE_URL must include sslmode=require for Supabase).
 #
 # Env:
@@ -7,7 +7,8 @@
 #   BACKUP_OUTPUT_DIR      - default /var/backups/pantry-pg
 #   BACKUP_RETENTION_DAYS  - delete local pantry-supabase-*.dump older than N days (optional)
 #   BACKUP_LOG_FILE        - append run logs here (default $BACKUP_OUTPUT_DIR/backup.log)
-# Upload (optional): set BACKUP_S3_BUCKET (or AWS_S3_BUCKET / SPACES_BUCKET) + creds - see backup-upload-spaces.sh
+# Upload: BACKUP_S3_BUCKET (or AWS_S3_BUCKET / SPACES_BUCKET) + creds are required - see backup-upload-spaces.sh
+# Alert: BACKUP_ALERT_WEBHOOK_URL is required and receives a small JSON status payload - see backup-notify.sh
 #
 # Exit non-zero on any failure so cron/monitoring notices a broken backup.
 set -euo pipefail
@@ -18,8 +19,23 @@ LOG="${BACKUP_LOG_FILE:-$OUT/backup.log}"
 
 log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$LOG" >&2; }
 
+NOTIFIER="$(dirname "$0")/backup-notify.sh"
+notify() {
+  "$NOTIFIER" "$1" "$2"
+}
+
 # Make any failure loud: log the failing line before exiting.
-trap 'log "ERROR: backup FAILED at line $LINENO (exit $?)"' ERR
+trap 'rc=$?; log "ERROR: backup FAILED at line $LINENO (exit $rc)"; notify failure "backup failed on $(hostname) at line $LINENO (exit $rc)" || true; exit "$rc"' ERR
+
+[[ -x "$NOTIFIER" ]] || { log "ERROR: backup notifier is missing or not executable: $NOTIFIER"; exit 1; }
+[[ -n "${BACKUP_S3_BUCKET:-${AWS_S3_BUCKET:-${SPACES_BUCKET:-}}}" ]] || {
+  log "ERROR: offsite bucket is required; refusing a local-only backup"
+  exit 1
+}
+[[ -n "${BACKUP_ALERT_WEBHOOK_URL:-}" ]] || {
+  log "ERROR: BACKUP_ALERT_WEBHOOK_URL is required"
+  exit 1
+}
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 FILE="${OUT}/pantry-supabase-${STAMP}.dump"
@@ -35,24 +51,24 @@ fi
 SIZE="$(wc -c < "$FILE" | tr -d ' ')"
 log "pg_dump OK (${SIZE} bytes)"
 
-if [[ -n "${BACKUP_RETENTION_DAYS:-}" ]]; then
-  find "$OUT" -name 'pantry-supabase-*.dump' -mtime "+${BACKUP_RETENTION_DAYS}" -print -delete 2>/dev/null \
-    | while read -r old; do log "pruned old backup: $old"; done || true
-fi
+# Read the archive catalog before retaining or uploading it. This is not a restore,
+# but catches a truncated or malformed custom-format dump immediately.
+command -v pg_restore >/dev/null 2>&1 || { log "ERROR: pg_restore is required to validate the dump"; exit 1; }
+pg_restore --list "$FILE" >/dev/null
+log "dump archive validation OK"
 
 _UP="$(dirname "$0")/backup-upload-spaces.sh"
-if [[ -f "$_UP" ]] && { [[ -n "${BACKUP_S3_BUCKET:-}" ]] || [[ -n "${AWS_S3_BUCKET:-}" ]] || [[ -n "${SPACES_BUCKET:-}" ]]; }; then
-  log "uploading offsite via $(basename "$_UP")"
-  if BACKUP_FILE="$FILE" "$_UP"; then
-    log "offsite upload OK"
-  else
-    log "ERROR: offsite upload FAILED for $FILE"
-    exit 1
-  fi
-else
-  log "offsite upload skipped (no bucket configured)"
-fi
+[[ -x "$_UP" ]] || { log "ERROR: offsite upload helper is missing or not executable: $_UP"; exit 1; }
+log "uploading offsite via $(basename "$_UP")"
+BACKUP_FILE="$FILE" "$_UP"
+log "offsite upload and size verification OK"
 unset _UP
 
+if [[ -n "${BACKUP_RETENTION_DAYS:-}" ]]; then
+  find "$OUT" -name 'pantry-supabase-*.dump' -mtime "+${BACKUP_RETENTION_DAYS}" -print -delete \
+    | while read -r old; do log "pruned old backup: $old"; done
+fi
+
 log "backup complete: $FILE"
+notify success "backup completed on $(hostname): $(basename "$FILE") (${SIZE} bytes)"
 echo "$FILE"

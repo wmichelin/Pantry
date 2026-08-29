@@ -31,8 +31,20 @@ export AWS_DEFAULT_REGION="$AWS_REGION"
 
 KEY="${PREFIX%/}/$(basename "$FILE")"
 ARGS=(s3 cp "$FILE" "s3://${BUCKET}/${KEY}" --only-show-errors)
-[[ -n "$ENDPOINT" ]] && ARGS+=(--endpoint-url "$ENDPOINT")
+HEAD_ARGS=(s3api head-object --bucket "$BUCKET" --key "$KEY" --query ContentLength --output text)
+if [[ -n "$ENDPOINT" ]]; then
+  ARGS+=(--endpoint-url "$ENDPOINT")
+  HEAD_ARGS+=(--endpoint-url "$ENDPOINT")
+fi
 
 command -v aws >/dev/null 2>&1 || { echo "backup-upload: aws CLI not found" >&2; exit 1; }
 aws "${ARGS[@]}"
-echo "uploaded s3://${BUCKET}/${KEY}"
+
+LOCAL_SIZE="$(wc -c < "$FILE" | tr -d ' ')"
+REMOTE_SIZE="$(aws "${HEAD_ARGS[@]}")"
+[[ "$REMOTE_SIZE" == "$LOCAL_SIZE" ]] || {
+  echo "backup-upload: remote size mismatch for s3://${BUCKET}/${KEY} (local $LOCAL_SIZE, remote $REMOTE_SIZE)" >&2
+  exit 1
+}
+
+echo "uploaded and verified s3://${BUCKET}/${KEY} (${REMOTE_SIZE} bytes)"

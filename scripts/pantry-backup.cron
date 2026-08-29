@@ -10,9 +10,10 @@
 #   AWS_ACCESS_KEY_ID=...
 #   AWS_SECRET_ACCESS_KEY=...
 #   AWS_REGION=auto
+#   BACKUP_ALERT_WEBHOOK_URL=https://<alert-receiver>/pantry-backup
 # Adjust the repo path below to where the droplet checks out Pantry.
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # min hour dom mon dow user  command
-0 3 * * * root set -a; . /etc/pantry-backup.env; set +a; /opt/pantry/scripts/scheduled-do-pg-backup.sh >> /var/backups/pantry-pg/cron.log 2>&1
+0 3 * * * root flock -n /var/lock/pantry-backup.lock bash -c 'set -a; . /etc/pantry-backup.env; set +a; /opt/pantry/scripts/scheduled-do-pg-backup.sh' >> /var/backups/pantry-pg/cron.log 2>&1
