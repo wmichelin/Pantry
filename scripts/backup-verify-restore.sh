@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Restore a logical backup into an explicitly identified, isolated Supabase project.
-# This script refuses to run unless the caller provides a separate target project
-# reference and an exact confirmation string. It never drops, cleans, or overwrites
-# a database; the target must be a fresh scratch database.
+# Restore Pantry application data into an explicitly identified, isolated
+# Supabase project. Supabase creates managed schemas and event triggers in every
+# project; a project-local postgres role cannot safely replace those managed
+# objects. This verifier therefore restores the source auth identities required
+# by Pantry's foreign keys, then restores the complete public schema in ordered
+# pre-data, data, and post-data passes. The target must be a fresh scratch
+# project: this script never drops, cleans, or overwrites it.
 set -euo pipefail
 
 FILE="${BACKUP_FILE:?BACKUP_FILE is required}"
@@ -33,13 +36,32 @@ for bin in pg_restore psql; do
 done
 
 pg_restore --list "$FILE" >/dev/null
+
+# Pantry public tables reference auth.users. Restore the source instance/user
+# rows first; a new Supabase project supplies the managed auth schema itself.
+# Unqualified selectors are intentional: pg_restore's archive matching does not
+# accept schema-qualified table names here, and this archive has no public table
+# named instances or users.
 pg_restore \
   --dbname="$TARGET_URL" \
+  --data-only \
+  --table=instances \
+  --table=users \
   --no-owner \
   --no-privileges \
   --exit-on-error \
-  --single-transaction \
   "$FILE"
+
+for section in pre-data data post-data; do
+  pg_restore \
+    --dbname="$TARGET_URL" \
+    --schema=public \
+    --section="$section" \
+    --no-owner \
+    --no-privileges \
+    --exit-on-error \
+    "$FILE"
+done
 
 psql "$TARGET_URL" -v ON_ERROR_STOP=1 -Atqc "
   select 'public.households=' || count(*) from public.households

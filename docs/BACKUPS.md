@@ -15,8 +15,8 @@ deployment until all of these have passed:
 2. A fresh archive is structurally valid, copied with `rclone copyto --immutable`,
    has the exact expected name and byte size on Drive, and passes read-only
    `rclone check --one-way`.
-3. The archive is restored into a **separate, initially empty Supabase project**;
-   representative table counts are recorded.
+3. The archive is restored into a **separate, initially empty Supabase project**
+   with `backup-verify-restore.sh`; representative table counts are recorded.
 4. A success and a controlled failure both reach the configured alert receiver.
 
 The target project for a restore drill must have a different project ref from
@@ -50,6 +50,8 @@ as an alert substitute.
 - `scripts/backup-notify.sh` — sends a credential-free success or failure event.
 - `scripts/backup-preflight.sh` — read-only tool/configuration and Drive-root
   reachability check; it never connects to Postgres or writes to Drive.
+- `scripts/backup-verify-restore.sh` — restores Pantry's public schema and the
+  required source auth identities into an explicitly separate scratch project.
 - `scripts/pantry-backup.service` — runs the backup as `pantry-backup` with an
   ephemeral rclone credential file supplied by systemd.
 - `scripts/pantry-backup.cron` — schedules that systemd service at 03:00 UTC;
@@ -128,10 +130,10 @@ from the rclone config. Do not place the JSON path in a world-readable unit.
    result, and success alert. Trigger a controlled notifier failure and record that
    alert as well.
 
-3. With separate explicit approval, create a new empty scratch Supabase project.
-   Restore the archive there only, use the source project's required identity
-   rows before application-table constraints, and compare representative table
-   counts with production. Never restore over production.
+3. With separate explicit approval, create a new empty scratch Supabase project
+   and run `backup-verify-restore.sh` with its required, distinct project ref and
+   `BACKUP_RESTORE_CONFIRM=RESTORE_TO_ISOLATED_SCRATCH_ONLY`. Never restore over
+   production.
 
 4. Only after all evidence is retained, install the scheduler:
 
@@ -148,7 +150,8 @@ scratch project. The archive can contain real customer data, so restrict access 
 dispose of the scratch project under the documented retention procedure after the
 drill evidence is retained.
 
-The verification script runs `pg_restore` with `--single-transaction` and exits on
-the first error. A failed restore is evidence that recovery is not ready. Keep the
-error record, repair the design, and repeat in a new empty scratch project; never
-attempt a partial restore on production.
+The verification script restores the required source auth identities first, then
+runs `pg_restore` for the Pantry `public` schema's pre-data, data, and post-data
+sections, exiting on the first error. A failed restore is evidence that recovery
+is not ready. Keep the error record, repair the design, and repeat in a new empty
+scratch project; never attempt a partial restore on production.
