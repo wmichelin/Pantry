@@ -47,11 +47,12 @@ For any exception or material tradeoff, record: the principle affected, the evid
 
 ### Pantry autonomy
 
-- Agents may independently inspect, implement, test, commit, and push routine application, documentation, CI, and existing-staging changes. Report the result and verification evidence.
-- Agents may deploy to the existing staging environment after verifying the target and rollback path, provided the deployment does not create a new public hostname, DNS record, third-party integration, or paid resource.
-- Require explicit approval before any production deployment, production database write, migration, restore, credential rotation, or change to backup transport/retention. Never delete the production database.
-- Require explicit approval before creating or publishing a hostname, changing DNS, issuing TLS for a new hostname, exposing a new public endpoint, adding an external service, or creating a paid resource. Use only the exact hostname and provider the user approves.
-- A database restore requires an explicit source and target confirmation. Never restore into production. Verify the backup and target before starting, and report row-count or equivalent integrity checks without disclosing user data.
+- Agents may independently inspect, implement, test, commit, and push routine application, documentation, CI, and any staging-only change. Report the result and verification evidence.
+- Agents may freely provision, deploy, migrate, reset, restore, test, and tear down staging-only data and infrastructure, including staging DNS, TLS, public endpoints, and integrations under Pantry-controlled domains. New paid plans, account-level charges, or contractual commitments still require explicit approval.
+- Production is a hard no-touch boundary for autonomous work. Do not dispatch a production workflow, write to or read from the production database, change production credentials, alter production backups, or modify production DNS, TLS, infrastructure, container, or application configuration unless a separate user instruction specifically names production.
+- Staging currently shares a droplet with production. Touch only staging-scoped container, port, vhost, certificate, and configuration paths; never restart, replace, or reconfigure production containers or application services. A shared Nginx validation/reload is allowed only for a staging-scoped vhost change, with the production container and public endpoint verified before and after.
+- Staging restores may run autonomously from staging-safe sources. A restore from a production backup, or any restore targeting production, requires a separate explicit source-and-target approval. Never restore into production without that explicit approval.
+- Require explicit approval before adding an external service outside staging scope or creating a paid resource. Use only Pantry-controlled staging domains for staging public exposure.
 - Preserve RLS and least-privilege grants for every Supabase change. Do not expose service-role credentials to clients or logs.
 - Stop and report rather than guessing when a change could expand public access, alter production data, incur cost, or make recovery harder.
 
