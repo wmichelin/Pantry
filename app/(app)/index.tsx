@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-nati
 import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import { errorMessage } from "../../lib/db";
 
 type Membership = {
   household_id: string;
@@ -15,12 +16,16 @@ export default function HomeScreen() {
   const router = useRouter();
   const [membership, setMembership] = useState<Membership | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      setLoading(true);
+      setLoadError(null);
+      const { data, error } = await supabase
         .from("household_members")
         .select("household_id, role, households(id, name, invite_code)")
         .eq("user_id", user.id)
@@ -28,13 +33,19 @@ export default function HomeScreen() {
         .maybeSingle();
 
       if (cancelled) return;
+      if (error) {
+        setMembership(null);
+        setLoadError(errorMessage(error));
+        setLoading(false);
+        return;
+      }
       setMembership(data as Membership | null);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [retryAttempt, user?.id]);
 
   useEffect(() => {
     if (loading || !membership) return;
@@ -56,6 +67,18 @@ export default function HomeScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorHeading}>Couldn’t load your household</Text>
+        <Text style={styles.errorMessage}>{loadError}</Text>
+        <Pressable style={styles.button} onPress={() => setRetryAttempt((attempt) => attempt + 1)}>
+          <Text style={styles.buttonText}>Try Again</Text>
+        </Pressable>
       </View>
     );
   }
@@ -141,5 +164,16 @@ const styles = StyleSheet.create({
   signOutText: {
     color: "#999",
     fontSize: 14,
+  },
+  errorHeading: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  errorMessage: {
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 24,
   },
 });

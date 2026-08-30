@@ -63,6 +63,87 @@ for section in pre-data data post-data; do
     "$FILE"
 done
 
+# The archive is intentionally restored with --no-privileges so it cannot
+# overwrite the scratch project's role grants. Re-establish only the runtime
+# privileges Pantry's server-side authenticated and service-role clients need;
+# RLS policies remain the authority for authenticated access to table rows.
+psql "$TARGET_URL" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+grant usage on schema public to authenticated, service_role;
+grant select, insert, update, delete on all tables in schema public to authenticated, service_role;
+grant usage, select, update on all sequences in schema public to authenticated, service_role;
+grant execute on all functions in schema public to authenticated, service_role;
+SQL
+
+# A restore that merely reproduces row counts is not sufficient. All Pantry
+# tables must retain RLS, and a restored user with a household membership must
+# be able to read that membership as the authenticated role. The transaction
+# rolls back its request claims and role change after the smoke test.
+psql "$TARGET_URL" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+do $$
+declare
+  rls_disabled_table text;
+begin
+  select c.relname
+    into rls_disabled_table
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public'
+     and c.relkind in ('r', 'p')
+     and not c.relrowsecurity
+   order by c.relname
+   limit 1;
+
+  if rls_disabled_table is not null then
+    raise exception 'backup-restore-verify: RLS is disabled on public.%', rls_disabled_table;
+  end if;
+end
+$$;
+SQL
+
+psql "$TARGET_URL" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+begin;
+
+select exists (
+  select 1
+    from public.household_members hm
+    join auth.users u on u.id = hm.user_id
+) as backup_restore_smoke_identity_available \gset
+
+\if :backup_restore_smoke_identity_available
+\else
+  \echo 'backup-restore-verify: no restored auth user with a household membership is available for the authenticated access smoke test' >&2
+  select 1 / 0;
+\endif
+
+select set_config(
+  'request.jwt.claim.sub',
+  (
+    select hm.user_id::text
+      from public.household_members hm
+      join auth.users u on u.id = hm.user_id
+     order by hm.joined_at, hm.user_id
+     limit 1
+  ),
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+set local role authenticated;
+
+select exists (
+  select 1
+    from public.household_members
+   where user_id = auth.uid()
+) as backup_restore_authenticated_readable \gset
+
+\if :backup_restore_authenticated_readable
+\else
+  \echo 'backup-restore-verify: authenticated role cannot read its restored household membership' >&2
+  select 1 / 0;
+\endif
+
+rollback;
+SQL
+
 psql "$TARGET_URL" -v ON_ERROR_STOP=1 -Atqc "
   select 'public.households=' || count(*) from public.households
   union all

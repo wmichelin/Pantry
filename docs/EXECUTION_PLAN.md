@@ -8,7 +8,10 @@ Make Pantry safe and trustworthy as a shared, **online-first** household meal-pl
 
 - The recipe-to-queue-to-shopping-list loop is the strongest current product wedge.
 - The web export succeeds, and 117 focused unit tests pass under Bun 1.3.14.
-- The deployed web endpoint responds successfully, but there is no configured staging environment or end-to-end acceptance evidence.
+- Staging is available at `https://pantry-staging.waltermichelin.com` with a
+  separate Supabase project and an isolated `pantry-staging` container bound to
+  loopback on the shared droplet. It still needs repeatable primary-path
+  acceptance evidence for each release.
 - Direct Supabase access is the current application architecture. SQLite, PowerSync, Drizzle, tRPC, Zustand, and TanStack Query are roadmap items, not current dependencies.
 
 ## Delivery principles
@@ -49,9 +52,15 @@ If a backup or restore drill fails, stop all database-changing and production-re
 
 ### Scope
 
-1. Provision a separate, documented staging URL and deployment target that cannot modify the production host or production database.
-2. Use a separate Supabase project or an equivalently isolated database/auth environment. Seed only synthetic or appropriately sanitized data; never copy production credentials or user data into staging without an approved, documented procedure.
-3. Configure the staging build with environment-specific public Supabase values, immutable image tags, and a recorded source commit.
+1. Maintain the documented staging URL and deployment target. It may touch only
+   the `pantry-staging` container, `127.0.0.1:18081`, staging vhost, certificate,
+   and configuration paths; it must not modify production or its database.
+2. Use the separate staging Supabase project. Seed only synthetic or
+   appropriately sanitized data; never copy production credentials or user data
+   into staging without an approved, documented procedure.
+3. Configure the manual staging build with environment-specific public Supabase
+   values, immutable `staging-<commit-sha>` image tags, a recorded source commit,
+   loopback smoke test, HTTPS smoke test, and a prior-image rollback target.
 4. Add a health endpoint or equivalent static-app health check, deploy smoke test, and primary-path acceptance check.
 5. Give every delivery issue its exact staging URL and state (`pending`, `deploying`, `verified`, or `blocked`).
 6. Prove deployment isolation: deliberately deploy a harmless staging revision and verify production remains on its existing revision.
@@ -60,7 +69,8 @@ If a backup or restore drill fails, stop all database-changing and production-re
 
 - The staging URL, deployed commit, and environment owner are documented.
 - Authentication, household onboarding, recipe import failure handling, queue/list mutations, and RLS-denied paths are exercised in staging using non-production data.
-- A failed staging deployment is observable and cannot affect production.
+- A failed staging deployment restores the prior staging image when possible and
+  cannot affect production.
 - The current production deployment remains independently reachable while staging changes are deployed.
 
 ### Rollback
@@ -154,7 +164,8 @@ Only restore “offline-first” and real-time marketing claims after those work
 
 1. Open the Phase 0 issue; verify the backup job, dedicated Drive archives, and retention.
 2. Restore the latest offsite dump into a scratch database and verify it; wire and test backup alerts.
-3. Provision an isolated staging environment, deploy a harmless revision, and prove that production remains unchanged.
+3. Deploy a harmless immutable staging revision, exercise the primary path, roll
+   it back once, and prove that production remains unchanged.
 4. Verify the production Supabase migration state and capture a fresh verified pre-migration backup.
 5. Implement and test membership/invite controls in staging.
 6. Implement and test scraper authentication and egress controls in staging.
@@ -168,4 +179,4 @@ Only restore “offline-first” and real-time marketing claims after those work
 | Backups before database changes | User data is irreplaceable at the current stage; a single untested backup is not a recovery capability. | Security-migration work waits for verified recovery evidence. |
 | Staging before security migration | High-impact authorization and migration changes require isolated end-to-end evidence and an environment that cannot damage production. | Urgent remediation waits for a short-lived, isolated verification gate. |
 | Security before feature expansion | Membership and scraper pathways permit material abuse/data-access risk. | Board import and advanced features wait. |
-| Keep releases small and reversible | Current production deploy lacks staging and automatic rollback. | More delivery checkpoints in exchange for lower release risk. |
+| Keep releases small and reversible | Staging has a manual immutable-image deploy and rollback path, while production remains separately manual. | More delivery checkpoints in exchange for lower release risk. |

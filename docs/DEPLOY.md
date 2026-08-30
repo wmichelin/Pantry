@@ -1,91 +1,59 @@
 # Deployment
 
-Two ways to deploy the static web build to the DigitalOcean droplet
-(`pantry.waltermichelin.com`):
+Pantry has separate, manual deployment paths for staging and production. A
+staging deployment must never become a production deployment by changing an
+image name, container, port, hostname, or Supabase configuration.
 
-1. **`./deploy.sh`** — runs from the G5/t3.code server using Docker, Terraform,
-   SSH access, and the Terraform state stored on that server.
-2. **GitHub Actions `Deploy` workflow** (`.github/workflows/deploy.yml`) — runs on
-   GitHub's runners using repo **secrets**, so it can be triggered without your
-   laptop. This is how Claude Code can deploy: it has no droplet access or secrets
-   in its sandbox, but it can start this workflow via the GitHub API.
+## Staging
 
-Both build the same image (`ghcr.io/wmichelin/pantry:latest`) and restart the
-`pantry` container on the droplet, mirroring `deploy.sh`.
+The approved staging environment is
+[`https://pantry-staging.waltermichelin.com`](https://pantry-staging.waltermichelin.com).
+It uses its own Supabase project and the `pantry-staging` container bound only to
+`127.0.0.1:18081` on the shared droplet. Nginx is the only public entrypoint.
 
-## Set up the G5/t3.code server
+Use **Actions → Deploy staging on droplet → Run workflow** to deploy staging.
+The workflow accepts either:
 
-Install Git, Docker, Terraform 1.9.8 (or use `tfenv`, which reads
-`.terraform-version`), and the DigitalOcean credentials used by Terraform. Then
-clone the repository and initialize Terraform:
+- `source_ref` — the Git ref to build. It is checked out and published as
+  `ghcr.io/wmichelin/pantry:staging-<full-commit-sha>`.
+- `rollback_image` — an earlier image with that exact immutable staging-tag
+  format. Supplying it skips the build and restores that staging image.
 
-```sh
-git clone <repository-url> Pantry
-cd Pantry
-terraform -chdir=terraform init
-```
+The workflow builds only with these staging public build values:
 
-Move the existing `terraform/terraform.tfstate` and
-`terraform/terraform.tfstate.backup` files to the G5 server, or configure a
-remote Terraform backend before running `terraform apply`. Do not commit state
-files or tokens. If the state is not available, import the existing resources
-before applying so Terraform does not attempt to recreate production.
+| Secret | Purpose |
+| --- | --- |
+| `STAGING_EXPO_PUBLIC_SUPABASE_URL` | Staging Supabase project URL |
+| `STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY` | Staging Supabase anon key |
 
-The G5 server needs Docker and SSH access to the droplet. Configure the
-deployment environment:
+It also uses `DROPLET_HOST`, `DROPLET_SSH_KEY`, and `GHCR_PAT` from repository
+Actions secrets. Do not place any of these values in tracked files or workflow
+logs.
 
-```sh
-export DROPLET_HOST="<droplet-ip-or-hostname>"
-export GITHUB_TOKEN="<ghcr-push-and-pull-token>"
-export EXPO_PUBLIC_SUPABASE_URL="<supabase-url>"
-export EXPO_PUBLIC_SUPABASE_ANON_KEY="<supabase-anon-key>"
-./deploy.sh
-```
+The deployment refuses any non-`staging-<40-character SHA>` image, checks that
+the production container is running without changing it, replaces only
+`pantry-staging`, and verifies both the loopback route and the configured HTTPS
+hostname. If the replacement fails after the new container starts, it restores
+the previously running staging image when one is available.
 
-`deploy.sh` now requires Terraform and automatically runs `terraform init`, then
-gets the deployment host from `terraform output -raw droplet_ip`. The optional
-`DROPLET_HOST` override is useful only for emergency targeting; normal G5
-deployments should use Terraform state.
+The separate **Publish staging on approved domain** workflow is only for the
+staging Nginx vhost and certificate. It may be needed once for a new hostname.
+Because Nginx is shared, it verifies the production container and HTTPS endpoint
+before and after every staging-scoped reload. It must never modify the production
+vhost, certificate, container, port, or application configuration.
 
-The image is built explicitly for `linux/amd64`, matching standard G5 x86
-servers; the remote host only needs to pull and run the image.
+Before a material staging change, record the current image as the last known-good
+rollback target. If a staging deployment cannot be repaired forward, restore that
+image and verify both staging routes before reporting the incident.
 
-## One-time setup: add repo secrets
+## Production
 
-In GitHub → **Settings → Secrets and variables → Actions → New repository secret**,
-add these four. (GHCR auth uses the built-in `GITHUB_TOKEN`, so no registry secret
-is needed.)
+Production remains a separate, explicit action through **Actions → Deploy** and
+[`deploy.yml`](../.github/workflows/deploy.yml). It is manual-only. Do not use a
+staging workflow, staging Supabase values, or staging rollback image to deploy
+production.
 
-| Secret | Value |
-|---|---|
-| `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL (baked into the web bundle at build time) |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
-| `DROPLET_HOST` | The droplet's public IP (same value as `terraform output -raw droplet_ip`) |
-| `DROPLET_SSH_KEY` | A **private** SSH key whose public half is authorized for `root` on the droplet (paste the full key, including the BEGIN/END lines) |
-| `GHCR_PAT` | Classic PAT with `read:packages` + `write:packages` (used to push/pull `ghcr.io/wmichelin/pantry`) |
-
-Notes:
-- The values for the two `EXPO_PUBLIC_*` secrets are the same ones in your local
-  `.env`. They are **public** by design (anon key + URL ship to the browser), but
-  storing them as secrets keeps the workflow file clean.
-- `GHCR_PAT` is required because the default Actions `GITHUB_TOKEN` cannot push to
-  this package in practice; rotate the PAT if it is ever exposed.
-
-## How to deploy
-
-- **From the GitHub UI:** Actions → **Deploy** → **Run workflow** → branch `main`.
-- **Via Claude Code:** ask it to deploy; it triggers the `Deploy` workflow on `main`
-  through the GitHub API and reports the run status. (The workflow must already be
-  merged to `main` — `workflow_dispatch` only triggers workflows on the default
-  branch.)
-
-The workflow is **manual-only** (`workflow_dispatch`) so deploys are always
-intentional. To auto-deploy on every merge to `main`, add a `push: { branches:
-[main] }` trigger to `deploy.yml`.
-
-## First run vs. subsequent runs
-
-On the very first run for a fresh droplet the workflow writes the nginx vhost and
-provisions a Let's Encrypt cert via certbot. Once `/etc/letsencrypt/live/$DOMAIN`
-exists, later runs skip that and only `nginx -t && systemctl reload nginx`, so they
-never clobber the HTTPS config.
+`deploy.sh` is a legacy operator path. It is not an autonomous deployment
+mechanism. Any production database, backup, DNS, TLS, infrastructure, container,
+or application change requires a separate instruction that explicitly names
+production and must first satisfy the documented backup-recovery gate.

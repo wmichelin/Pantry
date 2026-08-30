@@ -10,6 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import { showError } from "../../lib/db";
 
 export default function JoinHouseholdScreen() {
   const { user } = useAuth();
@@ -30,7 +31,13 @@ export default function JoinHouseholdScreen() {
     );
     const household = rows?.[0];
 
-    if (lookupError || !household) {
+    if (lookupError) {
+      setLoading(false);
+      showError("Couldn't look up invite", lookupError);
+      return;
+    }
+
+    if (!household) {
       setLoading(false);
       Alert.alert("Not Found", "No household found with that invite code.");
       return;

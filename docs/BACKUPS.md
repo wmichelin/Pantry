@@ -16,7 +16,11 @@ deployment until all of these have passed:
    has the exact expected name and byte size on Drive, and passes read-only
    `rclone check --one-way`.
 3. The archive is restored into a **separate, initially empty Supabase project**
-   with `backup-verify-restore.sh`; representative table counts are recorded.
+   with `backup-verify-restore.sh`; representative table counts are recorded,
+   the script restores the minimum `authenticated` and `service_role` runtime
+   grants omitted by `pg_restore --no-privileges`, and it proves a restored
+   household member can read its membership as `authenticated` while RLS remains
+   enabled on every restored Pantry table.
 4. A success and a controlled failure both reach the configured alert receiver.
 
 The target project for a restore drill must have a different project ref from
@@ -26,13 +30,16 @@ drill, but no production database is ever cleaned, dropped, or overwritten.
 
 ### Current status (audited 2026-08-30)
 
-**Recovery proven; automation remains deliberately disabled pending alerts.** G5
-has current rclone with `copyto --immutable`, PostgreSQL client tools, the
-non-login `pantry-backup` identity, protected local archive directories, and a
-root-only Drive configuration for the dedicated `pantry-drive` remote. A fresh
-canonical archive was structurally validated, uploaded with exact metadata and
-read-only content verification, then restored into a separate scratch Supabase
-project. All 11 Pantry `public` tables matched production row counts.
+**Recovery verification must be re-run before it is treated as proven.** G5 has
+current rclone with `copyto --immutable`, PostgreSQL client tools, the non-login
+`pantry-backup` identity, protected local archive directories, and a root-only
+Drive configuration for the dedicated `pantry-drive` remote. A fresh canonical
+archive was structurally validated, uploaded with exact metadata and read-only
+content verification, then restored into a separate scratch Supabase project.
+All 11 Pantry `public` tables matched production row counts, but that earlier
+drill did not verify the public runtime grants that are intentionally omitted by
+`pg_restore --no-privileges`. Re-run the isolated restore after this gate is in
+place; it must pass both the authenticated-read and RLS-enabled checks.
 
 The scheduler and service configuration are not installed or enabled: a
 team-owned alert receiver still has to be configured and both success and
@@ -152,6 +159,16 @@ drill evidence is retained.
 
 The verification script restores the required source auth identities first, then
 runs `pg_restore` for the Pantry `public` schema's pre-data, data, and post-data
-sections, exiting on the first error. A failed restore is evidence that recovery
-is not ready. Keep the error record, repair the design, and repeat in a new empty
-scratch project; never attempt a partial restore on production.
+sections with `--no-privileges`, exiting on the first error. It then explicitly
+grants only runtime access needed by `authenticated` and `service_role`: schema
+usage, table DML, sequence usage/select/update, and function execution. It does
+not disable, replace, or broaden any RLS policy.
+
+Before reporting success, the script fails if any restored `public` table has
+RLS disabled. It then selects a restored `auth.users` identity with a household
+membership, sets only transaction-local JWT claims, assumes the `authenticated`
+database role, and verifies that the user can read its own membership. It rolls
+back that smoke-test transaction, so it creates no data and persists no session
+state. A failed restore or smoke test is evidence that recovery is not ready.
+Keep the error record, repair the design, and repeat in a new empty scratch
+project; never attempt a partial restore on production.

@@ -12,7 +12,7 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
-import { showError, throwOnError } from "../../lib/db";
+import { errorMessage, showError, throwOnError } from "../../lib/db";
 import TagEditor from "../../components/TagEditor";
 
 type Recipe = { id: string; title: string; tags: string[] | null };
@@ -37,6 +37,7 @@ export default function HouseholdScreen() {
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Recipe[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
 
   const queuedIds = useMemo(
@@ -58,6 +59,7 @@ export default function HouseholdScreen() {
           .order("created_at", { ascending: true }),
       ]);
       if (hRes.error) throw hRes.error;
+      if (rRes.error) throw rRes.error;
       if (qRes.error) throw qRes.error;
       setHousehold(hRes.data);
       if (rRes.data) setRecipes(rRes.data);
@@ -143,29 +145,44 @@ export default function HouseholdScreen() {
   useEffect(() => {
     if (!query.trim()) {
       setSearchResults([]);
+      setSearchError(null);
       return;
     }
+    let cancelled = false;
     const timer = setTimeout(async () => {
       setSearching(true);
+      setSearchError(null);
       const q = query.toLowerCase();
       const titleMatches = recipes.filter((r) => r.title.toLowerCase().includes(q));
       const titleMatchIds = new Set(titleMatches.map((r) => r.id));
       const recipeIds = recipes.map((r) => r.id);
       if (recipeIds.length > 0) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("recipe_ingredients")
           .select("recipe_id")
           .ilike("name", `%${q}%`)
           .in("recipe_id", recipeIds);
+        if (cancelled) return;
+        if (error) {
+          // Title matching is local and remains useful, but never present it as
+          // a complete ingredient search when the required query failed.
+          setSearchResults(titleMatches);
+          setSearchError(`Couldn't search ingredients: ${errorMessage(error)}`);
+          setSearching(false);
+          return;
+        }
         const ingredientMatchIds = new Set((data ?? []).map((r) => r.recipe_id));
         const allMatchIds = new Set([...titleMatchIds, ...ingredientMatchIds]);
         setSearchResults(recipes.filter((r) => allMatchIds.has(r.id)));
       } else {
         setSearchResults(titleMatches);
       }
-      setSearching(false);
+      if (!cancelled) setSearching(false);
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [query, recipes]);
 
   const taggedSections = useMemo(() => {
@@ -312,6 +329,7 @@ export default function HouseholdScreen() {
           autoCapitalize="none"
         />
       </View>
+      {searchError && <Text style={styles.searchError}>{searchError}</Text>}
 
       {query.trim() ? (
         searching ? (
@@ -587,6 +605,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fafafa",
   },
   searchSpinner: { marginTop: 24 },
+  searchError: { color: "#b3261e", marginTop: 4, fontSize: 13 },
 
   emptyText: { color: "#999", textAlign: "center", marginTop: 16 },
 

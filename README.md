@@ -1,26 +1,29 @@
 # Pantry
 
-Offline-first mobile app for meal planning, recipe management, and grocery shopping — built around a shared household model.
+Shared, online-first meal-planning beta for households. Pantry currently requires
+network access for reads and writes; offline sync and real-time collaboration are
+future work, not product guarantees.
 
 ## What it does
 
-- **Recipe import** — Paste a URL (recipe site, Pinterest pin, or full Pinterest board) and get a structured recipe with parsed ingredients and suggested tags.
-- **Shopping lists** — Aggregate ingredients across recipes, add one-off items, and shop across multiple stores with automatic carry-forward of missing items.
-- **Household sharing** — Recipes, lists, and plans belong to a household. Multiple members see and edit the same data in real time.
-- **Offline-first** — Everything works without internet. Sync happens when connectivity is available.
+- **Recipe import** — Paste a recipe URL, Pinterest pin, or supported board and
+  review the parsed recipe before saving it.
+- **Household sharing** — Recipes, queues, and shopping lists belong to a shared
+  household protected by Supabase row-level security.
+- **Shopping lists** — Aggregate ingredients across queued recipes and add
+  one-off items.
 
 ## Tech stack
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Expo (React Native) |
-| Local DB | Expo SQLite + Drizzle ORM |
-| Sync | PowerSync (SQLite <-> Supabase) |
-| Backend | Supabase (Postgres + Edge Functions + Auth) |
-| API | tRPC on Edge Functions |
-| State | Zustand (client) + TanStack Query (server) |
-| AI | Claude API (scraping fallback, ingredient parsing, tag suggestions) |
+| Client | Expo, Expo Router, React Native, and TypeScript |
+| Data and auth | Supabase Postgres, Auth, and row-level security via `supabase-js` |
+| Server work | Supabase Edge Functions for recipe scraping |
+| Web delivery | Static Expo export in a Docker/Nginx image |
 
 ## Docs
 
 - [Design document](design/DESIGN.md)
+- [Deployment and staging guide](docs/DEPLOY.md)
+- [Execution plan](docs/EXECUTION_PLAN.md)

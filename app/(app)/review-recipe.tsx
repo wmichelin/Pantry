@@ -58,14 +58,17 @@ export default function ReviewRecipeScreen() {
       .select()
       .single();
 
-    if (recipeError) {
+    if (recipeError || !recipe) {
       setSaving(false);
-      Alert.alert("Error", recipeError.message);
+      Alert.alert(
+        "Couldn't save recipe",
+        recipeError?.message ?? "Pantry couldn't confirm that the recipe was saved. Please try again."
+      );
       return;
     }
 
     if (parsedIngredients.length > 0) {
-      await supabase.from("recipe_ingredients").insert(
+      const { error: ingredientsError } = await supabase.from("recipe_ingredients").insert(
         parsedIngredients.map((ing) => ({
           recipe_id: recipe.id,
           name: ing.name,
@@ -74,6 +77,24 @@ export default function ReviewRecipeScreen() {
           raw_string: ing.raw_string,
         }))
       );
+
+      if (ingredientsError) {
+        // A recipe imported from this screen is only complete with its ingredients.
+        // Remove the parent row before reporting failure so it cannot look saved.
+        const { error: rollbackError } = await supabase
+          .from("recipes")
+          .delete()
+          .eq("id", recipe.id);
+        setSaving(false);
+        Alert.alert(
+          "Couldn't save recipe",
+          rollbackError
+            ? "The ingredients could not be saved, and Pantry could not remove the incomplete recipe. It may appear without ingredients; please try again after checking your connection."
+            : "The ingredients could not be saved, so the recipe was not added. Please try again."
+        );
+        return;
+      }
+
       // Catalog grows with cleaned names (qty/units already stripped by parse).
       for (const ing of parsedIngredients) {
         try {

@@ -1,47 +1,163 @@
-name: Prepare staging on droplet
+name: Deploy staging on droplet
 
+# This workflow is deliberately staging-only. Production remains manual through
+# deploy.yml and must not be dispatched by this workflow.
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Git ref to build for staging"
+        required: true
+        default: main
+        type: string
+      rollback_image:
+        description: "Optional prior ghcr.io/wmichelin/pantry:staging-<40-char-sha> image to deploy instead of building"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
-  start-loopback-container:
-    name: Start staging on loopback only
+  build:
+    name: Build immutable staging image
+    if: ${{ inputs.rollback_image == '' }}
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.image }}
     steps:
-      - name: Start the previously built staging image without public exposure
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Derive the immutable staging image tag
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
+          printf 'image=ghcr.io/%s/pantry:staging-%s\n' "${{ github.repository_owner }}" "$source_sha" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Build and push the staging image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.image }}
+          build-args: |
+            EXPO_PUBLIC_SUPABASE_URL=${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_URL }}
+            EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
+  deploy:
+    name: Deploy and smoke-test staging only
+    needs: build
+    if: ${{ always() && (inputs.rollback_image != '' || needs.build.result == 'success') }}
+    runs-on: ubuntu-latest
+    env:
+      STAGING_IMAGE: ${{ inputs.rollback_image || needs.build.outputs.image }}
+      STAGING_DOMAIN: pantry-staging.waltermichelin.com
+      GHCR_USER: ${{ github.repository_owner }}
+      GHCR_PAT: ${{ secrets.GHCR_PAT }}
+    steps:
+      - name: Replace only the staging container and verify both staging routes
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script_stop: true
-          envs: GHCR_PAT
+          envs: STAGING_IMAGE,STAGING_DOMAIN,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
-            readonly image='ghcr.io/wmichelin/pantry:staging-58a83493eee334a7a49055f14d60d184e54e9a7d'
 
-            echo "$GHCR_PAT" | docker login ghcr.io -u wmichelin --password-stdin
-            docker pull "$image"
-            docker rm -f pantry-staging 2>/dev/null || true
+            # Only SHA-addressed staging tags are accepted. This prevents this
+            # workflow's rollback input from being used to target production.
+            if ! printf '%s' "$STAGING_IMAGE" | grep -Eq '^ghcr\.io/wmichelin/pantry:staging-[0-9a-f]{40}$'; then
+              echo 'STAGING_IMAGE must be an immutable Pantry staging SHA tag.' >&2
+              exit 1
+            fi
+
+            readonly staging_container='pantry-staging'
+            readonly staging_port='127.0.0.1:18081'
+            readonly production_container='pantry'
+            previous_image=''
+            replacement_started=false
+
+            staging_responds() {
+              curl --fail --silent --show-error http://127.0.0.1:18081/ >/dev/null
+              curl --fail --silent --show-error \
+                --resolve "$STAGING_DOMAIN:443:127.0.0.1" "https://$STAGING_DOMAIN/" >/dev/null
+            }
+
+            wait_for_staging() {
+              for attempt in $(seq 1 15); do
+                if staging_responds; then
+                  ss -ltn '( sport = :18081 )' | grep -F "$staging_port"
+                  return 0
+                fi
+                sleep 2
+              done
+              staging_responds
+              echo 'Staging did not become healthy on loopback and HTTPS.' >&2
+              return 1
+            }
+
+            restore_previous_staging() {
+              status="$?"
+              if [ "$status" -ne 0 ] && [ "$replacement_started" = true ] && [ -n "$previous_image" ]; then
+                echo 'Staging validation failed; restoring the previous staging image.' >&2
+                docker rm -f "$staging_container" >/dev/null 2>&1 || true
+                docker pull "$previous_image"
+                docker run -d \
+                  --name "$staging_container" \
+                  --restart unless-stopped \
+                  --publish "$staging_port:80" \
+                  "$previous_image" >/dev/null
+                wait_for_staging
+              fi
+              exit "$status"
+            }
+            trap restore_previous_staging EXIT
+
+            if docker inspect "$staging_container" >/dev/null 2>&1; then
+              previous_image="$(docker inspect --format '{{.Config.Image}}' "$staging_container")"
+            fi
+
+            # This workflow never starts, stops, reloads, or reconfigures the
+            # production container or its Nginx vhost.
+            if ! docker inspect --format '{{.State.Running}}' "$production_container" | grep -Fx true >/dev/null; then
+              echo 'Production container is not healthy; refusing staging deployment.' >&2
+              exit 1
+            fi
+
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker pull "$STAGING_IMAGE"
+            docker rm -f "$staging_container" >/dev/null 2>&1 || true
             docker run -d \
-              --name pantry-staging \
+              --name "$staging_container" \
               --restart unless-stopped \
-              --publish 127.0.0.1:18081:80 \
-              "$image"
+              --publish "$staging_port:80" \
+              "$STAGING_IMAGE" >/dev/null
+            replacement_started=true
 
-            for attempt in $(seq 1 15); do
-              if curl --fail --silent --show-error http://127.0.0.1:18081/ >/dev/null; then
-                break
-              fi
-              if [ "$attempt" = 15 ]; then
-                echo 'Staging container did not become healthy on loopback.' >&2
-                exit 1
-              fi
-              sleep 2
-            done
-            docker ps --filter name='^/pantry-staging$' --format '{{.Names}} {{.Status}} {{.Ports}}'
+            wait_for_staging
+            docker ps --filter "name=^/${staging_container}$" --format '{{.Names}} {{.Status}} {{.Ports}} {{.Image}}'
+            trap - EXIT
         env:
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
