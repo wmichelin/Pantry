@@ -1,0 +1,20 @@
+[Unit]
+Description=Pantry backup readiness check for Google Drive
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/pantry-backup/backup.env
+ConditionPathExists=/etc/pantry-backup/rclone.conf
+
+[Service]
+Type=oneshot
+User=pantry-backup
+Group=pantry-backup
+UMask=0077
+EnvironmentFile=/etc/pantry-backup/backup.env
+LoadCredential=rclone.conf:/etc/pantry-backup/rclone.conf
+Environment=RCLONE_CONFIG=%d/rclone.conf
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ExecStart=/opt/pantry/scripts/backup-preflight.sh

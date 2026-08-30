@@ -7,7 +7,7 @@
 #   BACKUP_OUTPUT_DIR      - default /var/backups/pantry-pg
 #   BACKUP_RETENTION_DAYS  - delete local pantry-supabase-*.dump older than N days (optional)
 #   BACKUP_LOG_FILE        - append run logs here (default $BACKUP_OUTPUT_DIR/backup.log)
-# Upload: BACKUP_S3_BUCKET (or AWS_S3_BUCKET / SPACES_BUCKET) + creds are required - see backup-upload-spaces.sh
+# Upload: BACKUP_DRIVE_REMOTE and RCLONE_CONFIG are required - see backup-upload-drive.sh
 # Alert: BACKUP_ALERT_WEBHOOK_URL is required and receives a small JSON status payload - see backup-notify.sh
 #
 # Exit non-zero on any failure so cron/monitoring notices a broken backup.
@@ -28,8 +28,12 @@ notify() {
 trap 'rc=$?; log "ERROR: backup FAILED at line $LINENO (exit $rc)"; notify failure "backup failed on $(hostname) at line $LINENO (exit $rc)" || true; exit "$rc"' ERR
 
 [[ -x "$NOTIFIER" ]] || { log "ERROR: backup notifier is missing or not executable: $NOTIFIER"; exit 1; }
-[[ -n "${BACKUP_S3_BUCKET:-${AWS_S3_BUCKET:-${SPACES_BUCKET:-}}}" ]] || {
-  log "ERROR: offsite bucket is required; refusing a local-only backup"
+[[ -n "${BACKUP_DRIVE_REMOTE:-}" ]] || {
+  log "ERROR: Google Drive remote is required; refusing a local-only backup"
+  exit 1
+}
+[[ -n "${RCLONE_CONFIG:-}" ]] || {
+  log "ERROR: RCLONE_CONFIG is required"
   exit 1
 }
 [[ -n "${BACKUP_ALERT_WEBHOOK_URL:-}" ]] || {
@@ -57,7 +61,7 @@ command -v pg_restore >/dev/null 2>&1 || { log "ERROR: pg_restore is required to
 pg_restore --list "$FILE" >/dev/null
 log "dump archive validation OK"
 
-_UP="$(dirname "$0")/backup-upload-spaces.sh"
+_UP="$(dirname "$0")/backup-upload-drive.sh"
 [[ -x "$_UP" ]] || { log "ERROR: offsite upload helper is missing or not executable: $_UP"; exit 1; }
 log "uploading offsite via $(basename "$_UP")"
 BACKUP_FILE="$FILE" "$_UP"
@@ -65,6 +69,10 @@ log "offsite upload and size verification OK"
 unset _UP
 
 if [[ -n "${BACKUP_RETENTION_DAYS:-}" ]]; then
+  [[ "$BACKUP_RETENTION_DAYS" =~ ^[1-9][0-9]*$ ]] || {
+    log "ERROR: BACKUP_RETENTION_DAYS must be a positive integer"
+    exit 1
+  }
   find "$OUT" -name 'pantry-supabase-*.dump' -mtime "+${BACKUP_RETENTION_DAYS}" -print -delete \
     | while read -r old; do log "pruned old backup: $old"; done
 fi

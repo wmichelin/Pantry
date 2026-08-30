@@ -21,17 +21,17 @@ Each phase is a separate, reversible slice. Before implementation, create an iss
 
 Data loss at this stage is catastrophic. No migration, RLS-policy change, destructive data repair, or production deployment may proceed until all of the following are evidenced:
 
-1. The nightly full logical Supabase Postgres dump completes and uploads to an offsite bucket in a separate failure domain.
+1. The nightly full logical Supabase Postgres dump completes and uploads to the dedicated Google Drive backup folder in a separate failure domain.
 2. The latest offsite dump is downloaded and restored into a scratch database; table presence and representative row counts are verified.
 3. Backup failures and successful completion generate an actionable alert, rather than relying only on a log file on the production droplet.
-4. The backup credentials, retention policy, offsite object versioning/encryption, and recovery-owner contact are documented outside the repository's tracked files.
+4. The root-only backup credentials, Drive retention/version history, local retention policy, and recovery-owner contact are documented outside the repository's tracked files.
 5. A restore drill is scheduled at least monthly and its outcome is recorded. Any failed drill blocks database-changing work until the cause is resolved or an explicit risk acceptance is recorded.
 
 Use the existing [backup and restore runbook](BACKUPS.md) as the operating procedure. Before every migration, capture and retain a fresh, verified backup and record its object key, timestamp, and restore-test result in the delivery issue.
 
 ### Scope
 
-1. Instrument and verify the backup gate above, including offsite object validation and restore-alert delivery.
+1. Instrument and verify the backup gate above, including exact Drive-object validation and restore-alert delivery.
 2. Document the recovery owner, secure credential location, retention policy, and the procedure for placing the application in maintenance mode during recovery.
 3. Schedule and record a monthly restore drill; retain the resulting evidence with the delivery records.
 
@@ -80,7 +80,7 @@ Retain the prior staging image digest and configuration. A failed staging check 
 
 ### Acceptance criteria
 
-- A migration issue records the verified backup object key, time, and restore-test result before deployment.
+- A migration issue records the verified Drive archive name, time, and restore-test result before deployment.
 - An authenticated non-member cannot join, read, or elevate access to an arbitrary household.
 - Only a valid invite can create a member role; an invite cannot create an owner.
 - Unauthenticated scraper calls fail; private-network, redirect-bypass, oversize, and rate-limit cases fail safely.
@@ -152,7 +152,7 @@ Only restore “offline-first” and real-time marketing claims after those work
 
 ## Initial work sequence
 
-1. Open the Phase 0 issue; verify the existing backup job, offsite objects, and retention.
+1. Open the Phase 0 issue; verify the backup job, dedicated Drive archives, and retention.
 2. Restore the latest offsite dump into a scratch database and verify it; wire and test backup alerts.
 3. Provision an isolated staging environment, deploy a harmless revision, and prove that production remains unchanged.
 4. Verify the production Supabase migration state and capture a fresh verified pre-migration backup.

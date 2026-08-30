@@ -1,0 +1,26 @@
+[Unit]
+Description=Pantry verified PostgreSQL backup to Google Drive
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/pantry-backup/backup.env
+ConditionPathExists=/etc/pantry-backup/rclone.conf
+
+[Service]
+Type=oneshot
+User=pantry-backup
+Group=pantry-backup
+UMask=0077
+EnvironmentFile=/etc/pantry-backup/backup.env
+LoadCredential=rclone.conf:/etc/pantry-backup/rclone.conf
+Environment=RCLONE_CONFIG=%d/rclone.conf
+RuntimeDirectory=pantry-backup
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/flock -n /run/pantry-backup/backup.lock /opt/pantry/scripts/scheduled-do-pg-backup.sh
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/backups/pantry-pg
+
+[Install]
+WantedBy=multi-user.target
