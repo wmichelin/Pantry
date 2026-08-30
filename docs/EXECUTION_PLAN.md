@@ -21,9 +21,9 @@ Each phase is a separate, reversible slice. Before implementation, create an iss
 
 Data loss at this stage is catastrophic. No migration, RLS-policy change, destructive data repair, or production deployment may proceed until all of the following are evidenced:
 
-1. The nightly full logical Supabase Postgres dump completes and uploads to the dedicated Google Drive backup folder in a separate failure domain.
-2. The latest offsite dump is downloaded and restored into a scratch database; table presence and representative row counts are verified.
-3. Backup failures and successful completion generate an actionable alert, rather than relying only on a log file on the production droplet.
+1. The nightly full logical Supabase Postgres dump completes and uploads to the dedicated Google Drive backup folder in a separate failure domain. **Manual evidence exists; scheduling is pending alert verification.**
+2. The latest offsite dump is downloaded and restored into a scratch database; table presence and representative row counts are verified. **Passed 2026-08-30: all 11 Pantry public tables matched production counts.**
+3. Backup failures and successful completion generate an actionable alert, rather than relying only on a log file on the production droplet. **Still blocked: no team-owned alert receiver is configured.**
 4. The root-only backup credentials, Drive retention/version history, local retention policy, and recovery-owner contact are documented outside the repository's tracked files.
 5. A restore drill is scheduled at least monthly and its outcome is recorded. Any failed drill blocks database-changing work until the cause is resolved or an explicit risk acceptance is recorded.
 

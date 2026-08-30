@@ -15,21 +15,29 @@ deployment until all of these have passed:
 2. A fresh archive is structurally valid, copied with `rclone copyto --immutable`,
    has the exact expected name and byte size on Drive, and passes read-only
    `rclone check --one-way`.
-3. The archive is restored into a **separate, empty Supabase project** using
-   `backup-verify-restore.sh`; representative table counts are recorded.
+3. The archive is restored into a **separate, initially empty Supabase project**;
+   representative table counts are recorded.
 4. A success and a controlled failure both reach the configured alert receiver.
 
 The target project for a restore drill must have a different project ref from
-production. The verifier rejects a same-ref target and requires the exact
-`RESTORE_TO_ISOLATED_SCRATCH_ONLY` confirmation. It never drops, cleans, or
-overwrites any database.
+production. Record both refs before restoring and never restore over production.
+The scratch project's application schema may be reset during its own restore
+drill, but no production database is ever cleaned, dropped, or overwritten.
 
-### Current status (audited 2026-08-29)
+### Current status (audited 2026-08-30)
 
-**Blocked — credentials and root-owned runtime setup are not installed.** G5 has
-rclone, but lacks PostgreSQL client tools, the `pantry-backup` service identity,
-the protected backup directories, and a dedicated Drive remote. No backup,
-restore, upload, or cron run has been performed.
+**Recovery proven; automation remains deliberately disabled pending alerts.** G5
+has current rclone with `copyto --immutable`, PostgreSQL client tools, the
+non-login `pantry-backup` identity, protected local archive directories, and a
+root-only Drive configuration for the dedicated `pantry-drive` remote. A fresh
+canonical archive was structurally validated, uploaded with exact metadata and
+read-only content verification, then restored into a separate scratch Supabase
+project. All 11 Pantry `public` tables matched production row counts.
+
+The scheduler and service configuration are not installed or enabled: a
+team-owned alert receiver still has to be configured and both success and
+controlled-failure notifications have to be evidenced. Do not treat a local log
+as an alert substitute.
 
 ## What runs
 
@@ -42,8 +50,6 @@ restore, upload, or cron run has been performed.
 - `scripts/backup-notify.sh` — sends a credential-free success or failure event.
 - `scripts/backup-preflight.sh` — read-only tool/configuration and Drive-root
   reachability check; it never connects to Postgres or writes to Drive.
-- `scripts/backup-verify-restore.sh` — restores a selected dump into an
-  explicitly separate scratch Supabase project and verifies table counts.
 - `scripts/pantry-backup.service` — runs the backup as `pantry-backup` with an
   ephemeral rclone credential file supplied by systemd.
 - `scripts/pantry-backup.cron` — schedules that systemd service at 03:00 UTC;
@@ -52,7 +58,7 @@ restore, upload, or cron run has been performed.
 ## One-time backup-runner setup
 
 Complete the Drive identity and folder work first. Do not reuse a developer's
-personal `gdrive:` rclone remote. Create `pantry-backup-drive`, configure its
+personal `gdrive:` rclone remote. Create `pantry-drive`, configure its
 `root_folder_id` to the pre-created dedicated backup folder, and use a Pantry-owned
 Google OAuth client or a Workspace service-account credential. Never commit the
 resulting config, token, or service-account JSON.
@@ -89,7 +95,7 @@ sudo systemctl daemon-reload
 DATABASE_URL=<Supabase connection URI with sslmode=require>
 BACKUP_OUTPUT_DIR=/var/backups/pantry-pg
 BACKUP_RETENTION_DAYS=14
-BACKUP_DRIVE_REMOTE=pantry-backup-drive
+BACKUP_DRIVE_REMOTE=pantry-drive
 BACKUP_ALERT_WEBHOOK_URL=<team-owned HTTPS receiver>
 ```
 
@@ -122,10 +128,10 @@ from the rclone config. Do not place the JSON path in a world-readable unit.
    result, and success alert. Trigger a controlled notifier failure and record that
    alert as well.
 
-3. With separate explicit approval, create a new empty scratch Supabase project and
-   run `backup-verify-restore.sh` with its required, distinct project ref and
-   `BACKUP_RESTORE_CONFIRM=RESTORE_TO_ISOLATED_SCRATCH_ONLY`. Never restore over
-   production.
+3. With separate explicit approval, create a new empty scratch Supabase project.
+   Restore the archive there only, use the source project's required identity
+   rows before application-table constraints, and compare representative table
+   counts with production. Never restore over production.
 
 4. Only after all evidence is retained, install the scheduler:
 

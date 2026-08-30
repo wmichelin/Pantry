@@ -47,16 +47,27 @@ REMOTE_FILE="${REMOTE}:${NAME}"
 # configuration mistake cannot leak remote metadata into an alert or journal.
 METADATA="$("$RCLONE_BIN" --config "$CONFIG" lsjson --stat --files-only "$REMOTE_FILE")"
 if ! jq -e --arg name "$NAME" --argjson size "$LOCAL_SIZE" '
-  length == 1 and
-  .[0].IsDir == false and
-  .[0].Name == $name and
-  .[0].Size == $size
+  # rclone 1.60 returned a one-item array for --stat, while current rclone
+  # returns the item directly. Accept either documented representation, but
+  # retain the same exact filename and byte-size checks.
+  if type == "array" then
+    length == 1 and
+    .[0].IsDir == false and
+    .[0].Name == $name and
+    .[0].Size == $size
+  else
+    .IsDir == false and
+    .Name == $name and
+    .Size == $size
+  end
 ' >/dev/null <<<"$METADATA"; then
   echo "backup-upload-drive: remote metadata did not match the exact archive name and byte size" >&2
   exit 1
 fi
 
-# check compares the source archive to the exact remote object without altering either.
-"$RCLONE_BIN" --config "$CONFIG" check --one-way "$FILE" "$REMOTE_FILE"
+# check receives a destination directory (not a file path). With --one-way it
+# compares this local archive to the matching basename in the dedicated Drive
+# root and ignores other retained archives there; it never alters either side.
+"$RCLONE_BIN" --config "$CONFIG" check --one-way "$FILE" "${REMOTE}:"
 
 echo "uploaded and verified ${NAME} (${LOCAL_SIZE} bytes)"
