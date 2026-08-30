@@ -86,7 +86,8 @@ jobs:
             ln -sfn /etc/nginx/sites-available/pantry-staging /etc/nginx/sites-enabled/pantry-staging
             nginx -t
             systemctl reload nginx
-            curl --fail --silent --show-error -H "Host: $DOMAIN" http://127.0.0.1/ >/dev/null
+            curl --fail --silent --show-error \
+              --resolve "${DOMAIN}:80:127.0.0.1" "http://${DOMAIN}/" >/dev/null
 
             # Production already uses certbot on this host. Obtain a separate
             # certificate for staging; a failure stops the deployment instead of
