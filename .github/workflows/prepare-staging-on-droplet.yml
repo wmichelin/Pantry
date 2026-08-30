@@ -1,0 +1,38 @@
+name: Prepare staging on droplet
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  start-loopback-container:
+    name: Start staging on loopback only
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the previously built staging image without public exposure
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script_stop: true
+          envs: GHCR_PAT
+          script: |
+            set -euo pipefail
+            readonly image='ghcr.io/wmichelin/pantry:staging-58a83493eee334a7a49055f14d60d184e54e9a7d'
+
+            echo "$GHCR_PAT" | docker login ghcr.io -u wmichelin --password-stdin
+            docker pull "$image"
+            docker rm -f pantry-staging 2>/dev/null || true
+            docker run -d \
+              --name pantry-staging \
+              --restart unless-stopped \
+              --publish 127.0.0.1:18081:80 \
+              "$image"
+
+            curl --fail --silent --show-error http://127.0.0.1:18081/ >/dev/null
+            docker ps --filter name='^/pantry-staging$' --format '{{.Names}} {{.Status}} {{.Ports}}'
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
