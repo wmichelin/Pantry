@@ -72,7 +72,7 @@ jobs:
             docker pull "$IMAGE"
             docker rm -f pantry-staging >/dev/null 2>&1 || true
             docker run -d --name pantry-staging --restart always \
-              -p 127.0.0.1:8081:80 "$IMAGE"
+              -p 127.0.0.1:18081:80 "$IMAGE"
 
             install -d -m 0755 /etc/nginx/sites-available /etc/nginx/sites-enabled
             cat > /etc/nginx/sites-available/pantry-staging <<EOF
@@ -81,7 +81,7 @@ jobs:
               server_name ${DOMAIN};
 
               location / {
-                proxy_pass http://127.0.0.1:8081;
+                proxy_pass http://127.0.0.1:18081;
                 proxy_http_version 1.1;
                 proxy_set_header Host \$host;
                 proxy_set_header X-Real-IP \$remote_addr;

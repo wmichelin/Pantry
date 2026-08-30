@@ -4,7 +4,7 @@ Staging runs on the production DigitalOcean droplet with isolated application
 and data boundaries:
 
 - URL: `https://staging.45.55.214.46.sslip.io`
-- Container: `pantry-staging`, bound only to `127.0.0.1:8081`
+- Container: `pantry-staging`, bound only to `127.0.0.1:18081`
 - nginx vhost: `/etc/nginx/sites-available/pantry-staging`
 - Supabase: the separate `pantry-staging` project; it contains Pantry's schema
   only and no copied production rows or users.
