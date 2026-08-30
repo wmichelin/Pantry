@@ -75,21 +75,14 @@ jobs:
               -p 127.0.0.1:18081:80 "$IMAGE"
 
             install -d -m 0755 /etc/nginx/sites-available /etc/nginx/sites-enabled
-            cat > /etc/nginx/sites-available/pantry-staging <<EOF
-            server {
-              listen 80;
-              server_name ${DOMAIN};
-
-              location / {
-                proxy_pass http://127.0.0.1:18081;
-                proxy_http_version 1.1;
-                proxy_set_header Host \$host;
-                proxy_set_header X-Real-IP \$remote_addr;
-                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto \$scheme;
-              }
-            }
-            EOF
+            # The SSH action wraps individual commands, so do not use a heredoc
+            # here: wrapper status text could become nginx configuration. Decode
+            # a static template, then substitute only the controlled domain.
+            printf '%s' 'c2VydmVyIHsKICBsaXN0ZW4gODA7CiAgc2VydmVyX25hbWUgX19TVEFHSU5HX0RPTUFJTl9fOwoKICBsb2NhdGlvbiAvIHsKICAgIHByb3h5X3Bhc3MgaHR0cDovLzEyNy4wLjAuMToxODA4MTsKICAgIHByb3h5X2h0dHBfdmVyc2lvbiAxLjE7CiAgICBwcm94eV9zZXRfaGVhZGVyIEhvc3QgJGhvc3Q7CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtUmVhbC1JUCAkcmVtb3RlX2FkZHI7CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtRm9yd2FyZGVkLUZvciAkcHJveHlfYWRkX3hfZm9yd2FyZGVkX2ZvcjsKICAgIHByb3h5X3NldF9oZWFkZXIgWC1Gb3J3YXJkZWQtUHJvdG8gJHNjaGVtZTsKICB9Cn0K' \
+              | base64 --decode > /tmp/pantry-staging-nginx.conf
+            sed "s/__STAGING_DOMAIN__/${DOMAIN}/g" /tmp/pantry-staging-nginx.conf \
+              > /etc/nginx/sites-available/pantry-staging
+            rm -f /tmp/pantry-staging-nginx.conf
             ln -sfn /etc/nginx/sites-available/pantry-staging /etc/nginx/sites-enabled/pantry-staging
             nginx -t
             systemctl reload nginx
