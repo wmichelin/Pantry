@@ -32,7 +32,16 @@ jobs:
               --publish 127.0.0.1:18081:80 \
               "$image"
 
-            curl --fail --silent --show-error http://127.0.0.1:18081/ >/dev/null
+            for attempt in $(seq 1 15); do
+              if curl --fail --silent --show-error http://127.0.0.1:18081/ >/dev/null; then
+                break
+              fi
+              if [ "$attempt" = 15 ]; then
+                echo 'Staging container did not become healthy on loopback.' >&2
+                exit 1
+              fi
+              sleep 2
+            done
             docker ps --filter name='^/pantry-staging$' --format '{{.Names}} {{.Status}} {{.Ports}}'
         env:
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
