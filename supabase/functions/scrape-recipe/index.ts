@@ -1,5 +1,6 @@
 import { load } from "npm:cheerio@1.0.0";
 import type { ScrapedRecipe, ScrapeResponse } from "../../lib/scrape-types.ts";
+import { decodeHtmlEntities, extractIngredients } from "./recipe-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -919,31 +920,6 @@ function extractInstructions(raw: unknown): string[] {
     }
     return [];
   });
-}
-
-function decodeHtmlEntities(s: string): string {
-  return s
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, " ");
-}
-
-function extractIngredients(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const seen = new Set<string>();
-  return raw
-    .map((item) => (typeof item === "string" ? decodeHtmlEntities(item.trim()) : ""))
-    .filter((s) => {
-      if (!s) return false;
-      const key = s.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
 }
 
 function parseServings(raw: unknown): number | undefined {
