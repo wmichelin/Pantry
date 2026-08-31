@@ -34,3 +34,32 @@ func TestRESTClientListHouseholdsForwardsOnlyCallerIdentity(t *testing.T) {
 		t.Fatalf("ListHouseholds() = %#v", households)
 	}
 }
+
+func TestRESTClientFindMembershipForwardsVerifiedCallerIdentity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/rest/v1/household_members" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if got := request.URL.Query().Get("user_id"); got != "eq.user-1" {
+			t.Fatalf("user_id = %q", got)
+		}
+		if got := request.Header.Get("Authorization"); got != "Bearer user-access-token" {
+			t.Fatalf("authorization = %q", got)
+		}
+		if got := request.Header.Get("apikey"); got != "anon-key" {
+			t.Fatalf("apikey = %q", got)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`[{"household_id":"household-1","role":"owner","households":{"id":"household-1","name":"Pantry","invite_code":"ABC123"}}]`))
+	}))
+	defer server.Close()
+
+	client := NewRESTClient(server.URL, "anon-key")
+	membership, err := client.FindMembership(t.Context(), "user-1", "user-access-token")
+	if err != nil {
+		t.Fatalf("FindMembership() error = %v", err)
+	}
+	if membership == nil || membership.Role != "owner" || membership.Household.ID != "household-1" {
+		t.Fatalf("FindMembership() = %#v", membership)
+	}
+}

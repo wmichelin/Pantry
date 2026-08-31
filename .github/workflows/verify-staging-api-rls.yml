@@ -88,6 +88,7 @@ jobs:
             --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}")"
           printf '%s' "$outsider_result" | jq -e 'length == 0' >/dev/null
           printf 'GO_RLS_HOUSEHOLD_NAME=%s\n' "$household_name" >> "$GITHUB_ENV"
+          printf 'GO_RLS_HOUSEHOLD_ID=%s\n' "$household_id" >> "$GITHUB_ENV"
 
       - name: Prove the Go API has the same RLS view
         uses: appleboy/ssh-action@v1.2.0
@@ -96,7 +97,7 @@ jobs:
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script_stop: true
-          envs: GO_RLS_OWNER_TOKEN,GO_RLS_OUTSIDER_TOKEN,GO_RLS_HOUSEHOLD_NAME
+          envs: GO_RLS_OWNER_TOKEN,GO_RLS_OUTSIDER_TOKEN,GO_RLS_HOUSEHOLD_ID,GO_RLS_HOUSEHOLD_NAME
           script: |
             set -euo pipefail
 
@@ -115,3 +116,17 @@ jobs:
               echo 'Outsider household visibility escaped RLS through the Go API.' >&2
               exit 1
             fi
+
+            owner_membership="$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
+              http://127.0.0.1:18083/api/v1/membership)"
+            printf '%s' "$owner_membership" | jq -e \
+              --arg household_id "$GO_RLS_HOUSEHOLD_ID" \
+              --arg household_name "$GO_RLS_HOUSEHOLD_NAME" \
+              '.membership.household_id == $household_id and .membership.role == "owner" and .membership.households.name == $household_name' \
+              >/dev/null
+
+            outsider_membership="$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}" \
+              http://127.0.0.1:18083/api/v1/membership)"
+            printf '%s' "$outsider_membership" | jq -e '.membership == null' >/dev/null

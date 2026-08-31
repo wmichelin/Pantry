@@ -63,6 +63,7 @@ jobs:
           build-args: |
             EXPO_PUBLIC_SUPABASE_URL=${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_URL }}
             EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+            EXPO_PUBLIC_PANTRY_API_URL=https://pantry-staging.waltermichelin.com
 
   deploy:
     name: Deploy and smoke-test staging only

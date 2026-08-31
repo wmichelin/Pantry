@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { errorMessage } from "../../lib/db";
+import { findMembership, stagingAPIOrigin } from "../../lib/pantry-api";
 
 type Membership = {
   household_id: string;
@@ -12,7 +13,7 @@ type Membership = {
 };
 
 export default function HomeScreen() {
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
   const router = useRouter();
   const [membership, setMembership] = useState<Membership | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,27 +26,43 @@ export default function HomeScreen() {
     (async () => {
       setLoading(true);
       setLoadError(null);
-      const { data, error } = await supabase
-        .from("household_members")
-        .select("household_id, role, households(id, name, invite_code)")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
+      const apiURL = stagingAPIOrigin();
+      try {
+        if (apiURL) {
+          const membership = await findMembership(apiURL, session?.access_token ?? "");
+          if (cancelled) return;
+          setMembership(membership);
+        } else {
+          const result = await supabase
+            .from("household_members")
+            .select("household_id, role, households(id, name, invite_code)")
+            .eq("user_id", user.id)
+            .limit(1)
+            .maybeSingle();
 
-      if (cancelled) return;
-      if (error) {
-        setMembership(null);
-        setLoadError(errorMessage(error));
-        setLoading(false);
+          if (cancelled) return;
+          if (result.error) {
+            setMembership(null);
+            setLoadError(errorMessage(result.error));
+            setLoading(false);
+            return;
+          }
+          setMembership(result.data as Membership | null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMembership(null);
+          setLoadError(errorMessage(error));
+          setLoading(false);
+        }
         return;
       }
-      setMembership(data as Membership | null);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [retryAttempt, user?.id]);
+  }, [retryAttempt, session?.access_token, user?.id]);
 
   useEffect(() => {
     if (loading || !membership) return;

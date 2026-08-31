@@ -29,6 +29,19 @@ type householdReaderStub struct {
 	token      string
 }
 
+type membershipReaderStub struct {
+	membership *supabase.Membership
+	err        error
+	userID     string
+	token      string
+}
+
+func (stub *membershipReaderStub) FindMembership(_ context.Context, userID, token string) (*supabase.Membership, error) {
+	stub.userID = userID
+	stub.token = token
+	return stub.membership, stub.err
+}
+
 func (stub *householdReaderStub) ListHouseholds(_ context.Context, token string) ([]supabase.Household, error) {
 	stub.token = token
 	return stub.households, stub.err
@@ -52,7 +65,7 @@ func TestFoundationRoutes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New(tt.verifier, &householdReaderStub{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			handler := New(tt.verifier, &householdReaderStub{}, &membershipReaderStub{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			request := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			if tt.header != "" {
 				request.Header.Set("Authorization", tt.header)
@@ -82,6 +95,7 @@ func TestListHouseholdsUsesVerifiedCallerToken(t *testing.T) {
 	handler := New(
 		verifierStub{principal: authn.Principal{Subject: "user-1", Role: "authenticated"}},
 		reader,
+		&membershipReaderStub{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/households", nil)
@@ -93,6 +107,39 @@ func TestListHouseholdsUsesVerifiedCallerToken(t *testing.T) {
 	}
 	if reader.token != "verified-user-token" {
 		t.Fatalf("forwarded token = %q", reader.token)
+	}
+}
+
+func TestFindMembershipUsesVerifiedCallerIdentity(t *testing.T) {
+	reader := &membershipReaderStub{membership: &supabase.Membership{
+		HouseholdID: "household-1",
+		Role:        "owner",
+		Household:   supabase.Household{ID: "household-1", Name: "Pantry", InviteCode: "ABC123"},
+	}}
+	handler := New(
+		verifierStub{principal: authn.Principal{Subject: "user-1", Role: "authenticated"}},
+		&householdReaderStub{},
+		reader,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/membership", nil)
+	request.Header.Set("Authorization", "Bearer verified-user-token")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if reader.userID != "user-1" || reader.token != "verified-user-token" {
+		t.Fatalf("reader identity = (%q, %q)", reader.userID, reader.token)
+	}
+	var body struct {
+		Membership *supabase.Membership `json:"membership"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Membership == nil || body.Membership.HouseholdID != "household-1" {
+		t.Fatalf("membership = %#v", body.Membership)
 	}
 }
 

@@ -12,18 +12,20 @@ import (
 )
 
 type Server struct {
-	verifier   authn.Verifier
-	households supabase.HouseholdReader
-	logger     *slog.Logger
+	verifier    authn.Verifier
+	households  supabase.HouseholdReader
+	memberships supabase.MembershipReader
+	logger      *slog.Logger
 }
 
-func New(verifier authn.Verifier, households supabase.HouseholdReader, logger *slog.Logger) http.Handler {
-	server := Server{verifier: verifier, households: households, logger: logger}
+func New(verifier authn.Verifier, households supabase.HouseholdReader, memberships supabase.MembershipReader, logger *slog.Logger) http.Handler {
+	server := Server{verifier: verifier, households: households, memberships: memberships, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /readyz", server.ready)
 	mux.HandleFunc("GET /api/v1/whoami", server.whoAmI)
 	mux.HandleFunc("GET /api/v1/households", server.listHouseholds)
+	mux.HandleFunc("GET /api/v1/membership", server.findMembership)
 	return server.withRequestLog(mux)
 }
 
@@ -63,6 +65,26 @@ func (server Server) listHouseholds(writer http.ResponseWriter, request *http.Re
 		return
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"households": households})
+}
+
+func (server Server) findMembership(writer http.ResponseWriter, request *http.Request) {
+	accessToken, err := authn.BearerToken(request.Header)
+	if err != nil {
+		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
+		return
+	}
+	principal, err := authn.RequirePrincipal(request.Context(), request.Header, server.verifier)
+	if err != nil {
+		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
+		return
+	}
+	membership, err := server.memberships.FindMembership(request.Context(), principal.Subject, accessToken)
+	if err != nil {
+		server.logger.ErrorContext(request.Context(), "find RLS-scoped membership", "error", err)
+		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not load your household right now.")
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"membership": membership})
 }
 
 func (server Server) withRequestLog(next http.Handler) http.Handler {

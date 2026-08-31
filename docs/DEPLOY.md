@@ -54,12 +54,20 @@ workflow** to publish an immutable
 `ghcr.io/wmichelin/pantry:staging-api-<full-commit-sha>` image and probe its
 loopback `/healthz` and `/readyz` endpoints.
 
-This foundational deployment deliberately does not add an Nginx route, change
-the Expo client, add database credentials, run migrations, or make a production
-change. The container receives only `PANTRY_API_SUPABASE_URL` at runtime. It
-verifies user JWTs using the Supabase JWKS endpoint, but authenticated business
-routes remain unavailable until the staging RLS/database feasibility gate and
-operation-parity suite have passed.
+The foundational deployment deliberately does not change the Expo client, add
+database credentials, run migrations, or make a production change. The
+container receives the public Supabase origin and publishable/anon API key at
+runtime—never a service credential—and verifies user JWTs using the Supabase
+JWKS endpoint.
+
+After the staging RLS/database feasibility gate passes, run **Publish staging on
+approved domain** once to proxy the staging-only `/api/` path to this loopback
+container. It preserves the caller's `Authorization` header and checks that an
+anonymous membership request receives `401`; it adds no service credential.
+The staging web workflow builds `EXPO_PUBLIC_PANTRY_API_URL` only for the
+approved staging domain, allowing the landing screen to use the Go membership
+read route. Production receives no such build value and stays on its current
+Supabase client path.
 
 The workflow accepts a strict immutable API rollback tag and restores the prior
 API image if its health probes fail. If no prior API image exists, it removes the

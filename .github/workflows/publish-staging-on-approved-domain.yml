@@ -82,7 +82,9 @@ jobs:
               cp -a "$site_enabled" "$rollback_dir/site_enabled"
               saved_site_enabled=true
             fi
-            printf '%s' 'c2VydmVyIHsKICBsaXN0ZW4gODA7CiAgc2VydmVyX25hbWUgcGFudHJ5LXN0YWdpbmcud2FsdGVybWljaGVsaW4uY29tOwoKICBsb2NhdGlvbiAvIHsKICAgIHByb3h5X3Bhc3MgaHR0cDovLzEyNy4wLjAuMToxODA4MTsKICAgIHByb3h5X2h0dHBfdmVyc2lvbiAxLjE7CiAgICBwcm94eV9zZXRfaGVhZGVyIEhvc3QgJGhvc3Q7CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtUmVhbC1JUCAkcmVtb3RlX2FkZHI7CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtRm9yd2FyZGVkLUZvciAkcHJveHlfYWRkX3hfZm9yd2FyZGVkX2ZvcjsKICAgIHByb3h5X3NldF9oZWFkZXIgWC1Gb3J3YXJkZWQtUHJvdG8gJHNjaGVtZTsKICB9Cn0K' | base64 --decode > "$site_available"
+            # This vhost exposes only the staging API. Authorization is passed
+            # unchanged to the loopback service; no privileged key is added here.
+            printf '%s' 'c2VydmVyIHsKICBsaXN0ZW4gODA7CiAgc2VydmVyX25hbWUgcGFudHJ5LXN0YWdpbmcud2FsdGVybWljaGVsaW4uY29tOwoKICBsb2NhdGlvbiAvYXBpLyB7CiAgICBwcm94eV9wYXNzIGh0dHA6Ly8xMjcuMC4wLjE6MTgwODM7CiAgICBwcm94eV9odHRwX3ZlcnNpb24gMS4xOwogICAgcHJveHlfc2V0X2hlYWRlciBIb3N0ICRob3N0OwogICAgcHJveHlfc2V0X2hlYWRlciBBdXRob3JpemF0aW9uICRodHRwX2F1dGhvcml6YXRpb247CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtUmVhbC1JUCAkcmVtb3RlX2FkZHI7CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtRm9yd2FyZGVkLUZvciAkcHJveHlfYWRkX3hfZm9yd2FyZGVkX2ZvcjsKICAgIHByb3h5X3NldF9oZWFkZXIgWC1Gb3J3YXJkZWQtUHJvdG8gJHNjaGVtZTsKICB9CgogIGxvY2F0aW9uIC8gewogICAgcHJveHlfcGFzcyBodHRwOi8vMTI3LjAuMC4xOjE4MDgxOwogICAgcHJveHlfaHR0cF92ZXJzaW9uIDEuMTsKICAgIHByb3h5X3NldF9oZWFkZXIgSG9zdCAkaG9zdDsKICAgIHByb3h5X3NldF9oZWFkZXIgWC1SZWFsLUlQICRyZW1vdGVfYWRkcjsKICAgIHByb3h5X3NldF9oZWFkZXIgWC1Gb3J3YXJkZWQtRm9yICRwcm94eV9hZGRfeF9mb3J3YXJkZWRfZm9yOwogICAgcHJveHlfc2V0X2hlYWRlciBYLUZvcndhcmRlZC1Qcm90byAkc2NoZW1lOwogIH0KfQo=' | base64 --decode > "$site_available"
             ln -sfn "$site_available" "$site_enabled"
             nginx -t
             verify_production
@@ -96,7 +98,14 @@ jobs:
             verify_production
             curl --fail --silent --show-error \
               --resolve "$domain:443:127.0.0.1" "https://$domain/" >/dev/null
+            api_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              --resolve "$domain:443:127.0.0.1" "https://$domain/api/v1/membership")"
+            if [ "$api_status" != 401 ]; then
+              echo "Expected the staging API proxy to reject an anonymous request with 401, got $api_status." >&2
+              exit 1
+            fi
             ss -ltn '( sport = :18081 )' | grep -F '127.0.0.1:18081'
+            ss -ltn '( sport = :18083 )' | grep -F '127.0.0.1:18083'
 
             published=true
             trap - EXIT

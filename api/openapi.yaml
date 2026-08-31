@@ -3,8 +3,9 @@ info:
   title: Pantry API
   version: 0.1.0
   description: |
-    Foundation contract for the staged Go port. Only health, readiness, and
-    verified-identity endpoints are implemented in this revision. Household,
+    Foundation contract for the staged Go port. Only health, readiness,
+    verified-identity, and read-only household-membership endpoints are
+    implemented in this revision. Household,
     recipe, shopping, and scrape capabilities remain on their existing client
     paths until each has passed the compatibility gates in contracts/compatibility.md.
 paths:
@@ -34,6 +35,17 @@ paths:
       responses:
         '200':
           description: Caller-visible households, authorized by existing Supabase RLS policies.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '502':
+          description: Supabase REST was unavailable or rejected the request.
+  /api/v1/membership:
+    get:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's first visible household membership, authorized by existing Supabase RLS policies.
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '502':
