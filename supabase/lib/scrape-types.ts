@@ -1,3 +1,11 @@
+export type RecipeInstructionSection = {
+  type: "section";
+  title: string;
+  steps: string[];
+};
+
+export type RecipeInstruction = string | RecipeInstructionSection;
+
 export type ScrapedRecipe = {
   title: string;
   source_url: string;
@@ -6,7 +14,7 @@ export type ScrapedRecipe = {
   servings?: number;
   prep_time_minutes?: number;
   cook_time_minutes?: number;
-  instructions: string[];
+  instructions: RecipeInstruction[];
   raw_ingredients: string[];
   suggested_tags: string[];
 };

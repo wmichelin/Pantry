@@ -14,6 +14,7 @@ import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../lib/auth-context";
 import { showError, throwOnError } from "../../../lib/db";
 import { formatQuantity } from "../../../lib/format-quantity";
+import { toInstructionBlocks } from "../../../lib/recipe-instructions";
 import TagEditor from "../../../components/TagEditor";
 
 type Recipe = {
@@ -27,7 +28,7 @@ type Recipe = {
   servings: number | null;
   prep_time_minutes: number | null;
   cook_time_minutes: number | null;
-  instructions: string[] | null;
+  instructions: unknown;
   tags: string[] | null;
 };
 type Ingredient = {
@@ -168,16 +169,6 @@ export default function RecipeDetailScreen() {
 
   const isImported = recipe.source_type === "url" || recipe.source_type === "pinterest_pin";
 
-  const extractStepText = (step: string): string => {
-    try {
-      const parsed = JSON.parse(step);
-      if (parsed && typeof parsed.text === "string") return parsed.text;
-    } catch {}
-    const m = step.match(/['"]text['"]\s*:\s*['"](.+)/s);
-    if (m) return m[1].replace(/['"]\s*[,}]?\s*$/, "").trim();
-    return step;
-  };
-
   const formatIngredient = (ing: Ingredient) => {
     const parts: string[] = [];
     if (ing.quantity) parts.push(formatQuantity(ing.quantity));
@@ -185,6 +176,8 @@ export default function RecipeDetailScreen() {
     parts.push(ing.name);
     return parts.join(" ");
   };
+
+  const instructionBlocks = toInstructionBlocks(recipe.instructions);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -285,15 +278,21 @@ export default function RecipeDetailScreen() {
         ))
       )}
 
-      {recipe.instructions && recipe.instructions.length > 0 && (
+      {instructionBlocks.length > 0 && (
         <>
           <Text style={styles.sectionTitle}>Instructions</Text>
-          {recipe.instructions.map((step, i) => (
-            <View key={i} style={styles.row}>
-              <Text style={styles.stepNumber}>{i + 1}.</Text>
-              <Text style={styles.rowText}>{extractStepText(step)}</Text>
-            </View>
-          ))}
+          {instructionBlocks.map((block, index) =>
+            block.type === "section" ? (
+              <Text key={`section-${index}`} style={styles.instructionSectionTitle}>
+                {block.title}
+              </Text>
+            ) : (
+              <View key={`step-${index}`} style={styles.row}>
+                <Text style={styles.stepNumber}>{block.number}.</Text>
+                <Text style={styles.rowText}>{block.text}</Text>
+              </View>
+            )
+          )}
         </>
       )}
 
@@ -473,6 +472,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
     minWidth: 20,
+  },
+  instructionSectionTitle: {
+    fontSize: 15,
+    color: "#333",
+    fontWeight: "700",
+    marginTop: 12,
+    marginBottom: 2,
+    paddingHorizontal: 24,
   },
   rowText: {
     fontSize: 15,

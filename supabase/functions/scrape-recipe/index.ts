@@ -1,7 +1,7 @@
 import { load } from "npm:cheerio@1.0.0";
 import { createSupabaseContext } from "npm:@supabase/server@^1";
 import type { ScrapedRecipe, ScrapeResponse } from "../../lib/scrape-types.ts";
-import { decodeHtmlEntities, extractIngredients } from "./recipe-fields.ts";
+import { decodeHtmlEntities, extractIngredients, extractInstructions } from "./recipe-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -903,35 +903,6 @@ function extractImage(image: unknown): string | undefined {
   }
 }
 
-function extractInstructions(raw: unknown): string[] {
-  if (!raw) return [];
-  const items = Array.isArray(raw) ? raw : [raw];
-  return items.flatMap((item) => {
-    if (typeof item === "string") {
-      const s = item.trim();
-      // Some sites serialize HowToStep objects as single-quoted pseudo-dicts inside strings
-      // e.g. "{'@type': 'HowToStep', 'text': 'Do the thing.'}"
-      if (s.startsWith("{") && (s.includes("'text'") || s.includes('"text"'))) {
-        const m = s.match(/['"]text['"]\s*:\s*['"](.+)/s);
-        if (m) {
-          const val = m[1].replace(/['"]\s*[,}]?\s*$/, "").trim();
-          if (val) return [decodeHtmlEntities(val)];
-        }
-      }
-      return s ? [decodeHtmlEntities(s)] : [];
-    }
-    if (typeof item === "object" && item !== null) {
-      const rec = item as Record<string, unknown>;
-      if (rec["@type"] === "HowToSection" && Array.isArray(rec.itemListElement)) {
-        return extractInstructions(rec.itemListElement);
-      }
-      const text = str(rec.text) ?? str(rec.name) ?? "";
-      return text ? [decodeHtmlEntities(text.trim())] : [];
-    }
-    return [];
-  });
-}
-
 function parseServings(raw: unknown): number | undefined {
   if (!raw) return undefined;
   const s = Array.isArray(raw) ? String(raw[0]) : String(raw);
@@ -968,7 +939,7 @@ const TAG_RULES: [RegExp, string][] = [
   [/\bcookies?\b|\bcake\b|\bcupcakes?\b|\bmuffins?\b|\bbrownies?\b|\bpies?\b|\bpastry\b|\bpastries\b|\bscones?\b|\bbread\b|\bbiscuits?\b|\btarts?\b|\bcobbler\b|\brolls?\b|\bdoughnuts?\b|\bdonuts?\b|\bmacarons?\b/i, "Baking"],
 ];
 
-function suggestTags(title: string, _instructions: string[]): string[] {
+function suggestTags(title: string, _instructions: ScrapedRecipe["instructions"]): string[] {
   const tags: string[] = [];
   for (const [pattern, tag] of TAG_RULES) {
     if (pattern.test(title)) tags.push(tag);
