@@ -29,20 +29,24 @@ jobs:
 
             readonly api_container='pantry-api-staging'
             readonly api_port='18082'
+            readonly candidate_port='18083'
 
             echo '== listener on 127.0.0.1:18082 =='
             ss -ltnp "( sport = :${api_port} )" || true
+
+            echo '== candidate listener on 127.0.0.1:18083 =='
+            ss -ltnp "( sport = :${candidate_port} )" || true
 
             echo '== Docker containers publishing 18082 =='
             docker ps --all --filter "publish=${api_port}" \
               --format '{{.Names}} | {{.Status}} | {{.Ports}} | {{.Image}}' || true
 
             echo '== pantry-api-staging state (if present) =='
-            if docker inspect "$api_container" >/dev/null 2>&1; then
-              docker inspect --format 'state={{.State.Status}} running={{.State.Running}} image={{.Config.Image}}' "$api_container"
-            else
-              echo 'absent'
-            fi
+            api_state="$(docker inspect --format 'state={{.State.Status}} running={{.State.Running}} image={{.Config.Image}}' "$api_container" 2>/dev/null || true)"
+            case "$api_state" in
+              '') echo 'absent' ;;
+              *) printf '%s\n' "$api_state" ;;
+            esac
 
             echo '== staging web availability =='
             curl --fail --silent --show-error --head --max-time 15 \
