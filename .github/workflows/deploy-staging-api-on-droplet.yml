@@ -139,16 +139,6 @@ jobs:
             }
             trap restore_previous_api EXIT
 
-            existing_running="$(docker inspect --format '{{.State.Running}}' "$api_container" 2>/dev/null || true)"
-            if [ "$existing_running" = false ]; then
-              # The named API container is solely owned by this staging workflow.
-              # A stopped instance is a failed staging artifact, never a port owner.
-              echo 'Removing the stopped staging API artifact before preflight.' >&2
-              docker rm -f "$api_container" >/dev/null
-            elif [ "$existing_running" = true ]; then
-              previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
-            fi
-
             # A loopback listener owned by anything other than this API is a
             # staging conflict, not permission to kill or replace that service.
             if ss -ltn '( sport = :18082 )' | grep -F "$api_port" >/dev/null; then
@@ -156,6 +146,16 @@ jobs:
               ss -ltnp '( sport = :18082 )' >&2 || true
               docker ps --format '{{.Names}} {{.Ports}} {{.Image}}' >&2
               exit 1
+            fi
+
+            existing_running="$(docker inspect --format '{{.State.Running}}' "$api_container" 2>/dev/null || true)"
+            if [ "$existing_running" = false ]; then
+              # The named API container is solely owned by this staging workflow.
+              # A stopped instance is a failed staging artifact, never a port owner.
+              echo 'Removing the stopped staging API artifact after preflight.' >&2
+              docker rm -f "$api_container" >/dev/null
+            elif [ "$existing_running" = true ]; then
+              previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
             fi
 
             # Read-only production guard: staging must not proceed if production
