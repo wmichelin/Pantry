@@ -1,5 +1,22 @@
 import { describe, expect, it } from "bun:test";
-import { extractIngredients } from "./recipe-fields";
+import { decodeHtmlEntities, extractIngredients } from "./recipe-fields";
+
+describe("decodeHtmlEntities", () => {
+  it("decodes decimal and hexadecimal Unicode entities", () => {
+    expect(decodeHtmlEntities("It doesn&#x27;t change &#39;plain text&#39; &#x1F383;"))
+      .toBe("It doesn't change 'plain text' 🎃");
+  });
+
+  it("preserves invalid Unicode numeric entities", () => {
+    expect(decodeHtmlEntities("&#0; &#xD800; &#x110000;"))
+      .toBe("&#0; &#xD800; &#x110000;");
+  });
+
+  it("returns markup-looking input as an inert string", () => {
+    expect(decodeHtmlEntities("&lt;img src=x onerror=alert(1)&gt;"))
+      .toBe("<img src=x onerror=alert(1)>");
+  });
+});
 
 describe("extractIngredients", () => {
   it("preserves repeated ingredients in their source order", () => {

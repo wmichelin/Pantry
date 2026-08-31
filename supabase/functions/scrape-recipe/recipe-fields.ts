@@ -1,6 +1,20 @@
 export function decodeHtmlEntities(value: string): string {
   return value
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (entity, hexCode, decimalCode) => {
+      const codePoint = parseInt(hexCode ?? decimalCode, hexCode ? 16 : 10);
+
+      // String.fromCodePoint throws for invalid Unicode scalar values. Preserve
+      // malformed entities as text instead of failing an otherwise valid import.
+      if (
+        codePoint === 0 ||
+        codePoint > 0x10ffff ||
+        (codePoint >= 0xd800 && codePoint <= 0xdfff)
+      ) {
+        return entity;
+      }
+
+      return String.fromCodePoint(codePoint);
+    })
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
