@@ -145,10 +145,12 @@ jobs:
             # A loopback listener owned by anything other than this API is a
             # staging conflict, not permission to kill or replace that service.
             if ss -ltn '( sport = :18083 )' | grep -F "$api_port" >/dev/null; then
-              echo 'Staging API port is already allocated; leaving its owner untouched.' >&2
-              ss -ltnp '( sport = :18083 )' >&2 || true
-              docker ps --format '{{.Names}} {{.Ports}} {{.Image}}' >&2
-              exit 1
+              if ! docker inspect --format '{{.State.Running}}' "$api_container" | grep -Fx true >/dev/null; then
+                echo 'Staging API port is already allocated; leaving its owner untouched.' >&2
+                ss -ltnp '( sport = :18083 )' >&2 || true
+                docker ps --format '{{.Names}} {{.Ports}} {{.Image}}' >&2
+                exit 1
+              fi
             fi
 
             existing_running="$(docker inspect --format '{{.State.Running}}' "$api_container" 2>/dev/null || true)"
