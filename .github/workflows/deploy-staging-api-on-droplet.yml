@@ -140,7 +140,24 @@ jobs:
             trap restore_previous_api EXIT
 
             if docker inspect "$api_container" >/dev/null 2>&1; then
-              previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
+              existing_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
+              existing_running="$(docker inspect --format '{{.State.Running}}' "$api_container")"
+              # Clean up only the stopped container created by a failed attempt
+              # of this exact immutable image. Never remove an unknown service.
+              if [ "$existing_image" = "$STAGING_API_IMAGE" ] && [ "$existing_running" = false ]; then
+                docker rm "$api_container" >/dev/null
+              else
+                previous_image="$existing_image"
+              fi
+            fi
+
+            # A loopback listener owned by anything other than this API is a
+            # staging conflict, not permission to kill or replace that service.
+            if ss -ltn '( sport = :18082 )' | grep -F "$api_port" >/dev/null; then
+              echo 'Staging API port is already allocated; leaving its owner untouched.' >&2
+              ss -ltnp '( sport = :18082 )' >&2 || true
+              docker ps --format '{{.Names}} {{.Ports}} {{.Image}}' >&2
+              exit 1
             fi
 
             # Read-only production guard: staging must not proceed if production
