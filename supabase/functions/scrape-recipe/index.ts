@@ -1,4 +1,5 @@
 import { load } from "npm:cheerio@1.0.0";
+import { createSupabaseContext } from "npm:@supabase/server@^1";
 import type { ScrapedRecipe, ScrapeResponse } from "../../lib/scrape-types.ts";
 import { decodeHtmlEntities, extractIngredients } from "./recipe-fields.ts";
 
@@ -13,6 +14,15 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
+  const { error: authError } = await createSupabaseContext(req, { auth: "user" });
+  if (authError) {
+    return json({ error: "Unauthorized" }, 401);
   }
 
   try {
