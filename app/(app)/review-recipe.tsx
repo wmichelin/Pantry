@@ -15,6 +15,7 @@ import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { parseIngredients } from "../../lib/parse-ingredient";
 import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
+import { toInstructionBlocks } from "../../lib/recipe-instructions";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
 
@@ -32,6 +33,7 @@ export default function ReviewRecipeScreen() {
   const [saving, setSaving] = useState(false);
 
   const parsedIngredients = parseIngredients(scraped.raw_ingredients);
+  const instructionBlocks = toInstructionBlocks(scraped.instructions);
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -160,6 +162,24 @@ export default function ReviewRecipeScreen() {
         ))
       )}
 
+      <Text style={styles.label}>Instructions</Text>
+      {instructionBlocks.length === 0 ? (
+        <Text style={styles.empty}>No instructions found.</Text>
+      ) : (
+        instructionBlocks.map((block, index) =>
+          block.type === "section" ? (
+            <Text key={`section-${index}`} style={styles.instructionSectionTitle}>
+              {block.title}
+            </Text>
+          ) : (
+            <View key={`step-${index}`} style={styles.instructionRow}>
+              <Text style={styles.stepNumber}>{block.number}.</Text>
+              <Text style={styles.instructionText}>{block.text}</Text>
+            </View>
+          )
+        )
+      )}
+
       <View style={styles.actions}>
         <Pressable
           style={[styles.saveButton, saving && styles.buttonDisabled]}
@@ -211,6 +231,24 @@ const styles = StyleSheet.create({
   ingredientRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
   bullet: { color: "#2f95dc", fontSize: 16, marginTop: 1 },
   ingredientText: { flex: 1, fontSize: 15 },
+  instructionSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 12,
+    marginBottom: 2,
+  },
+  instructionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: 6,
+  },
+  stepNumber: {
+    width: 30,
+    color: "#2f95dc",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  instructionText: { flex: 1, fontSize: 15, lineHeight: 22 },
   actions: { marginTop: 32, gap: 12 },
   saveButton: {
     backgroundColor: "#2f95dc",
