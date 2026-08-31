@@ -150,24 +150,17 @@ jobs:
             fi
 
             existing_running="$(docker inspect --format '{{.State.Running}}' "$api_container" 2>/dev/null || true)"
-            case "$existing_running" in
-              false)
-                # The named API container is solely owned by this staging workflow.
-                # A stopped instance is a failed staging artifact, never a port owner.
-                echo 'Removing the stopped staging API artifact after preflight.' >&2
-                docker rm -f "$api_container" >/dev/null
-                ;;
-              true)
-                previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
-                ;;
-              "")
-                :
-                ;;
-              *)
-                echo 'Staging API container has an unknown state; refusing deployment.' >&2
-                exit 1
-                ;;
-            esac
+            if [ "$existing_running" = false ]; then
+              # The named API container is solely owned by this staging workflow.
+              # A stopped instance is a failed staging artifact, never a port owner.
+              echo 'Removing the stopped staging API artifact after preflight.' >&2
+              docker rm -f "$api_container" >/dev/null
+            elif [ "$existing_running" = true ]; then
+              previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
+            elif [ -n "$existing_running" ]; then
+              echo 'Staging API container has an unknown state; refusing deployment.' >&2
+              exit 1
+            fi
 
             # Read-only production guard: staging must not proceed if production
             # is already unhealthy, but this workflow never reconfigures it.
