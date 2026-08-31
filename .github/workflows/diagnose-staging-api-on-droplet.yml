@@ -1,0 +1,49 @@
+name: Diagnose staging API host
+
+# Read-only staging diagnostics for a failed API deployment. This workflow does
+# not pull images, create containers, change Nginx, or contact a database.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: diagnose-staging-api
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Inspect staging API listener and container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report staging API ownership without changing it
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -eu
+
+            readonly api_container='pantry-api-staging'
+            readonly api_port='18082'
+
+            echo '== listener on 127.0.0.1:18082 =='
+            ss -ltnp "( sport = :${api_port} )" || true
+
+            echo '== Docker containers publishing 18082 =='
+            docker ps --all --filter "publish=${api_port}" \
+              --format '{{.Names}} | {{.Status}} | {{.Ports}} | {{.Image}}' || true
+
+            echo '== pantry-api-staging state (if present) =='
+            if docker inspect "$api_container" >/dev/null 2>&1; then
+              docker inspect --format 'state={{.State.Status}} running={{.State.Running}} image={{.Config.Image}}' "$api_container"
+            else
+              echo 'absent'
+            fi
+
+            echo '== staging web availability =='
+            curl --fail --silent --show-error --head --max-time 15 \
+              https://pantry-staging.waltermichelin.com/ | head -n 1
