@@ -2,17 +2,19 @@
 
 ## Status update
 
-Status: implementing
+Status: blocked
 Last completed: household landing read is deployed and owner/outsider RLS parity
 passed in staging.
-Now: characterize and execute every remaining compatibility gate.
-Next: establish staging-only schema-change access, then deliver household
-create/join as the first mutation slice.
+Now: the create/join transactional migration is prepared for isolated validation.
+Next: establish a reliable staging-only schema-change channel, validate and apply
+that migration, then deliver household create/join as the first mutation slice.
 Evidence: `f714753`, `7b67414`, and the successful staging RLS run
 `33411308060`.
-Staging: <https://pantry-staging.waltermichelin.com> (verified)
-Blocker: none yet; staging schema-change access is being verified. Production is
-out of scope.
+Staging: <https://pantry-staging.waltermichelin.com> (blocked for schema work;
+the deployed web/API read path remains verified)
+Blocker: the agent's Supabase MCP connection is unauthenticated and the attached
+staging SQL Editor browser control fails before query submission. No staging SQL
+was submitted. Production is out of scope.
 
 ## Delivery brief
 
