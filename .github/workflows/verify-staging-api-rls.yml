@@ -20,6 +20,7 @@ jobs:
     env:
       STAGING_SUPABASE_URL: https://fncsyvsgolbpviidmpuc.supabase.co
       STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      GO_RLS_RUN_ID: ${{ github.run_id }}
     steps:
       - name: Create isolated staging identities
         shell: bash
@@ -67,11 +68,11 @@ jobs:
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script_stop: true
-          envs: GO_RLS_OWNER_TOKEN,GO_RLS_OUTSIDER_TOKEN,GO_RLS_OUTSIDER_ID,STAGING_SUPABASE_ANON_KEY
+          envs: GO_RLS_OWNER_TOKEN,GO_RLS_OUTSIDER_TOKEN,GO_RLS_OUTSIDER_ID,GO_RLS_RUN_ID,STAGING_SUPABASE_ANON_KEY
           script: |
             set -euo pipefail
 
-            household_name="Go Household ${GITHUB_RUN_ID}"
+            household_name="Go Household ${GO_RLS_RUN_ID}"
             create_result="$(curl --fail --silent --show-error \
               --request POST http://127.0.0.1:18083/api/v1/households \
               --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
