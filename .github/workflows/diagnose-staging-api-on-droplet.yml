@@ -44,7 +44,7 @@ jobs:
             echo '== pantry-api-staging state (if present) =='
             api_state="$(docker inspect --format 'state={{.State.Status}} running={{.State.Running}} image={{.Config.Image}}' "$api_container" 2>/dev/null || true)"
             case "$api_state" in
-              '') echo 'absent' ;;
+              "") echo 'absent' ;;
               *) printf '%s\n' "$api_state" ;;
             esac
 

@@ -49,7 +49,7 @@ image and verify both staging routes before reporting the incident.
 ### Go API foundation (staging only)
 
 The Go port begins as a separate `pantry-api-staging` container bound only to
-`127.0.0.1:18082`. Use **Actions → Deploy Go API foundation to staging → Run
+`127.0.0.1:18083`. Use **Actions → Deploy Go API foundation to staging → Run
 workflow** to publish an immutable
 `ghcr.io/wmichelin/pantry:staging-api-<full-commit-sha>` image and probe its
 loopback `/healthz` and `/readyz` endpoints.

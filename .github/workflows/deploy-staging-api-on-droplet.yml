@@ -96,16 +96,17 @@ jobs:
             fi
 
             readonly api_container='pantry-api-staging'
-            readonly api_port='127.0.0.1:18082'
+            # 18082 is assigned to the unrelated clubdue staging service.
+            readonly api_port='127.0.0.1:18083'
             readonly production_container='pantry'
             previous_image=''
             replacement_started=false
 
             wait_for_api() {
               for attempt in $(seq 1 15); do
-                if curl --fail --silent --show-error http://127.0.0.1:18082/healthz >/dev/null \
-                  && curl --fail --silent --show-error http://127.0.0.1:18082/readyz >/dev/null; then
-                  ss -ltn '( sport = :18082 )' | grep -F "$api_port"
+                if curl --fail --silent --show-error http://127.0.0.1:18083/healthz >/dev/null \
+                  && curl --fail --silent --show-error http://127.0.0.1:18083/readyz >/dev/null; then
+                  ss -ltn '( sport = :18083 )' | grep -F "$api_port"
                   return 0
                 fi
                 sleep 2
@@ -141,22 +142,31 @@ jobs:
 
             # A loopback listener owned by anything other than this API is a
             # staging conflict, not permission to kill or replace that service.
-            if ss -ltn '( sport = :18082 )' | grep -F "$api_port" >/dev/null; then
+            if ss -ltn '( sport = :18083 )' | grep -F "$api_port" >/dev/null; then
               echo 'Staging API port is already allocated; leaving its owner untouched.' >&2
-              ss -ltnp '( sport = :18082 )' >&2 || true
+              ss -ltnp '( sport = :18083 )' >&2 || true
               docker ps --format '{{.Names}} {{.Ports}} {{.Image}}' >&2
               exit 1
             fi
 
             existing_running="$(docker inspect --format '{{.State.Running}}' "$api_container" 2>/dev/null || true)"
-            if [ "$existing_running" = false ]; then
-              # The named API container is solely owned by this staging workflow.
-              # A stopped instance is a failed staging artifact, never a port owner.
-              echo 'Removing the stopped staging API artifact after preflight.' >&2
-              docker rm -f "$api_container" >/dev/null
-            elif [ "$existing_running" = true ]; then
-              previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
-            fi
+            case "$existing_running" in
+              false)
+                # The named API container is solely owned by this staging workflow.
+                # A stopped instance is a failed staging artifact, never a port owner.
+                echo 'Removing the stopped staging API artifact after preflight.' >&2
+                docker rm -f "$api_container" >/dev/null
+                ;;
+              true)
+                previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
+                ;;
+              '')
+                ;;
+              *)
+                echo 'Staging API container has an unknown state; refusing deployment.' >&2
+                exit 1
+                ;;
+            esac
 
             # Read-only production guard: staging must not proceed if production
             # is already unhealthy, but this workflow never reconfigures it.
