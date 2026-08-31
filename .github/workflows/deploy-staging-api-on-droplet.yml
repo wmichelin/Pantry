@@ -1,0 +1,169 @@
+name: Deploy Go API foundation to staging
+
+# This delivers only the loopback-bound Go foundation. It does not change Nginx,
+# expose /api, alter the Expo client, or contact a database.
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Git ref to build for staging"
+        required: true
+        default: main
+        type: string
+      rollback_image:
+        description: "Optional prior ghcr.io/wmichelin/pantry:staging-api-<40-char-sha> image"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: deploy-staging-api
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build immutable Go API image
+    if: ${{ inputs.rollback_image == '' }}
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Derive immutable staging API tag
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
+          printf 'image=ghcr.io/%s/pantry:staging-api-%s\n' "${{ github.repository_owner }}" "$source_sha" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Build and push staging API foundation
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.image }}
+
+  deploy:
+    name: Deploy and probe loopback API only
+    needs: build
+    if: ${{ always() && (inputs.rollback_image != '' || needs.build.result == 'success') }}
+    runs-on: ubuntu-latest
+    env:
+      STAGING_API_IMAGE: ${{ inputs.rollback_image || needs.build.outputs.image }}
+      STAGING_API_SUPABASE_URL: ${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_URL }}
+      GHCR_USER: ${{ github.repository_owner }}
+      GHCR_PAT: ${{ secrets.GHCR_PAT }}
+    steps:
+      - name: Replace only the loopback API foundation
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script_stop: true
+          envs: STAGING_API_IMAGE,STAGING_API_SUPABASE_URL,GHCR_USER,GHCR_PAT
+          script: |
+            set -euo pipefail
+
+            if ! printf '%s' "$STAGING_API_IMAGE" | grep -Eq '^ghcr\.io/wmichelin/pantry:staging-api-[0-9a-f]{40}$'; then
+              echo 'STAGING_API_IMAGE must be an immutable Pantry staging API SHA tag.' >&2
+              exit 1
+            fi
+            if ! printf '%s' "$STAGING_API_SUPABASE_URL" | grep -Eq '^https://[^/]+$'; then
+              echo 'STAGING_API_SUPABASE_URL must be a HTTPS origin.' >&2
+              exit 1
+            fi
+
+            readonly api_container='pantry-api-staging'
+            readonly api_port='127.0.0.1:18082'
+            readonly production_container='pantry'
+            previous_image=''
+            replacement_started=false
+
+            wait_for_api() {
+              for attempt in $(seq 1 15); do
+                if curl --fail --silent --show-error http://127.0.0.1:18082/healthz >/dev/null \
+                  && curl --fail --silent --show-error http://127.0.0.1:18082/readyz >/dev/null; then
+                  ss -ltn '( sport = :18082 )' | grep -F "$api_port"
+                  return 0
+                fi
+                sleep 2
+              done
+              echo 'Staging API did not become healthy on loopback.' >&2
+              return 1
+            }
+
+            restore_previous_api() {
+              exit_code="$?"
+              trap - EXIT
+              if [ "$exit_code" -ne 0 ] && [ "$replacement_started" = true ]; then
+                set +e
+                docker rm -f "$api_container" >/dev/null 2>&1
+                if [ -n "$previous_image" ]; then
+                  echo 'Staging API validation failed; restoring the previous API image.' >&2
+                  docker pull "$previous_image"
+                  docker run -d \
+                    --name "$api_container" \
+                    --restart unless-stopped \
+                    --read-only \
+                    --cap-drop ALL \
+                    --security-opt no-new-privileges \
+                    --publish "$api_port:8080" \
+                    --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
+                    "$previous_image" >/dev/null
+                  wait_for_api || echo 'Could not verify the restored staging API image.' >&2
+                fi
+              fi
+              exit "$exit_code"
+            }
+            trap restore_previous_api EXIT
+
+            if docker inspect "$api_container" >/dev/null 2>&1; then
+              previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
+            fi
+
+            # Read-only production guard: staging must not proceed if production
+            # is already unhealthy, but this workflow never reconfigures it.
+            if ! docker inspect --format '{{.State.Running}}' "$production_container" | grep -Fx true >/dev/null; then
+              echo 'Production container is not healthy; refusing staging API deployment.' >&2
+              exit 1
+            fi
+
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker pull "$STAGING_API_IMAGE"
+            docker rm -f "$api_container" >/dev/null 2>&1 || true
+            docker run -d \
+              --name "$api_container" \
+              --restart unless-stopped \
+              --read-only \
+              --cap-drop ALL \
+              --security-opt no-new-privileges \
+              --publish "$api_port:8080" \
+              --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
+              "$STAGING_API_IMAGE" >/dev/null
+            replacement_started=true
+
+            wait_for_api
+            docker ps --filter "name=^/${api_container}$" --format '{{.Names}} {{.Status}} {{.Ports}} {{.Image}}'
+            trap - EXIT
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}

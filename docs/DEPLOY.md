@@ -46,6 +46,25 @@ Before a material staging change, record the current image as the last known-goo
 rollback target. If a staging deployment cannot be repaired forward, restore that
 image and verify both staging routes before reporting the incident.
 
+### Go API foundation (staging only)
+
+The Go port begins as a separate `pantry-api-staging` container bound only to
+`127.0.0.1:18082`. Use **Actions → Deploy Go API foundation to staging → Run
+workflow** to publish an immutable
+`ghcr.io/wmichelin/pantry:staging-api-<full-commit-sha>` image and probe its
+loopback `/healthz` and `/readyz` endpoints.
+
+This foundational deployment deliberately does not add an Nginx route, change
+the Expo client, add database credentials, run migrations, or make a production
+change. The container receives only `PANTRY_API_SUPABASE_URL` at runtime. It
+verifies user JWTs using the Supabase JWKS endpoint, but authenticated business
+routes remain unavailable until the staging RLS/database feasibility gate and
+operation-parity suite have passed.
+
+The workflow accepts a strict immutable API rollback tag and restores the prior
+API image if its health probes fail. If no prior API image exists, it removes the
+failed new API container; the existing staging web service remains untouched.
+
 ## Production
 
 Production remains a separate, explicit action through **Actions → Deploy** and
