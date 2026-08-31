@@ -145,7 +145,12 @@ jobs:
               # Clean up only the stopped container created by a failed attempt
               # of this exact immutable image. Never remove an unknown service.
               if [ "$existing_image" = "$STAGING_API_IMAGE" ] && [ "$existing_running" = false ]; then
-                docker rm "$api_container" >/dev/null
+                echo 'Removing only the stopped API container from this failed deployment.' >&2
+                if ! docker rm -f "$api_container"; then
+                  echo 'Could not remove the known failed staging API container.' >&2
+                  docker inspect "$api_container" >&2 || true
+                  exit 1
+                fi
               else
                 previous_image="$existing_image"
               fi
