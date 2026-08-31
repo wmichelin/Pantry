@@ -139,22 +139,14 @@ jobs:
             }
             trap restore_previous_api EXIT
 
-            existing_info="$(docker inspect --format '{{.Config.Image}}|{{.State.Running}}' "$api_container" 2>/dev/null || true)"
-            if [ -n "$existing_info" ]; then
-              existing_image="${existing_info%|*}"
-              existing_running="${existing_info##*|}"
-              # Clean up only the stopped container created by a failed attempt
-              # of this exact immutable image. Never remove an unknown service.
-              if [ "$existing_image" = "$STAGING_API_IMAGE" ] && [ "$existing_running" = false ]; then
-                echo 'Removing only the stopped API container from this failed deployment.' >&2
-                if ! docker rm -f "$api_container"; then
-                  echo 'Could not remove the known failed staging API container.' >&2
-                  docker inspect "$api_container" >&2 || true
-                  exit 1
-                fi
-              else
-                previous_image="$existing_image"
-              fi
+            existing_running="$(docker inspect --format '{{.State.Running}}' "$api_container" 2>/dev/null || true)"
+            if [ "$existing_running" = false ]; then
+              # The named API container is solely owned by this staging workflow.
+              # A stopped instance is a failed staging artifact, never a port owner.
+              echo 'Removing the stopped staging API artifact before preflight.' >&2
+              docker rm -f "$api_container" >/dev/null
+            elif [ "$existing_running" = true ]; then
+              previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
             fi
 
             # A loopback listener owned by anything other than this API is a
