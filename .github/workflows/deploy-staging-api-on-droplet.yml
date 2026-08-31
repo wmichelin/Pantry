@@ -139,9 +139,10 @@ jobs:
             }
             trap restore_previous_api EXIT
 
-            if docker inspect "$api_container" >/dev/null 2>&1; then
-              existing_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
-              existing_running="$(docker inspect --format '{{.State.Running}}' "$api_container")"
+            existing_info="$(docker inspect --format '{{.Config.Image}}|{{.State.Running}}' "$api_container" 2>/dev/null || true)"
+            if [ -n "$existing_info" ]; then
+              existing_image="${existing_info%|*}"
+              existing_running="${existing_info##*|}"
               # Clean up only the stopped container created by a failed attempt
               # of this exact immutable image. Never remove an unknown service.
               if [ "$existing_image" = "$STAGING_API_IMAGE" ] && [ "$existing_running" = false ]; then
