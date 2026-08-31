@@ -33,17 +33,26 @@ jobs:
             local email="go-port-rls-${GITHUB_RUN_ID}-${suffix}@example.invalid"
             local password
             local response
+            local status
+            local body
             local token
             local user_id
 
             password="$(openssl rand -hex 24)"
-            response="$(curl --fail --silent --show-error \
+            response="$(curl --silent --show-error --write-out '\n%{http_code}' \
               --request POST "${STAGING_SUPABASE_URL}/auth/v1/signup" \
               --header "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
               --header 'Content-Type: application/json' \
               --data "$(jq -nc --arg email "$email" --arg password "$password" '{email: $email, password: $password}')")"
-            token="$(printf '%s' "$response" | jq -er '.access_token')"
-            user_id="$(printf '%s' "$response" | jq -er '.user.id')"
+            status="${response##*$'\n'}"
+            body="${response%$'\n'*}"
+            if [ "$status" != 200 ]; then
+              error_code="$(printf '%s' "$body" | jq -r '.code // .error // "unknown"')"
+              echo "Staging Auth rejected an isolated test signup: status=${status} code=${error_code}" >&2
+              exit 1
+            fi
+            token="$(printf '%s' "$body" | jq -er '.access_token')"
+            user_id="$(printf '%s' "$body" | jq -er '.user.id')"
             printf -v "$token_variable" '%s' "$token"
             printf -v "$id_variable" '%s' "$user_id"
             printf '%s=%s\n' "$token_variable" "$token" >> "$GITHUB_ENV"
