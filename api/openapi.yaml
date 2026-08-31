@@ -4,10 +4,10 @@ info:
   version: 0.1.0
   description: |
     Foundation contract for the staged Go port. Only health, readiness,
-    verified-identity, and read-only household-membership endpoints are
-    implemented in this revision. Household,
-    recipe, shopping, and scrape capabilities remain on their existing client
-    paths until each has passed the compatibility gates in contracts/compatibility.md.
+    verified-identity, household-read, and atomic household membership endpoints
+    are implemented in this revision. Recipe, shopping, and scrape capabilities
+    remain on their existing client paths until each has passed the compatibility
+    gates in contracts/compatibility.md.
 paths:
   /healthz:
     get:
@@ -39,6 +39,45 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '502':
           description: Supabase REST was unavailable or rejected the request.
+    post:
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHouseholdRequest'
+      responses:
+        '201':
+          description: Household and caller owner membership were created atomically.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '502':
+          description: Supabase REST was unavailable or rejected the request.
+  /api/v1/household-joins:
+    post:
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinHouseholdRequest'
+      responses:
+        '200':
+          description: Caller joined using a valid invite, or was already a member.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Invite code was invalid, expired, or revoked.
+        '502':
+          description: Supabase REST was unavailable or rejected the request.
   /api/v1/membership:
     get:
       security:
@@ -64,6 +103,22 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
   schemas:
+    CreateHouseholdRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        display_name:
+          type: string
+    JoinHouseholdRequest:
+      type: object
+      required: [invite_code]
+      properties:
+        invite_code:
+          type: string
+        display_name:
+          type: string
     Problem:
       type: object
       required: [code, message]

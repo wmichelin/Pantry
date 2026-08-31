@@ -31,7 +31,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           httpapi.New(verifier, households, households, slog.Default()),
+		Handler:           httpapi.New(verifier, households, households, households, households, slog.Default()),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,

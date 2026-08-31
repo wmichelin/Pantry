@@ -10,6 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
+import { createHousehold, stagingAPIOrigin } from "../../lib/pantry-api";
 
 function generateInviteCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -21,7 +22,7 @@ function generateInviteCode(): string {
 }
 
 export default function CreateHouseholdScreen() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,9 +31,31 @@ export default function CreateHouseholdScreen() {
     if (!name.trim()) return;
     setLoading(true);
 
-    const inviteCode = generateInviteCode();
     const displayName =
       user?.user_metadata?.display_name ?? user?.email ?? "Owner";
+
+    const apiURL = stagingAPIOrigin();
+    if (apiURL && session?.access_token) {
+      try {
+        const household = await createHousehold(
+          apiURL,
+          session.access_token,
+          name.trim(),
+          displayName
+        );
+        setLoading(false);
+        router.replace({
+          pathname: "/(app)/household",
+          params: { id: household.id },
+        });
+      } catch (error) {
+        setLoading(false);
+        Alert.alert("Error", error instanceof Error ? error.message : "Could not create household.");
+      }
+      return;
+    }
+
+    const inviteCode = generateInviteCode();
 
     const { data: household, error: hError } = await supabase
       .from("households")

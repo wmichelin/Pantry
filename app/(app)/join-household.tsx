@@ -11,9 +11,10 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { showError } from "../../lib/db";
+import { joinHousehold, stagingAPIOrigin } from "../../lib/pantry-api";
 
 export default function JoinHouseholdScreen() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,6 +23,33 @@ export default function JoinHouseholdScreen() {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
     setLoading(true);
+
+    const displayName =
+      user?.user_metadata?.display_name ?? user?.email ?? "Member";
+    const apiURL = stagingAPIOrigin();
+    if (apiURL && session?.access_token) {
+      try {
+        const household = await joinHousehold(
+          apiURL,
+          session.access_token,
+          trimmed,
+          displayName
+        );
+        setLoading(false);
+        if (household.already_member) {
+          Alert.alert("Already a member", "You're already in this household.");
+          return;
+        }
+        router.replace({
+          pathname: "/(app)/household",
+          params: { id: household.id },
+        });
+      } catch (error) {
+        setLoading(false);
+        Alert.alert("Error", error instanceof Error ? error.message : "Could not join household.");
+      }
+      return;
+    }
 
     // Exact-match lookup via a SECURITY DEFINER RPC so households are not broadly
     // readable (see migration 20260613000004_secure_invite_lookup).
@@ -42,9 +70,6 @@ export default function JoinHouseholdScreen() {
       Alert.alert("Not Found", "No household found with that invite code.");
       return;
     }
-
-    const displayName =
-      user?.user_metadata?.display_name ?? user?.email ?? "Member";
 
     const { error: joinError } = await supabase
       .from("household_members")
@@ -77,11 +102,11 @@ export default function JoinHouseholdScreen() {
       <Text style={styles.label}>Invite Code</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter 6-character code"
+        placeholder="Enter invite code"
         value={code}
         onChangeText={setCode}
         autoCapitalize="characters"
-        maxLength={6}
+        maxLength={32}
         autoFocus
       />
 

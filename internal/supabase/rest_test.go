@@ -1,8 +1,10 @@
 package supabase
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -61,5 +63,74 @@ func TestRESTClientFindMembershipForwardsVerifiedCallerIdentity(t *testing.T) {
 	}
 	if membership == nil || membership.Role != "owner" || membership.Household.ID != "household-1" {
 		t.Fatalf("FindMembership() = %#v", membership)
+	}
+}
+
+func TestRESTClientHouseholdOperationsUseCallerJWTForRPC(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		body string
+		run  func(*RESTClient) error
+	}{
+		{
+			name: "create",
+			path: "/rest/v1/rpc/create_household",
+			body: `{"p_name":"Pantry","p_display_name":"Owner"}`,
+			run: func(client *RESTClient) error {
+				created, err := client.CreateHousehold(t.Context(), "user-access-token", "Pantry", "Owner")
+				if err == nil && (created == nil || created.InviteCode != "INVITE") {
+					t.Fatalf("created = %#v", created)
+				}
+				return err
+			},
+		},
+		{
+			name: "join",
+			path: "/rest/v1/rpc/join_household_by_invite",
+			body: `{"p_code":"INVITE","p_display_name":"Member"}`,
+			run: func(client *RESTClient) error {
+				joined, err := client.JoinHouseholdByInvite(t.Context(), "user-access-token", "INVITE", "Member")
+				if err == nil && (joined == nil || !joined.AlreadyMember) {
+					t.Fatalf("joined = %#v", joined)
+				}
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				if request.URL.Path != tt.path {
+					t.Fatalf("path = %q, want %q", request.URL.Path, tt.path)
+				}
+				if request.Header.Get("Authorization") != "Bearer user-access-token" || request.Header.Get("apikey") != "anon-key" {
+					t.Fatalf("operation did not preserve caller-only credentials")
+				}
+				var got any
+				if err := json.NewDecoder(request.Body).Decode(&got); err != nil {
+					t.Fatalf("decode request: %v", err)
+				}
+				var want any
+				if err := json.Unmarshal([]byte(tt.body), &want); err != nil {
+					t.Fatalf("decode expected request: %v", err)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("RPC request = %#v, want %#v", got, want)
+				}
+				writer.Header().Set("Content-Type", "application/json")
+				if tt.name == "create" {
+					_, _ = writer.Write([]byte(`[{"id":"household-1","name":"Pantry","invite_code":"INVITE"}]`))
+					return
+				}
+				_, _ = writer.Write([]byte(`[{"id":"household-1","name":"Pantry","already_member":true}]`))
+			}))
+			defer server.Close()
+
+			if err := tt.run(NewRESTClient(server.URL, "anon-key")); err != nil {
+				t.Fatalf("RPC operation error = %v", err)
+			}
+		})
 	}
 }

@@ -3,8 +3,11 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/wmichelin/Pantry/internal/authn"
@@ -15,17 +18,21 @@ type Server struct {
 	verifier    authn.Verifier
 	households  supabase.HouseholdReader
 	memberships supabase.MembershipReader
+	creator     supabase.HouseholdCreator
+	joiner      supabase.HouseholdJoiner
 	logger      *slog.Logger
 }
 
-func New(verifier authn.Verifier, households supabase.HouseholdReader, memberships supabase.MembershipReader, logger *slog.Logger) http.Handler {
-	server := Server{verifier: verifier, households: households, memberships: memberships, logger: logger}
+func New(verifier authn.Verifier, households supabase.HouseholdReader, memberships supabase.MembershipReader, creator supabase.HouseholdCreator, joiner supabase.HouseholdJoiner, logger *slog.Logger) http.Handler {
+	server := Server{verifier: verifier, households: households, memberships: memberships, creator: creator, joiner: joiner, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /readyz", server.ready)
 	mux.HandleFunc("GET /api/v1/whoami", server.whoAmI)
 	mux.HandleFunc("GET /api/v1/households", server.listHouseholds)
 	mux.HandleFunc("GET /api/v1/membership", server.findMembership)
+	mux.HandleFunc("POST /api/v1/households", server.createHousehold)
+	mux.HandleFunc("POST /api/v1/household-joins", server.joinHousehold)
 	return server.withRequestLog(mux)
 }
 
@@ -85,6 +92,84 @@ func (server Server) findMembership(writer http.ResponseWriter, request *http.Re
 		return
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"membership": membership})
+}
+
+type createHouseholdRequest struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+}
+
+func (server Server) createHousehold(writer http.ResponseWriter, request *http.Request) {
+	accessToken, ok := server.requireVerifiedAccessToken(writer, request)
+	if !ok {
+		return
+	}
+	var input createHouseholdRequest
+	if !decodeJSON(writer, request, &input) || strings.TrimSpace(input.Name) == "" {
+		writeProblem(writer, http.StatusBadRequest, "invalid_request", "A household name is required.")
+		return
+	}
+	household, err := server.creator.CreateHousehold(request.Context(), accessToken, input.Name, input.DisplayName)
+	if err != nil {
+		server.logger.ErrorContext(request.Context(), "create household", "error", err)
+		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not create the household right now.")
+		return
+	}
+	writeJSON(writer, http.StatusCreated, map[string]any{"household": household})
+}
+
+type joinHouseholdRequest struct {
+	InviteCode  string `json:"invite_code"`
+	DisplayName string `json:"display_name"`
+}
+
+func (server Server) joinHousehold(writer http.ResponseWriter, request *http.Request) {
+	accessToken, ok := server.requireVerifiedAccessToken(writer, request)
+	if !ok {
+		return
+	}
+	var input joinHouseholdRequest
+	if !decodeJSON(writer, request, &input) || strings.TrimSpace(input.InviteCode) == "" {
+		writeProblem(writer, http.StatusBadRequest, "invalid_request", "An invite code is required.")
+		return
+	}
+	household, err := server.joiner.JoinHouseholdByInvite(request.Context(), accessToken, input.InviteCode, input.DisplayName)
+	if err != nil {
+		server.logger.ErrorContext(request.Context(), "join household", "error", err)
+		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not join that household right now.")
+		return
+	}
+	if household == nil {
+		writeProblem(writer, http.StatusNotFound, "invite_not_found", "No household found with that invite code.")
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"household": household})
+}
+
+func (server Server) requireVerifiedAccessToken(writer http.ResponseWriter, request *http.Request) (string, bool) {
+	accessToken, err := authn.BearerToken(request.Header)
+	if err != nil {
+		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
+		return "", false
+	}
+	if _, err := authn.RequirePrincipal(request.Context(), request.Header, server.verifier); err != nil {
+		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
+		return "", false
+	}
+	return accessToken, true
+}
+
+func decodeJSON(writer http.ResponseWriter, request *http.Request, destination any) bool {
+	request.Body = http.MaxBytesReader(writer, request.Body, 16<<10)
+	decoder := json.NewDecoder(request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		return false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return false
+	}
+	return true
 }
 
 func (server Server) withRequestLog(next http.Handler) http.Handler {

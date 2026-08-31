@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { findMembership } from "../pantry-api";
+import { createHousehold, findMembership, joinHousehold } from "../pantry-api";
 
 describe("findMembership", () => {
   it("sends the current session token only to the configured API origin", async () => {
@@ -47,5 +47,52 @@ describe("findMembership", () => {
         new Response("upstream unavailable", { status: 502 })
       )
     ).rejects.toThrow("Couldn’t load your household.");
+  });
+});
+
+describe("household mutation API", () => {
+  it("creates through the staging API with the current session token", async () => {
+    let request: RequestInit | undefined;
+    const household = await createHousehold(
+      "https://pantry-staging.waltermichelin.com",
+      "test-access-token",
+      "Pantry",
+      "Owner",
+      async (_input, init) => {
+        request = init;
+        return new Response(
+          JSON.stringify({ household: { id: "household-1", name: "Pantry", invite_code: "INVITE" } }),
+          { status: 201 }
+        );
+      }
+    );
+    expect(new Headers(request?.headers).get("Authorization")).toBe("Bearer test-access-token");
+    expect(request?.body).toBe(JSON.stringify({ name: "Pantry", display_name: "Owner" }));
+    expect(household.invite_code).toBe("INVITE");
+  });
+
+  it("distinguishes an idempotent join from an invalid payload", async () => {
+    await expect(
+      joinHousehold(
+        "https://pantry-staging.waltermichelin.com",
+        "test-access-token",
+        "INVITE",
+        "Member",
+        async () =>
+          new Response(
+            JSON.stringify({ household: { id: "household-1", name: "Pantry", already_member: true } }),
+            { status: 200 }
+          )
+      )
+    ).resolves.toMatchObject({ already_member: true });
+    await expect(
+      joinHousehold(
+        "https://pantry-staging.waltermichelin.com",
+        "test-access-token",
+        "INVITE",
+        "Member",
+        async () => new Response(JSON.stringify({ household: {} }), { status: 200 })
+      )
+    ).rejects.toThrow("invalid household response");
   });
 });
