@@ -2,19 +2,16 @@
 
 ## Status update
 
-Status: blocked
-Last completed: household landing read is deployed and owner/outsider RLS parity
-passed in staging.
-Now: the create/join transactional migration is prepared for isolated validation.
-Next: establish a reliable staging-only schema-change channel, validate and apply
-that migration, then deliver household create/join as the first mutation slice.
-Evidence: `f714753`, `7b67414`, and the successful staging RLS run
-`33411308060`.
-Staging: <https://pantry-staging.waltermichelin.com> (blocked for schema work;
-the deployed web/API read path remains verified)
-Blocker: the agent's Supabase MCP connection is unauthenticated and the attached
-staging SQL Editor browser control fails before query submission. No staging SQL
-was submitted. Production is out of scope.
+Status: in progress
+Last completed: household landing read plus atomic household create/join are
+deployed and verified in staging.
+Now: recipe create/import is the next mutation slice; board, queue/shopping, and
+scrape remain on their legacy client paths.
+Evidence: `f714753`, `c4aea57`, `2216672`; staging API deployment `33421960167`,
+staging web deployment `33422057442`, and complete create/join acceptance run
+`33422287101`. The public staging client also completed a new-account and
+create-household primary-path smoke test.
+Staging: <https://pantry-staging.waltermichelin.com>. Production is excluded.
 
 ## Delivery brief
 
@@ -101,8 +98,8 @@ production promotion is implied.
 | --- | --- | --- | --- | --- |
 | Auth/session | `lib/auth-context.tsx` | valid, expired, malformed, wrong-role JWT | Foundation verified | remove API-origin build value |
 | Household landing read | `app/(app)/index.tsx` | owner projection, outsider null, anonymous `401` | Verified | staging web image rollback |
-| Household create | `create-household.tsx` | owner/member/outsider, collision, member-write failure, retry | Defined | API/web image and additive migration rollback |
-| Household join | `join-household.tsx` | valid/invalid/expired/revoked invite, duplicate, outsider isolation | Defined | API/web image and additive migration rollback |
+| Household create | `create-household.tsx` | owner membership, caller-only JWT forwarding, direct-write rejection, retry-safe API response | Verified in staging | API/web image and additive migration rollback |
+| Household join | `join-household.tsx` | valid/invalid invite, duplicate, outsider isolation, anonymous rejection | Verified in staging | API/web image and additive migration rollback |
 | Recipe create/import | `create-recipe.tsx`, `review-recipe.tsx` | persisted recipe/ingredients, catalog behavior, injected failure | Defined | API/web image rollback |
 | Board import | `review-board.tsx` | per-recipe result and saved/failed summary | Defined | API/web image rollback |
 | Queue/shopping mutations | `household.tsx`, `week-queue.tsx`, `shopping-list.tsx` | owner/member/outsider projection, clear/mutation failure, retry | Defined | API/web image rollback |
