@@ -160,7 +160,7 @@ jobs:
               true)
                 previous_image="$(docker inspect --format '{{.Config.Image}}' "$api_container")"
                 ;;
-              '')
+              "")
                 ;;
               *)
                 echo 'Staging API container has an unknown state; refusing deployment.' >&2
