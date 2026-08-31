@@ -69,7 +69,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       STAGING_API_IMAGE: ${{ inputs.rollback_image || needs.build.outputs.image }}
-      STAGING_API_SUPABASE_URL: ${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_URL }}
+      # The project origin is public configuration, not a credential. Keeping it
+      # explicit avoids coupling API recovery to the web build-secret inventory.
+      STAGING_API_SUPABASE_URL: https://fncsyvsgolbpviidmpuc.supabase.co
       GHCR_USER: ${{ github.repository_owner }}
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
     steps:
