@@ -1,0 +1,108 @@
+name: Verify staging Go API RLS
+
+# This staging-only feasibility check creates per-run test identities and a
+# household through the current Supabase REST path, then proves that the Go API
+# observes the same owner/outsider RLS boundary. It never targets production.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-staging-api-rls
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Prove owner and outsider RLS behavior
+    runs-on: ubuntu-latest
+    env:
+      STAGING_SUPABASE_URL: https://fncsyvsgolbpviidmpuc.supabase.co
+      STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Create isolated staging fixtures through the legacy REST path
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          create_identity() {
+            local suffix="$1"
+            local token_variable="$2"
+            local id_variable="$3"
+            local email="go-port-rls-${GITHUB_RUN_ID}-${suffix}@example.invalid"
+            local password
+            local response
+            local token
+            local user_id
+
+            password="$(openssl rand -hex 24)"
+            response="$(curl --fail --silent --show-error \
+              --request POST "${STAGING_SUPABASE_URL}/auth/v1/signup" \
+              --header "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
+              --header 'Content-Type: application/json' \
+              --data "$(jq -nc --arg email "$email" --arg password "$password" '{email: $email, password: $password}')")"
+            token="$(printf '%s' "$response" | jq -er '.access_token')"
+            user_id="$(printf '%s' "$response" | jq -er '.user.id')"
+            printf -v "$token_variable" '%s' "$token"
+            printf -v "$id_variable" '%s' "$user_id"
+            printf '%s=%s\n' "$token_variable" "$token" >> "$GITHUB_ENV"
+            printf '%s=%s\n' "$id_variable" "$user_id" >> "$GITHUB_ENV"
+          }
+
+          create_identity owner GO_RLS_OWNER_TOKEN GO_RLS_OWNER_ID
+          create_identity outsider GO_RLS_OUTSIDER_TOKEN GO_RLS_OUTSIDER_ID
+
+          household_name="Go RLS ${GITHUB_RUN_ID}"
+          invite_code="GORLS${GITHUB_RUN_ID}"
+          household_response="$(curl --fail --silent --show-error \
+            --request POST "${STAGING_SUPABASE_URL}/rest/v1/households" \
+            --header "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
+            --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --header 'Prefer: return=representation' \
+            --data "$(jq -nc --arg name "$household_name" --arg invite "$invite_code" --arg user "$GO_RLS_OWNER_ID" '{name: $name, invite_code: $invite, created_by: $user}')")"
+          household_id="$(printf '%s' "$household_response" | jq -er '.[0].id')"
+
+          curl --fail --silent --show-error \
+            --request POST "${STAGING_SUPABASE_URL}/rest/v1/household_members" \
+            --header "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
+            --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data "$(jq -nc --arg household "$household_id" --arg user "$GO_RLS_OWNER_ID" '{household_id: $household, user_id: $user, display_name: "Go RLS owner", role: "owner"}')" \
+            >/dev/null
+
+          outsider_result="$(curl --fail --silent --show-error --get \
+            --data-urlencode "name=eq.${household_name}" \
+            "${STAGING_SUPABASE_URL}/rest/v1/households" \
+            --header "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
+            --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}")"
+          printf '%s' "$outsider_result" | jq -e 'length == 0' >/dev/null
+          printf 'GO_RLS_HOUSEHOLD_NAME=%s\n' "$household_name" >> "$GITHUB_ENV"
+
+      - name: Prove the Go API has the same RLS view
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script_stop: true
+          envs: GO_RLS_OWNER_TOKEN,GO_RLS_OUTSIDER_TOKEN,GO_RLS_HOUSEHOLD_NAME
+          script: |
+            set -euo pipefail
+
+            owner_result="$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
+              http://127.0.0.1:18083/api/v1/households)"
+            if ! printf '%s' "$owner_result" | grep -F -- "$GO_RLS_HOUSEHOLD_NAME" >/dev/null; then
+              echo 'Owner household was not visible through the Go API.' >&2
+              exit 1
+            fi
+
+            outsider_result="$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}" \
+              http://127.0.0.1:18083/api/v1/households)"
+            if printf '%s' "$outsider_result" | grep -F -- "$GO_RLS_HOUSEHOLD_NAME" >/dev/null; then
+              echo 'Outsider household visibility escaped RLS through the Go API.' >&2
+              exit 1
+            fi

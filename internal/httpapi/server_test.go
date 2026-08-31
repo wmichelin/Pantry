@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/wmichelin/Pantry/internal/authn"
+	"github.com/wmichelin/Pantry/internal/supabase"
 )
 
 type verifierStub struct {
@@ -20,6 +21,17 @@ type verifierStub struct {
 
 func (stub verifierStub) Verify(context.Context, string) (authn.Principal, error) {
 	return stub.principal, stub.err
+}
+
+type householdReaderStub struct {
+	households []supabase.Household
+	err        error
+	token      string
+}
+
+func (stub *householdReaderStub) ListHouseholds(_ context.Context, token string) ([]supabase.Household, error) {
+	stub.token = token
+	return stub.households, stub.err
 }
 
 func TestFoundationRoutes(t *testing.T) {
@@ -40,7 +52,7 @@ func TestFoundationRoutes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New(tt.verifier, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			handler := New(tt.verifier, &householdReaderStub{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			request := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			if tt.header != "" {
 				request.Header.Set("Authorization", tt.header)
@@ -62,6 +74,25 @@ func TestFoundationRoutes(t *testing.T) {
 				t.Fatalf("body = %s, want %s", response.Body.String(), tt.wantBody)
 			}
 		})
+	}
+}
+
+func TestListHouseholdsUsesVerifiedCallerToken(t *testing.T) {
+	reader := &householdReaderStub{households: []supabase.Household{{ID: "household-1", Name: "Pantry"}}}
+	handler := New(
+		verifierStub{principal: authn.Principal{Subject: "user-1", Role: "authenticated"}},
+		reader,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/households", nil)
+	request.Header.Set("Authorization", "Bearer verified-user-token")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if reader.token != "verified-user-token" {
+		t.Fatalf("forwarded token = %q", reader.token)
 	}
 }
 

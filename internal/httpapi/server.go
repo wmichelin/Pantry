@@ -8,19 +8,22 @@ import (
 	"time"
 
 	"github.com/wmichelin/Pantry/internal/authn"
+	"github.com/wmichelin/Pantry/internal/supabase"
 )
 
 type Server struct {
-	verifier authn.Verifier
-	logger   *slog.Logger
+	verifier   authn.Verifier
+	households supabase.HouseholdReader
+	logger     *slog.Logger
 }
 
-func New(verifier authn.Verifier, logger *slog.Logger) http.Handler {
-	server := Server{verifier: verifier, logger: logger}
+func New(verifier authn.Verifier, households supabase.HouseholdReader, logger *slog.Logger) http.Handler {
+	server := Server{verifier: verifier, households: households, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /readyz", server.ready)
 	mux.HandleFunc("GET /api/v1/whoami", server.whoAmI)
+	mux.HandleFunc("GET /api/v1/households", server.listHouseholds)
 	return server.withRequestLog(mux)
 }
 
@@ -41,6 +44,25 @@ func (server Server) whoAmI(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	writeJSON(writer, http.StatusOK, map[string]string{"user_id": principal.Subject})
+}
+
+func (server Server) listHouseholds(writer http.ResponseWriter, request *http.Request) {
+	accessToken, err := authn.BearerToken(request.Header)
+	if err != nil {
+		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
+		return
+	}
+	if _, err := authn.RequirePrincipal(request.Context(), request.Header, server.verifier); err != nil {
+		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
+		return
+	}
+	households, err := server.households.ListHouseholds(request.Context(), accessToken)
+	if err != nil {
+		server.logger.ErrorContext(request.Context(), "list RLS-scoped households", "error", err)
+		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not load households right now.")
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"households": households})
 }
 
 func (server Server) withRequestLog(next http.Handler) http.Handler {

@@ -72,6 +72,7 @@ jobs:
       # The project origin is public configuration, not a credential. Keeping it
       # explicit avoids coupling API recovery to the web build-secret inventory.
       STAGING_API_SUPABASE_URL: https://fncsyvsgolbpviidmpuc.supabase.co
+      STAGING_API_SUPABASE_ANON_KEY: ${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
       GHCR_USER: ${{ github.repository_owner }}
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
     steps:
@@ -82,7 +83,7 @@ jobs:
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script_stop: true
-          envs: STAGING_API_IMAGE,STAGING_API_SUPABASE_URL,GHCR_USER,GHCR_PAT
+          envs: STAGING_API_IMAGE,STAGING_API_SUPABASE_URL,STAGING_API_SUPABASE_ANON_KEY,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
 
@@ -132,6 +133,7 @@ jobs:
                     --security-opt no-new-privileges \
                     --publish "$api_port:8080" \
                     --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
+                    --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \
                     "$previous_image" >/dev/null
                   wait_for_api || echo 'Could not verify the restored staging API image.' >&2
                 fi
@@ -180,6 +182,7 @@ jobs:
               --security-opt no-new-privileges \
               --publish "$api_port:8080" \
               --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
+              --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \
               "$STAGING_API_IMAGE" >/dev/null
             replacement_started=true
 

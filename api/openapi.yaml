@@ -27,6 +27,17 @@ paths:
           description: Verified caller identity.
         '401':
           $ref: '#/components/responses/Unauthenticated'
+  /api/v1/households:
+    get:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Caller-visible households, authorized by existing Supabase RLS policies.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '502':
+          description: Supabase REST was unavailable or rejected the request.
 components:
   securitySchemes:
     bearerAuth:

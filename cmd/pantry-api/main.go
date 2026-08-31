@@ -12,6 +12,7 @@ import (
 	"github.com/wmichelin/Pantry/internal/authn"
 	"github.com/wmichelin/Pantry/internal/config"
 	"github.com/wmichelin/Pantry/internal/httpapi"
+	"github.com/wmichelin/Pantry/internal/supabase"
 )
 
 func main() {
@@ -20,6 +21,7 @@ func main() {
 		slog.Error("invalid Pantry API configuration", "error", err)
 		os.Exit(1)
 	}
+	households := supabase.NewRESTClient(cfg.SupabaseURL, cfg.SupabaseAnonKey)
 
 	verifier, err := authn.NewJWKSVerifier(cfg.SupabaseURL, cfg.JWTAudience)
 	if err != nil {
@@ -29,7 +31,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           httpapi.New(verifier, slog.Default()),
+		Handler:           httpapi.New(verifier, households, slog.Default()),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
