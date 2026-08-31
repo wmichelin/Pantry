@@ -7,7 +7,7 @@ same deterministic fixture suite and have no unexplained normalized state diff.
 | Capability | Current owner | Go-port state | Required parity evidence | Intentional differences |
 | --- | --- | --- | --- | --- |
 | Auth/session | `lib/auth-context.tsx` + Supabase Auth | Foundation implemented | valid, expired, malformed, and wrong-role JWT cases | Go verifies asymmetric JWTs locally through Supabase JWKS; unavailable/unsupported verification fails closed |
-| Household landing read | `app/(app)/index.tsx` | Staging integration pending deployment | owner and outsider membership projection through legacy REST and Go; anonymous request rejected at staging proxy | staging build only routes this read through Go; production remains on direct Supabase |
+| Household landing read | `app/(app)/index.tsx` | Staging integration verified | owner and outsider membership projection through legacy REST and Go; anonymous request rejected at staging proxy | staging build only routes this read through Go; production remains on direct Supabase |
 | Household create | `app/(app)/create-household.tsx` | Deferred | owner/member/outsider state projections; invite collision; injected member-write failure | all-or-nothing household and owner membership |
 | Household join | `app/(app)/join-household.tsx` | Deferred | valid/invalid invite, duplicate join, outsider isolation | one transactional lookup/join; no invite enumeration |
 | Recipe create/import | `app/(app)/create-recipe.tsx`, `review-recipe.tsx` | Deferred | recipe/ingredient rows, catalog best-effort behavior, injected ingredient failure | individual recipe save becomes atomic |
