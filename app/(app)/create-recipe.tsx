@@ -19,12 +19,13 @@ import {
   listCatalogIngredients,
   type CatalogIngredient,
 } from "../../lib/ingredient-catalog";
+import { saveRecipe, stagingAPIOrigin } from "../../lib/pantry-api";
 
 type Ingredient = { name: string; quantity: string; unit: string };
 
 export default function CreateRecipeScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([
@@ -68,6 +69,36 @@ export default function CreateRecipeScreen() {
     }
 
     setLoading(true);
+
+    const apiURL = stagingAPIOrigin();
+    if (apiURL && session?.access_token) {
+      try {
+        await saveRecipe(
+          apiURL,
+          session.access_token,
+          householdId,
+          title.trim(),
+          validIngredients.map((ingredient) => {
+            const quantity = parseFloat(ingredient.quantity);
+            return {
+              name: ingredient.name.trim(),
+              quantity: ingredient.quantity.trim() && !isNaN(quantity) ? quantity : null,
+              unit: ingredient.unit.trim(),
+              raw_string: "",
+            };
+          })
+        );
+        for (const ingredient of validIngredients) {
+          await ensureCatalogIngredient(householdId, ingredient.name);
+        }
+        setLoading(false);
+        router.back();
+      } catch (error) {
+        setLoading(false);
+        Alert.alert("Error", error instanceof Error ? error.message : "Could not save recipe.");
+      }
+      return;
+    }
 
     const { data: recipe, error: recipeError } = await supabase
       .from("recipes")

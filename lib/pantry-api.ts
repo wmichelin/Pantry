@@ -20,6 +20,19 @@ export type JoinedHousehold = {
   already_member: boolean;
 };
 
+export type RecipeSaveIngredient = {
+  name: string;
+  quantity: number | null;
+  unit: string;
+  raw_string: string;
+};
+
+export type SavedRecipe = {
+  id: string;
+  title: string;
+  ingredient_count: number;
+};
+
 type APIProblem = { message?: unknown };
 type Fetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -94,6 +107,36 @@ export async function joinHousehold(
   return payload.household;
 }
 
+export async function saveRecipe(
+  apiURL: string,
+  accessToken: string,
+  householdID: string,
+  title: string,
+  ingredients: RecipeSaveIngredient[],
+  fetcher: Fetch = fetch
+): Promise<SavedRecipe> {
+  const response = await fetcher(`${apiURL}/api/v1/recipes`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ household_id: householdID, title, ingredients }),
+  });
+  const payload = await responsePayload(response);
+  if (!response.ok) {
+    throw new Error(
+      typeof payload.message === "string" && payload.message.trim()
+        ? payload.message
+        : "Pantry could not save the recipe right now."
+    );
+  }
+  if (!isSavedRecipe(payload.recipe)) {
+    throw new Error("Pantry returned an invalid recipe response.");
+  }
+  return payload.recipe;
+}
+
 async function postJSON(
   apiURL: string,
   path: string,
@@ -120,12 +163,18 @@ async function postJSON(
   return payload;
 }
 
-async function responsePayload(response: Response): Promise<{ membership?: unknown } & APIProblem> {
+async function responsePayload(response: Response): Promise<{ membership?: unknown; household?: unknown; recipe?: unknown } & APIProblem> {
   try {
     return (await response.json()) as { membership?: unknown } & APIProblem;
   } catch {
     return {};
   }
+}
+
+function isSavedRecipe(value: unknown): value is SavedRecipe {
+  if (!value || typeof value !== "object") return false;
+  const recipe = value as Record<string, unknown>;
+  return typeof recipe.id === "string" && typeof recipe.title === "string" && typeof recipe.ingredient_count === "number";
 }
 
 function isMembership(value: unknown): value is HouseholdMembership {

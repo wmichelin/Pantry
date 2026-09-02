@@ -20,11 +20,12 @@ type Server struct {
 	memberships supabase.MembershipReader
 	creator     supabase.HouseholdCreator
 	joiner      supabase.HouseholdJoiner
+	recipes     supabase.RecipeSaver
 	logger      *slog.Logger
 }
 
-func New(verifier authn.Verifier, households supabase.HouseholdReader, memberships supabase.MembershipReader, creator supabase.HouseholdCreator, joiner supabase.HouseholdJoiner, logger *slog.Logger) http.Handler {
-	server := Server{verifier: verifier, households: households, memberships: memberships, creator: creator, joiner: joiner, logger: logger}
+func New(verifier authn.Verifier, households supabase.HouseholdReader, memberships supabase.MembershipReader, creator supabase.HouseholdCreator, joiner supabase.HouseholdJoiner, recipes supabase.RecipeSaver, logger *slog.Logger) http.Handler {
+	server := Server{verifier: verifier, households: households, memberships: memberships, creator: creator, joiner: joiner, recipes: recipes, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /readyz", server.ready)
@@ -33,6 +34,7 @@ func New(verifier authn.Verifier, households supabase.HouseholdReader, membershi
 	mux.HandleFunc("GET /api/v1/membership", server.findMembership)
 	mux.HandleFunc("POST /api/v1/households", server.createHousehold)
 	mux.HandleFunc("POST /api/v1/household-joins", server.joinHousehold)
+	mux.HandleFunc("POST /api/v1/recipes", server.saveRecipe)
 	return server.withRequestLog(mux)
 }
 
@@ -144,6 +146,31 @@ func (server Server) joinHousehold(writer http.ResponseWriter, request *http.Req
 		return
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"household": household})
+}
+
+func (server Server) saveRecipe(writer http.ResponseWriter, request *http.Request) {
+	accessToken, ok := server.requireVerifiedAccessToken(writer, request)
+	if !ok {
+		return
+	}
+	var input supabase.RecipeSave
+	if !decodeJSON(writer, request, &input) || strings.TrimSpace(input.HouseholdID) == "" || strings.TrimSpace(input.Title) == "" || len(input.Ingredients) == 0 {
+		writeProblem(writer, http.StatusBadRequest, "invalid_request", "A household, title, and at least one ingredient are required.")
+		return
+	}
+	for _, ingredient := range input.Ingredients {
+		if strings.TrimSpace(ingredient.Name) == "" {
+			writeProblem(writer, http.StatusBadRequest, "invalid_request", "Every recipe ingredient needs a name.")
+			return
+		}
+	}
+	recipe, err := server.recipes.SaveRecipe(request.Context(), accessToken, input)
+	if err != nil {
+		server.logger.ErrorContext(request.Context(), "save recipe", "error", err)
+		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not save the recipe right now.")
+		return
+	}
+	writeJSON(writer, http.StatusCreated, map[string]any{"recipe": recipe})
 }
 
 func (server Server) requireVerifiedAccessToken(writer http.ResponseWriter, request *http.Request) (string, bool) {

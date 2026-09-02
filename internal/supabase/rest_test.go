@@ -134,3 +134,33 @@ func TestRESTClientHouseholdOperationsUseCallerJWTForRPC(t *testing.T) {
 		})
 	}
 }
+
+func TestRESTClientSaveRecipeForwardsAtomicPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/rest/v1/rpc/create_recipe_with_ingredients" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer user-access-token" || request.Header.Get("apikey") != "anon-key" {
+			t.Fatalf("recipe RPC did not preserve caller credentials")
+		}
+		var input map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+			t.Fatalf("decode input: %v", err)
+		}
+		if input["p_household_id"] != "household-1" {
+			t.Fatalf("household input = %#v", input)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`[{"id":"recipe-1","title":"Soup","ingredient_count":1}]`))
+	}))
+	defer server.Close()
+
+	recipe, err := NewRESTClient(server.URL, "anon-key").SaveRecipe(t.Context(), "user-access-token", RecipeSave{
+		HouseholdID: "household-1",
+		Title:       "Soup",
+		Ingredients: []RecipeIngredient{{Name: "tomato"}},
+	})
+	if err != nil || recipe == nil || recipe.IngredientCount != 1 {
+		t.Fatalf("SaveRecipe() = %#v, %v", recipe, err)
+	}
+}

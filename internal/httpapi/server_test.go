@@ -47,6 +47,19 @@ type householdOperationsStub struct {
 	inviteCode string
 }
 
+type recipeSaverStub struct {
+	recipe *supabase.SavedRecipe
+	err    error
+	token  string
+	input  supabase.RecipeSave
+}
+
+func (stub *recipeSaverStub) SaveRecipe(_ context.Context, token string, input supabase.RecipeSave) (*supabase.SavedRecipe, error) {
+	stub.token = token
+	stub.input = input
+	return stub.recipe, stub.err
+}
+
 func (stub *householdOperationsStub) CreateHousehold(_ context.Context, token, name, displayName string) (*supabase.CreatedHousehold, error) {
 	stub.token = token
 	stub.name = name
@@ -90,7 +103,7 @@ func TestFoundationRoutes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New(tt.verifier, &householdReaderStub{}, &membershipReaderStub{}, &householdOperationsStub{}, &householdOperationsStub{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			handler := New(tt.verifier, &householdReaderStub{}, &membershipReaderStub{}, &householdOperationsStub{}, &householdOperationsStub{}, &recipeSaverStub{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			request := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			if tt.header != "" {
 				request.Header.Set("Authorization", tt.header)
@@ -123,6 +136,7 @@ func TestListHouseholdsUsesVerifiedCallerToken(t *testing.T) {
 		&membershipReaderStub{},
 		&householdOperationsStub{},
 		&householdOperationsStub{},
+		&recipeSaverStub{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/households", nil)
@@ -149,6 +163,7 @@ func TestFindMembershipUsesVerifiedCallerIdentity(t *testing.T) {
 		reader,
 		&householdOperationsStub{},
 		&householdOperationsStub{},
+		&recipeSaverStub{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/membership", nil)
@@ -227,6 +242,7 @@ func TestHouseholdMembershipOperationsUseVerifiedCallerToken(t *testing.T) {
 				&membershipReaderStub{},
 				&operations,
 				&operations,
+				&recipeSaverStub{},
 				slog.New(slog.NewTextHandler(io.Discard, nil)),
 			)
 			request := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
@@ -255,6 +271,34 @@ func TestHouseholdMembershipOperationsUseVerifiedCallerToken(t *testing.T) {
 			}
 			if tt.wantInvite != "" && operations.inviteCode != tt.wantInvite {
 				t.Fatalf("invite code = %q", operations.inviteCode)
+			}
+		})
+	}
+}
+
+func TestSaveRecipeUsesVerifiedCallerTokenAndRejectsPartialInput(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		recipe     *supabase.SavedRecipe
+		wantStatus int
+	}{
+		{name: "rejects empty ingredients", body: `{"household_id":"household-1","title":"Soup","ingredients":[]}`, wantStatus: http.StatusBadRequest},
+		{name: "saves atomically", body: `{"household_id":"household-1","title":"Soup","ingredients":[{"name":"tomato","quantity":2}]}`, recipe: &supabase.SavedRecipe{ID: "recipe-1", Title: "Soup", IngredientCount: 1}, wantStatus: http.StatusCreated},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			saver := &recipeSaverStub{recipe: tt.recipe}
+			handler := New(verifierStub{principal: authn.Principal{Subject: "user-1", Role: "authenticated"}}, &householdReaderStub{}, &membershipReaderStub{}, &householdOperationsStub{}, &householdOperationsStub{}, saver, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/recipes", strings.NewReader(tt.body))
+			request.Header.Set("Authorization", "Bearer verified-user-token")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", response.Code, tt.wantStatus)
+			}
+			if tt.wantStatus == http.StatusCreated && (saver.token != "verified-user-token" || saver.input.Title != "Soup") {
+				t.Fatalf("saved input = %#v with token %q", saver.input, saver.token)
 			}
 		})
 	}

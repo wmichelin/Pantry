@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { createHousehold, findMembership, joinHousehold } from "../pantry-api";
+import { createHousehold, findMembership, joinHousehold, saveRecipe } from "../pantry-api";
 
 describe("findMembership", () => {
   it("sends the current session token only to the configured API origin", async () => {
@@ -94,5 +94,27 @@ describe("household mutation API", () => {
         async () => new Response(JSON.stringify({ household: {} }), { status: 200 })
       )
     ).rejects.toThrow("invalid household response");
+  });
+});
+
+describe("recipe mutation API", () => {
+  it("sends one atomic recipe payload with the current session token", async () => {
+    const recipe = await saveRecipe(
+      "https://pantry-staging.waltermichelin.com",
+      "test-access-token",
+      "household-1",
+      "Soup",
+      [{ name: "tomato", quantity: 2, unit: "", raw_string: "2 tomatoes" }],
+      async (_input, init) => {
+        expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-access-token");
+        expect(init?.body).toBe(JSON.stringify({
+          household_id: "household-1",
+          title: "Soup",
+          ingredients: [{ name: "tomato", quantity: 2, unit: "", raw_string: "2 tomatoes" }],
+        }));
+        return new Response(JSON.stringify({ recipe: { id: "recipe-1", title: "Soup", ingredient_count: 1 } }), { status: 201 });
+      }
+    );
+    expect(recipe).toMatchObject({ id: "recipe-1", ingredient_count: 1 });
   });
 });

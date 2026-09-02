@@ -34,6 +34,10 @@ type HouseholdJoiner interface {
 	JoinHouseholdByInvite(context.Context, string, string, string) (*JoinedHousehold, error)
 }
 
+type RecipeSaver interface {
+	SaveRecipe(context.Context, string, RecipeSave) (*SavedRecipe, error)
+}
+
 type Household struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
@@ -58,6 +62,25 @@ type JoinedHousehold struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
 	AlreadyMember bool   `json:"already_member"`
+}
+
+type RecipeIngredient struct {
+	Name      string   `json:"name"`
+	Quantity  *float64 `json:"quantity"`
+	Unit      string   `json:"unit"`
+	RawString string   `json:"raw_string"`
+}
+
+type RecipeSave struct {
+	HouseholdID string             `json:"household_id"`
+	Title       string             `json:"title"`
+	Ingredients []RecipeIngredient `json:"ingredients"`
+}
+
+type SavedRecipe struct {
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	IngredientCount int    `json:"ingredient_count"`
 }
 
 type RESTClient struct {
@@ -174,7 +197,22 @@ func (client *RESTClient) JoinHouseholdByInvite(ctx context.Context, accessToken
 	return &households[0], nil
 }
 
-func (client *RESTClient) callRPC(ctx context.Context, accessToken, function string, input map[string]string, output any) error {
+func (client *RESTClient) SaveRecipe(ctx context.Context, accessToken string, recipe RecipeSave) (*SavedRecipe, error) {
+	var recipes []SavedRecipe
+	if err := client.callRPC(ctx, accessToken, "create_recipe_with_ingredients", map[string]any{
+		"p_household_id": recipe.HouseholdID,
+		"p_recipe":       map[string]string{"title": recipe.Title},
+		"p_ingredients":  recipe.Ingredients,
+	}, &recipes); err != nil {
+		return nil, err
+	}
+	if len(recipes) != 1 {
+		return nil, fmt.Errorf("save recipe: unexpected response shape")
+	}
+	return &recipes[0], nil
+}
+
+func (client *RESTClient) callRPC(ctx context.Context, accessToken, function string, input any, output any) error {
 	body, err := json.Marshal(input)
 	if err != nil {
 		return fmt.Errorf("encode %s RPC input: %w", function, err)
