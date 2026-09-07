@@ -31,7 +31,7 @@ const imported = await rpc(owner.token, 'RecipeService/ImportRecipe', { househol
 assert.equal(imported.status, 200); const recipe = imported.body.recipe.id;
 assert.equal((await rpc(owner.token, 'QueueService/AddQueueRecipe', { householdId: h.id, recipeId: recipe })).status, 200);
 await rest(key, owner.token, 'ingredient_metadata', 'POST', [{ household_id: h.id, normalized_name: 'milk', display_name: 'Custom Milk', sort_order: 10, category: 'custom' }, { household_id: h.id, normalized_name: 'rice', display_name: '', sort_order: 20, category: 'other' }]);
-await rest(key, owner.token, 'shopping_list_manual_items', 'POST', [{ household_id: h.id, normalized_name: 'milk', sort_order: 15 }, { household_id: h.id, normalized_name: 'rice', quantity: 0, unit: 'cups', sort_order: 25 }, { household_id: h.id, normalized_name: 'tea', quantity: 0, unit: '  ' }]);
+await rest(key, owner.token, 'shopping_list_manual_items', 'POST', [{ household_id: h.id, normalized_name: 'milk', quantity: null, unit: null, sort_order: 15 }, { household_id: h.id, normalized_name: 'rice', quantity: 0, unit: 'cups', sort_order: 25 }, { household_id: h.id, normalized_name: 'tea', quantity: 0, unit: '  ', sort_order: 0 }]);
 await rest(key, owner.token, 'shopping_list_checks', 'POST', [{ household_id: h.id, normalized_name: 'milk' }, { household_id: h.id, normalized_name: 'milk::manual' }, { household_id: h.id, normalized_name: 'tea' }]);
 let list = await parity(); assert.equal(list.catalog.find(m => m.normalizedName === 'milk').displayName, 'Custom Milk');
 assert.deepEqual(await parity(), list, 'first/repeated seeded loads differ');
