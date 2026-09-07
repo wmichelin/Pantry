@@ -1,0 +1,3 @@
+# protoc-gen-es intentionally emits a trailing blank line. Keep generation
+# byte-for-byte reproducible without treating that generated style as an error.
+lib/gen/** whitespace=-blank-at-eof

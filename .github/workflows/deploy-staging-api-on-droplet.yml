@@ -176,6 +176,9 @@ jobs:
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             docker pull "$STAGING_API_IMAGE"
             docker rm -f "$api_container" >/dev/null 2>&1 || true
+            # From this point on, any failure must enter the restore path—even
+            # when docker run itself fails after removing the old container.
+            replacement_started=true
             docker run -d \
               --name "$api_container" \
               --restart unless-stopped \
@@ -186,7 +189,6 @@ jobs:
               --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
               --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \
               "$STAGING_API_IMAGE" >/dev/null
-            replacement_started=true
 
             wait_for_api
             docker ps --filter "name=^/${api_container}$" --format '{{.Names}} {{.Status}} {{.Ports}} {{.Image}}'

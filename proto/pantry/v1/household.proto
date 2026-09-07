@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package pantry.v1;
+
+option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1";
+
+service HouseholdService {
+  rpc ListHouseholds(ListHouseholdsRequest) returns (ListHouseholdsResponse);
+  rpc GetMembership(GetMembershipRequest) returns (GetMembershipResponse);
+  rpc CreateHousehold(CreateHouseholdRequest) returns (CreateHouseholdResponse);
+  rpc JoinHousehold(JoinHouseholdRequest) returns (JoinHouseholdResponse);
+}
+
+message Household {
+  string id = 1;
+  string name = 2;
+  string invite_code = 3;
+  string created_by = 4;
+  string created_at = 5;
+}
+
+// MembershipHousehold matches the narrower nested projection returned by the
+// existing membership query.
+message MembershipHousehold {
+  string id = 1;
+  string name = 2;
+  string invite_code = 3;
+}
+
+message Membership {
+  string household_id = 1;
+  string role = 2;
+  MembershipHousehold household = 3;
+}
+
+message ListHouseholdsRequest {}
+
+message ListHouseholdsResponse {
+  repeated Household households = 1;
+}
+
+message GetMembershipRequest {}
+
+message GetMembershipResponse {
+  // Absence represents the legacy JSON value `membership: null`.
+  Membership membership = 1;
+}
+
+message CreateHouseholdRequest {
+  string name = 1;
+  string display_name = 2;
+}
+
+message CreatedHousehold {
+  string id = 1;
+  string name = 2;
+  string invite_code = 3;
+}
+
+message CreateHouseholdResponse {
+  CreatedHousehold household = 1;
+}
+
+message JoinHouseholdRequest {
+  string invite_code = 1;
+  string display_name = 2;
+}
+
+message JoinedHousehold {
+  string id = 1;
+  string name = 2;
+  bool already_member = 3;
+}
+
+message JoinHouseholdResponse {
+  JoinedHousehold household = 1;
+}

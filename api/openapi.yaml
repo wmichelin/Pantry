@@ -3,11 +3,10 @@ info:
   title: Pantry API
   version: 0.1.0
   description: |
-    Foundation contract for the staged Go port. Only health, readiness,
-    verified-identity, household-read, and atomic household membership endpoints
-    are implemented in this revision. Recipe, shopping, and scrape capabilities
-    remain on their existing client paths until each has passed the compatibility
-    gates in contracts/compatibility.md.
+    Legacy JSON/HTTP contract retained while Pantry adopts the Protobuf contract
+    in proto/pantry/v1 over ConnectRPC. Health and readiness stay JSON-only.
+    Shopping and scrape capabilities remain on their existing client paths until
+    each has passed the compatibility gates in contracts/compatibility.md.
 paths:
   /healthz:
     get:
@@ -89,6 +88,25 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '502':
           description: Supabase REST was unavailable or rejected the request.
+  /api/v1/recipes:
+    post:
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveRecipeRequest'
+      responses:
+        '201':
+          description: Recipe and ingredient rows were saved atomically.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '502':
+          description: Supabase REST was unavailable or rejected the request.
 components:
   securitySchemes:
     bearerAuth:
@@ -98,6 +116,12 @@ components:
   responses:
     Unauthenticated:
       description: Missing, invalid, expired, or wrong-role access token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InvalidRequest:
+      description: The request failed validation.
       content:
         application/json:
           schema:
@@ -119,6 +143,31 @@ components:
           type: string
         display_name:
           type: string
+    RecipeIngredient:
+      type: object
+      required: [name, quantity, unit, raw_string]
+      properties:
+        name:
+          type: string
+        quantity:
+          type: [number, 'null']
+        unit:
+          type: string
+        raw_string:
+          type: string
+    SaveRecipeRequest:
+      type: object
+      required: [household_id, title, ingredients]
+      properties:
+        household_id:
+          type: string
+        title:
+          type: string
+        ingredients:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeIngredient'
     Problem:
       type: object
       required: [code, message]

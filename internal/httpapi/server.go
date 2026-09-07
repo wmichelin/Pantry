@@ -7,25 +7,24 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/wmichelin/Pantry/internal/authn"
-	"github.com/wmichelin/Pantry/internal/supabase"
+	"github.com/wmichelin/Pantry/internal/pantry"
 )
 
 type Server struct {
-	verifier    authn.Verifier
-	households  supabase.HouseholdReader
-	memberships supabase.MembershipReader
-	creator     supabase.HouseholdCreator
-	joiner      supabase.HouseholdJoiner
-	recipes     supabase.RecipeSaver
-	logger      *slog.Logger
+	verifier authn.Verifier
+	service  *pantry.Service
+	logger   *slog.Logger
 }
 
-func New(verifier authn.Verifier, households supabase.HouseholdReader, memberships supabase.MembershipReader, creator supabase.HouseholdCreator, joiner supabase.HouseholdJoiner, recipes supabase.RecipeSaver, logger *slog.Logger) http.Handler {
-	server := Server{verifier: verifier, households: households, memberships: memberships, creator: creator, joiner: joiner, recipes: recipes, logger: logger}
+func New(verifier authn.Verifier, households pantry.HouseholdReader, memberships pantry.MembershipReader, creator pantry.HouseholdCreator, joiner pantry.HouseholdJoiner, recipes pantry.RecipeSaver, logger *slog.Logger) http.Handler {
+	return NewWithService(verifier, pantry.NewService(households, memberships, creator, joiner, recipes), logger)
+}
+
+func NewWithService(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) http.Handler {
+	server := Server{verifier: verifier, service: service, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /readyz", server.ready)
@@ -49,48 +48,37 @@ func (server Server) ready(writer http.ResponseWriter, _ *http.Request) {
 }
 
 func (server Server) whoAmI(writer http.ResponseWriter, request *http.Request) {
-	principal, err := authn.RequirePrincipal(request.Context(), request.Header, server.verifier)
+	caller, err := authn.RequireCaller(request.Context(), request.Header, server.verifier)
 	if err != nil {
 		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
 		return
 	}
-	writeJSON(writer, http.StatusOK, map[string]string{"user_id": principal.Subject})
+	writeJSON(writer, http.StatusOK, map[string]string{"user_id": caller.Principal.Subject})
 }
 
 func (server Server) listHouseholds(writer http.ResponseWriter, request *http.Request) {
-	accessToken, err := authn.BearerToken(request.Header)
+	caller, err := authn.RequireCaller(request.Context(), request.Header, server.verifier)
 	if err != nil {
 		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
 		return
 	}
-	if _, err := authn.RequirePrincipal(request.Context(), request.Header, server.verifier); err != nil {
-		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
-		return
-	}
-	households, err := server.households.ListHouseholds(request.Context(), accessToken)
+	households, err := server.service.ListHouseholds(request.Context(), caller)
 	if err != nil {
-		server.logger.ErrorContext(request.Context(), "list RLS-scoped households", "error", err)
-		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not load households right now.")
+		server.writeServiceError(writer, request, "list RLS-scoped households", err)
 		return
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"households": households})
 }
 
 func (server Server) findMembership(writer http.ResponseWriter, request *http.Request) {
-	accessToken, err := authn.BearerToken(request.Header)
+	caller, err := authn.RequireCaller(request.Context(), request.Header, server.verifier)
 	if err != nil {
 		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
 		return
 	}
-	principal, err := authn.RequirePrincipal(request.Context(), request.Header, server.verifier)
+	membership, err := server.service.FindMembership(request.Context(), caller)
 	if err != nil {
-		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
-		return
-	}
-	membership, err := server.memberships.FindMembership(request.Context(), principal.Subject, accessToken)
-	if err != nil {
-		server.logger.ErrorContext(request.Context(), "find RLS-scoped membership", "error", err)
-		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not load your household right now.")
+		server.writeServiceError(writer, request, "find RLS-scoped membership", err)
 		return
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"membership": membership})
@@ -102,19 +90,18 @@ type createHouseholdRequest struct {
 }
 
 func (server Server) createHousehold(writer http.ResponseWriter, request *http.Request) {
-	accessToken, ok := server.requireVerifiedAccessToken(writer, request)
+	caller, ok := server.requireCaller(writer, request)
 	if !ok {
 		return
 	}
 	var input createHouseholdRequest
-	if !decodeJSON(writer, request, &input) || strings.TrimSpace(input.Name) == "" {
+	if !decodeJSON(writer, request, &input) {
 		writeProblem(writer, http.StatusBadRequest, "invalid_request", "A household name is required.")
 		return
 	}
-	household, err := server.creator.CreateHousehold(request.Context(), accessToken, input.Name, input.DisplayName)
+	household, err := server.service.CreateHousehold(request.Context(), caller, input.Name, input.DisplayName)
 	if err != nil {
-		server.logger.ErrorContext(request.Context(), "create household", "error", err)
-		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not create the household right now.")
+		server.writeServiceError(writer, request, "create household", err)
 		return
 	}
 	writeJSON(writer, http.StatusCreated, map[string]any{"household": household})
@@ -126,64 +113,66 @@ type joinHouseholdRequest struct {
 }
 
 func (server Server) joinHousehold(writer http.ResponseWriter, request *http.Request) {
-	accessToken, ok := server.requireVerifiedAccessToken(writer, request)
+	caller, ok := server.requireCaller(writer, request)
 	if !ok {
 		return
 	}
 	var input joinHouseholdRequest
-	if !decodeJSON(writer, request, &input) || strings.TrimSpace(input.InviteCode) == "" {
+	if !decodeJSON(writer, request, &input) {
 		writeProblem(writer, http.StatusBadRequest, "invalid_request", "An invite code is required.")
 		return
 	}
-	household, err := server.joiner.JoinHouseholdByInvite(request.Context(), accessToken, input.InviteCode, input.DisplayName)
+	household, err := server.service.JoinHousehold(request.Context(), caller, input.InviteCode, input.DisplayName)
 	if err != nil {
-		server.logger.ErrorContext(request.Context(), "join household", "error", err)
-		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not join that household right now.")
-		return
-	}
-	if household == nil {
-		writeProblem(writer, http.StatusNotFound, "invite_not_found", "No household found with that invite code.")
+		server.writeServiceError(writer, request, "join household", err)
 		return
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"household": household})
 }
 
 func (server Server) saveRecipe(writer http.ResponseWriter, request *http.Request) {
-	accessToken, ok := server.requireVerifiedAccessToken(writer, request)
+	caller, ok := server.requireCaller(writer, request)
 	if !ok {
 		return
 	}
-	var input supabase.RecipeSave
-	if !decodeJSON(writer, request, &input) || strings.TrimSpace(input.HouseholdID) == "" || strings.TrimSpace(input.Title) == "" || len(input.Ingredients) == 0 {
+	var input pantry.RecipeSave
+	if !decodeJSON(writer, request, &input) {
 		writeProblem(writer, http.StatusBadRequest, "invalid_request", "A household, title, and at least one ingredient are required.")
 		return
 	}
-	for _, ingredient := range input.Ingredients {
-		if strings.TrimSpace(ingredient.Name) == "" {
-			writeProblem(writer, http.StatusBadRequest, "invalid_request", "Every recipe ingredient needs a name.")
-			return
-		}
-	}
-	recipe, err := server.recipes.SaveRecipe(request.Context(), accessToken, input)
+	recipe, err := server.service.SaveRecipe(request.Context(), caller, input)
 	if err != nil {
-		server.logger.ErrorContext(request.Context(), "save recipe", "error", err)
-		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not save the recipe right now.")
+		server.writeServiceError(writer, request, "save recipe", err)
 		return
 	}
 	writeJSON(writer, http.StatusCreated, map[string]any{"recipe": recipe})
 }
 
-func (server Server) requireVerifiedAccessToken(writer http.ResponseWriter, request *http.Request) (string, bool) {
-	accessToken, err := authn.BearerToken(request.Header)
+func (server Server) requireCaller(writer http.ResponseWriter, request *http.Request) (authn.Caller, bool) {
+	caller, err := authn.RequireCaller(request.Context(), request.Header, server.verifier)
 	if err != nil {
 		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
-		return "", false
+		return authn.Caller{}, false
 	}
-	if _, err := authn.RequirePrincipal(request.Context(), request.Header, server.verifier); err != nil {
-		writeProblem(writer, http.StatusUnauthorized, "unauthenticated", "A valid Pantry session is required.")
-		return "", false
+	return caller, true
+}
+
+func (server Server) writeServiceError(writer http.ResponseWriter, request *http.Request, operation string, err error) {
+	var serviceError *pantry.Error
+	if !errors.As(err, &serviceError) {
+		server.logger.ErrorContext(request.Context(), operation, "error", err)
+		writeProblem(writer, http.StatusBadGateway, "upstream_unavailable", "Pantry could not complete that request right now.")
+		return
 	}
-	return accessToken, true
+	status := http.StatusBadRequest
+	switch serviceError.Kind {
+	case pantry.ErrorNotFound:
+		status = http.StatusNotFound
+	case pantry.ErrorUnavailable:
+		status = http.StatusBadGateway
+		server.logger.ErrorContext(request.Context(), operation, "error", err)
+	}
+	writeProblem(writer, status, serviceError.Code, serviceError.Message)
 }
 
 func decodeJSON(writer http.ResponseWriter, request *http.Request, destination any) bool {

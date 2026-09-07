@@ -64,6 +64,7 @@ jobs:
             EXPO_PUBLIC_SUPABASE_URL=${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_URL }}
             EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
             EXPO_PUBLIC_PANTRY_API_URL=https://pantry-staging.waltermichelin.com
+            EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect
 
   deploy:
     name: Deploy and smoke-test staging only
@@ -156,12 +157,14 @@ jobs:
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             docker pull "$STAGING_IMAGE"
             docker rm -f "$staging_container" >/dev/null 2>&1 || true
+            # From this point on, any failure must enter the restore path—even
+            # when docker run itself fails after removing the old container.
+            replacement_started=true
             docker run -d \
               --name "$staging_container" \
               --restart unless-stopped \
               --publish "$staging_port:80" \
               "$STAGING_IMAGE" >/dev/null
-            replacement_started=true
 
             wait_for_staging
             docker ps --filter "name=^/${staging_container}$" --format '{{.Names}} {{.Status}} {{.Ports}} {{.Image}}'
