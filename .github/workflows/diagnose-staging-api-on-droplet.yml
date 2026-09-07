@@ -28,6 +28,7 @@ jobs:
             set -eu
 
             readonly api_container='pantry-api-staging'
+            readonly web_container='pantry-staging'
             readonly api_port='18082'
             readonly candidate_port='18083'
 
@@ -43,10 +44,19 @@ jobs:
 
             echo '== pantry-api-staging state (if present) =='
             api_state="$(docker inspect --format 'state={{.State.Status}} running={{.State.Running}} image={{.Config.Image}}' "$api_container" 2>/dev/null || true)"
-            case "$api_state" in
-              "") echo 'absent' ;;
-              *) printf '%s\n' "$api_state" ;;
-            esac
+            if [ -n "$api_state" ]; then
+              printf '%s\n' "$api_state"
+            else
+              echo 'absent'
+            fi
+
+            echo '== pantry-staging web state (if present) =='
+            web_state="$(docker inspect --format 'state={{.State.Status}} running={{.State.Running}} image={{.Config.Image}}' "$web_container" 2>/dev/null || true)"
+            if [ -n "$web_state" ]; then
+              printf '%s\n' "$web_state"
+            else
+              echo 'absent'
+            fi
 
             echo '== staging web availability =='
             curl --fail --silent --show-error --head --max-time 15 \

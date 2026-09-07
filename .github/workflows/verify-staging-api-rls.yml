@@ -81,6 +81,7 @@ jobs:
               --data "$(jq -nc --arg name "$household_name" --arg display "Go owner" '{name: $name, display_name: $display}')")"
             household_id="$(printf '%s' "$create_result" | jq -er '.household.id')"
             invite_code="$(printf '%s' "$create_result" | jq -er '.household.invite_code')"
+            echo 'gate: legacy household creation passed'
 
             owner_membership="$(curl --fail --silent --show-error \
               --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
@@ -90,6 +91,7 @@ jobs:
               --arg household_name "$household_name" \
               '.membership.household_id == $household_id and .membership.role == "owner" and .membership.households.name == $household_name' \
               >/dev/null
+            echo 'gate: legacy membership projection passed'
 
             # Connect JSON exercises the same generated handlers as binary
             # Protobuf while keeping this remote shell probe dependency-free.
@@ -104,6 +106,7 @@ jobs:
               --arg household_name "$household_name" \
               '.membership.householdId == $household_id and .membership.role == "owner" and .membership.household.name == $household_name' \
               >/dev/null
+            echo 'gate: Connect membership projection passed'
 
             direct_join_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
               --request POST https://fncsyvsgolbpviidmpuc.supabase.co/rest/v1/household_members \
@@ -115,6 +118,7 @@ jobs:
               echo 'Direct membership creation unexpectedly succeeded.' >&2
               exit 1
             fi
+            echo 'gate: direct RLS forgery rejected'
 
             invalid_status="$(curl --silent --show-error --output /tmp/invalid-invite.json --write-out '%{http_code}' \
               --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.HouseholdService/JoinHousehold \
@@ -124,6 +128,7 @@ jobs:
               --data '{"inviteCode":"NOT-A-REAL-INVITE"}')"
             test "$invalid_status" = 404
             jq -e '.code == "not_found" and (.details | length) == 1' /tmp/invalid-invite.json >/dev/null
+            echo 'gate: typed Connect not-found response passed'
 
             join_result="$(curl --fail --silent --show-error \
               --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.HouseholdService/JoinHousehold \
@@ -133,6 +138,7 @@ jobs:
               --data "$(jq -nc --arg invite "$invite_code" --arg display "Go member" '{inviteCode: $invite, displayName: $display}')")"
             printf '%s' "$join_result" | jq -e --arg household_id "$household_id" \
               '.household.id == $household_id and .household.alreadyMember == false' >/dev/null
+            echo 'gate: Connect household join passed'
 
             duplicate_join="$(curl --fail --silent --show-error \
               --request POST http://127.0.0.1:18083/api/v1/household-joins \
@@ -140,6 +146,7 @@ jobs:
               --header 'Content-Type: application/json' \
               --data "$(jq -nc --arg invite "$invite_code" --arg display "Go member" '{invite_code: $invite, display_name: $display}')")"
             printf '%s' "$duplicate_join" | jq -e '.household.already_member == true' >/dev/null
+            echo 'gate: cross-transport idempotent join passed'
 
             saved_recipe="$(curl --fail --silent --show-error \
               --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.RecipeService/SaveRecipe \
@@ -151,12 +158,14 @@ jobs:
             printf '%s' "$saved_recipe" | jq -e \
               --arg title "Connect Soup ${GO_RLS_RUN_ID}" \
               '.recipe.title == $title and .recipe.ingredientCount == 2' >/dev/null
+            echo 'gate: Connect atomic recipe save passed'
 
             outsider_membership="$(curl --fail --silent --show-error \
               --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}" \
               http://127.0.0.1:18083/api/v1/membership)"
             printf '%s' "$outsider_membership" | jq -e --arg household_id "$household_id" \
               '.membership.household_id == $household_id and .membership.role == "member"' >/dev/null
+            echo 'gate: joined membership projection passed'
 
             anonymous_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
               http://127.0.0.1:18083/api/v1/membership)"
@@ -168,3 +177,4 @@ jobs:
               --header 'Connect-Protocol-Version: 1' \
               --data-binary '')"
             test "$anonymous_connect_status" = 401
+            echo 'gate: anonymous REST and Connect requests rejected'
