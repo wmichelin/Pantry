@@ -3,9 +3,9 @@
 ## Status update
 
 Status: implementing
-Last completed: household onboarding and manual recipe Connect saves verified.
-Now: implement recipe imports, then advance through the capability gates below.
-Next: commit the import API and deterministic tests before enabling its client flag.
+Last completed: import SQL, Go API and persisted-state acceptance passed.
+Now: enable the import client flag and verify single/board browser flows.
+Next: Phase 2 recipe management after the import browser gate passes.
 Staging: https://pantry-staging.waltermichelin.com (verified baseline)
 Blocker: none
 
@@ -101,3 +101,23 @@ Database-function authorization follows the current
 [Supabase function guidance](https://supabase.com/docs/guides/database/functions)
 and [RLS guidance](https://supabase.com/docs/guides/database/postgres/row-level-security):
 prefer invoker functions and preserve caller-scoped policies.
+
+## Phase 1 evidence
+
+- Plan commit `13e258d`; import API/SQL `7a7a62f`; gated client `b74177d`;
+  repeatable browser checks `91489e0`; hosted acceptance workflow `042bfea`.
+- `go vet ./...`, `go test -race ./...`, 136 Bun tests, `npx tsc --noEmit`,
+  Protobuf format/lint/build/breaking checks, Expo web export and API image passed.
+- Invoker migration installed on staging only. `scripts/verify-recipe-import-transaction.sql`
+  passed exact text/metadata, empty imports, null/zero, injected ingredient failure
+  rollback, outsider denial and grant checks. All SQL fixture writes rolled back;
+  existing counts stayed at 46 recipes / 521 ingredients. No advisor errors.
+- API image `staging-api-b74177d56baf15f830d720dcb5d1264b6095c225` deployed in
+  [run 34152987751](https://github.com/wmichelin/Pantry/actions/runs/34152987751).
+  An earlier abbreviated-SHA dispatch failed during checkout, before droplet access.
+- `node scripts/verify-staging-recipe-import.mjs` passed actual legacy/Go row
+  equality, long metadata, null/zero, member ingredientless import, independent
+  outsider/anonymous rejection and oversized rejection with no extra rows.
+- Import flag is now eligible for staging web cutover; browser proof still pending.
+- Parsing, board orchestration/duplicate lookup, and best-effort catalog enrichment
+  remain client-owned in this first persistence slice; not claimed as a full Go port.
