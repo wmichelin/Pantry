@@ -4,8 +4,8 @@
 
 Status: implementing
 Last completed: import persistence slice deployed and browser-verified (PR 47).
-Now: Phase 2 recipe management implementation and regression tests.
-Next: staged recipe read/tag/delete acceptance, then queue/shopping.
+Now: Phase 2 API/acceptance passed; web browser gate next.
+Next: queue operations, then shopping/catalog dependencies.
 Staging: https://pantry-staging.waltermichelin.com (verified baseline)
 Blocker: none
 
@@ -136,3 +136,14 @@ remain distinct. Existing FK cascades make one parent recipe deletion atomic.
 Intentional difference: hidden/missing update/delete targets now report not-found
 instead of a false successful zero-row mutation. Queue lookup/toggle remains in
 Phase 3; household metadata and catalog reads remain in Phase 4.
+
+Phase 2 checkpoints: API `6b2b89a`, client `024b4fb`, release scripts `3d7b35e`.
+API revision `024b4fb65e25a37e0e3b39bf96a1e3f9f5a4b137` deployed in
+[run 34153987924](https://github.com/wmichelin/Pantry/actions/runs/34153987924).
+141 Bun tests, Go vet/race, Protobuf gates, typecheck, web export and API image passed.
+`node scripts/verify-staging-recipe-management.mjs` passed exact detail/list parity,
+search, member empty-tag replacement, genuine outsider and anonymous denial,
+two-household scoping, atomic deletion of test ingredients/queue entries, and
+preservation of other recipes, catalog rows, checks and manual items.
+No SQL migration was needed. Management web flag is enabled after these gates;
+browser verification remains pending until the web image is deployed.
