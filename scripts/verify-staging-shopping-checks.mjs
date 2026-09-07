@@ -43,7 +43,8 @@ assert.equal((await set('milk', true, true)).status, 200);
 assert.deepEqual((await checks()).map(c => c.normalized_name), ['milk', 'milk::manual']);
 for (let i = 0; i < 2; i++) assert.equal((await set('milk', true, false)).status, 200);
 assert.deepEqual((await checks()).map(c => c.normalized_name), ['milk']);
-await set('tea', false, true);
+assert.equal((await set('tea', false, true)).status, 200);
+assert((await checks()).some(c => c.normalized_name === 'tea'));
 for (let i = 0; i < 2; i++) assert.equal((await set('tea', true, false)).status, 200);
 assert.deepEqual((await checks()).map(c => c.normalized_name), ['milk']);
 for (const raw of ['ΟΣ', 'İ', '\u00a0Rice\ufeff', 'green  onion']) {
@@ -52,8 +53,9 @@ for (const raw of ['ΟΣ', 'İ', '\u00a0Rice\ufeff', 'green  onion']) {
   assert.equal((await set(name, true, false)).status, 200);
   assert((await checks()).some(c => c.normalized_name === name), 'Unicode recipe check removed');
 }
-await set('for the salad:', false, true);
-await set('for the salad:', true, false);
+assert.equal((await set('for the salad:', false, true)).status, 200);
+assert((await checks()).some(c => c.normalized_name === 'for the salad:'));
+assert.equal((await set('for the salad:', true, false)).status, 200);
 assert(!(await checks()).some(c => c.normalized_name === 'for the salad:'), 'Section header prevented legacy uncheck');
 const beforeDenied = await state(h.id);
 for (const token of ['', outsider.token]) {
@@ -68,7 +70,8 @@ assert.deepEqual(await state(h.id), beforeDenied);
 assert.equal((await rpc(member.token, 'ShoppingService/ClearShoppingChecks', { householdId: h.id })).status, 200);
 const afterChecks = await state(h.id);
 assert.deepEqual(afterChecks, { ...beforeDenied, shopping_list_checks: [] });
-await set('milk', false, true);
+assert.equal((await set('milk', false, true)).status, 200);
+assert((await checks()).some(c => c.normalized_name === 'milk'));
 for (let i = 0; i < 2; i++) assert.equal((await rpc(member.token, 'ShoppingService/ClearShoppingWeek', { householdId: h.id })).status, 200);
 assert.deepEqual(await state(h.id), { ...afterChecks, week_queues: [], shopping_list_checks: [], shopping_list_manual_items: [] });
 assert.deepEqual(await state(other.id), otherBefore);
