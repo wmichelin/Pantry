@@ -13,6 +13,33 @@ Blocker: none
 
 ## Delivery brief
 
+### Active slice: remaining shopping screen
+
+Status: implementing. Staging: https://pantry-staging.waltermichelin.com (verified baseline).
+Recovery web `staging-9ada40d4d99cb923e06424ab5cf8aecb39a8621d`, API
+`staging-api-423aaa83bda2a7576507726ae3460ac457447f3c`.
+Product/architect review approves GetShoppingList, manual add/remove and atomic
+ordering with catalog/aisle read/seed dependencies. Unit/staff review requires
+occurrence/null/Unicode fixtures, complete-list revision validation inside SQL,
+and duplicate metadata resolution. DevOps/QA require API-first independent
+SHOPPING_LIST flag, real desktop/mobile dragging and failure recovery before release.
+
+Decisions: manual text remains a literal name (lowercase+trim), now consistently
+used for BOTH catalog and manual keys; no quantity parser is introduced. Existing
+catalog values and manual quantity/unit are preserved. Snapshot arrays use explicit
+stable tie ordering, avoiding REST row caps. Missing metadata is reread after
+conflict-ignore seeding, so first/repeated loads agree. Ordering accepts row keys,
+categories and a snapshot revision, never caller-supplied metadata IDs/display names.
+The recipe row controls shared metadata order, standalone manuals have own order,
+and the last submitted same-name row controls the shared category. Returned state
+reconciles both rows. These deliberately fix duplicate-upsert and stale UI behavior.
+SQL mutations serialize cooperating shopping operations per household and reject a
+changed snapshot before writes; legacy writers remain an acknowledged concurrent
+migration boundary. All updates remain atomic and explicitly household-scoped.
+Go uses full Unicode lowercase and ECMAScript trimming, with shared fixtures.
+Only shopping's catalog/aisle dependencies move here; full settings/editor/scraper
+and import parsing remain separate. Commit API/SQL, then clients, then evidence/flag.
+
 Port the remaining application behavior to typed Protobuf/Connect services in Go,
 in independently committed and staged slices. Preserve the Expo UI, Supabase Auth,
 PostgreSQL and caller-scoped RLS. No production access, migration, configuration,
