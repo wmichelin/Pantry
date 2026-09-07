@@ -227,6 +227,10 @@ Unicode/header cases, exact outsider/anonymous before-after equality, clear scop
 and foreign-household preservation. Shopping check web flag may now be enabled;
 browser release gate remains pending. Concurrent optimistic-action races in the
 legacy UI are unchanged and remain a follow-up, not a claimed concurrency proof.
+The first browser gate found a pre-existing web accessibility defect: this installed
+React Native Web version does not map `accessibilityState.checked` to `aria-checked`.
+Both checkbox layouts now explicitly expose `aria-checked`, retaining the native
+state prop. This is a scoped forward repair, not a relaxed browser assertion.
 
 Shopping is not a query-only port: names normalize with lowercase+trim, quantities
 remain individual occurrences (not sums), and unit-bearing manual items can merge
