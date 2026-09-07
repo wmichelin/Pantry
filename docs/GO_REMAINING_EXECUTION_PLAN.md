@@ -216,6 +216,18 @@ I, final Greek sigma, NBSP/BOM and skipped section headers. The existing staging
 collation was verified read-only before using it. No new collation is created.
 See [PostgreSQL collation behavior](https://www.postgresql.org/docs/current/collation.html).
 
+Check/clear checkpoints: plan `a7051e7`, API/SQL `2d19f82`, gated client `423aaa8`,
+live/browser tests `e03d98e`. API `423aaa83bda2a7576507726ae3460ac457447f3c`
+deployed in [run 34166522572](https://github.com/wmichelin/Pantry/actions/runs/34166522572).
+147 Bun tests, Go vet/race, protobuf gates, typecheck, web export and API image passed.
+Transaction gate passed; pre/post staging counts remained 3 queue / 5 checks /
+14 manual items; no security advisor errors. Live acceptance passed repeated
+check/uncheck, preserved UUID, independent recipe/manual checks, legacy fallback,
+Unicode/header cases, exact outsider/anonymous before-after equality, clear scope
+and foreign-household preservation. Shopping check web flag may now be enabled;
+browser release gate remains pending. Concurrent optimistic-action races in the
+legacy UI are unchanged and remain a follow-up, not a claimed concurrency proof.
+
 Shopping is not a query-only port: names normalize with lowercase+trim, quantities
 remain individual occurrences (not sums), and unit-bearing manual items can merge
 with recipe rows. Preserve `recipe:<name>` versus `manual:<uuid>` list identity,
