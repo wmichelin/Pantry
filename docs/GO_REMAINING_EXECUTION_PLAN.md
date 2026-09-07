@@ -3,9 +3,9 @@
 ## Status update
 
 Status: implementing
-Last completed: import SQL, Go API and persisted-state acceptance passed.
-Now: enable the import client flag and verify single/board browser flows.
-Next: Phase 2 recipe management after the import browser gate passes.
+Last completed: import persistence slice deployed and browser-verified (PR 47).
+Now: Phase 2 recipe management implementation and regression tests.
+Next: staged recipe read/tag/delete acceptance, then queue/shopping.
 Staging: https://pantry-staging.waltermichelin.com (verified baseline)
 Blocker: none
 
@@ -54,8 +54,8 @@ successful save. Failed saves must not suppress retrying the same URL.
 | Phase | Scope and commits | Required parity gate | State |
 | --- | --- | --- | --- |
 | 0 | Commit this plan and baseline/review | Scope, clean implementation tree, staging rollback identified | Complete |
-| 1 | Import contract/domain/storage + SQL + tests; single/board client + tests; acceptance + staged flag | All source metadata, instructions/tags order, null/zero, empty single import, long text, dedup, atomic failure and accurate board summary | Implementing |
-| 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Pending |
+| 1 | Import contract/domain/storage + SQL + tests; single/board client + tests; acceptance + staged flag | All source metadata, instructions/tags order, null/zero, empty single import, long text, dedup, atomic failure and accurate board summary | Persistence verified; parser/board orchestration remain to port |
+| 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Implementing |
 | 3 | Queue and shopping-list services and client | Add/remove/retry, cross-household references, quantity aggregation, checks/manual items/editing; clear queue preserves manual items, clear week removes them | Pending |
 | 4 | Ingredient catalog and household settings | Normalization, catalog seeding/backfill, category/store assignments, store CRUD, member/invite reads, aisle create/delete/reorder and reassignment | Pending |
 | 5 | Go scraper and client | Saved website/pin/board fixtures; parsing/errors, authenticated requests, DNS/redirect SSRF checks, bounded concurrency/time/body, rate limiting | Pending |
@@ -118,6 +118,21 @@ prefer invoker functions and preserve caller-scoped policies.
 - `node scripts/verify-staging-recipe-import.mjs` passed actual legacy/Go row
   equality, long metadata, null/zero, member ingredientless import, independent
   outsider/anonymous rejection and oversized rejection with no extra rows.
-- Import flag is now eligible for staging web cutover; browser proof still pending.
+- Import web revision `4b32c14b4397fbb45a638a5d0f4379b592723db3` is deployed and
+  browser-verified in [PR 47](https://github.com/wmichelin/Pantry/pull/47#issuecomment-5574638016).
+  New known-good web image is `ghcr.io/wmichelin/pantry:staging-4b32c14b4397fbb45a638a5d0f4379b592723db3`;
+  API is `ghcr.io/wmichelin/pantry:staging-api-b74177d56baf15f830d720dcb5d1264b6095c225`.
+  Single-import metadata and mobile-width mixed-board browser checks passed with
+  three binary Connect saves, no direct recipe inserts, no browser exceptions.
 - Parsing, board orchestration/duplicate lookup, and best-effort catalog enrichment
   remain client-owned in this first persistence slice; not claimed as a full Go port.
+
+## Phase 2 review decisions
+
+Recipe management adds List/Get/SearchIngredients/UpdateTags/Delete operations,
+with caller-token RLS and a separate staging flag. No migration is required.
+Nullable arrays have explicit Protobuf wrappers; absence, empty strings and zero
+remain distinct. Existing FK cascades make one parent recipe deletion atomic.
+Intentional difference: hidden/missing update/delete targets now report not-found
+instead of a false successful zero-row mutation. Queue lookup/toggle remains in
+Phase 3; household metadata and catalog reads remain in Phase 4.

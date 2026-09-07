@@ -20,6 +20,7 @@ import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
 import { importRecipe, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
 import { importedRecipeInput, saveImportedBoard } from "../../lib/recipe-import";
+import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../lib/recipe-api";
 
 export default function ReviewBoardScreen() {
   const { householdId, recipesJson } = useLocalSearchParams<{
@@ -79,6 +80,11 @@ export default function ReviewBoardScreen() {
           catalogWarning: () => console.warn("Catalog enrichment after import failed"),
           progress: setSaveProgress,
           existingURLs: async () => {
+            const readURL = stagingRecipeManagementAPIOrigin();
+            if (readURL) {
+              const rows = await recipeAPI(readURL, session.access_token).list(householdId!);
+              return rows.flatMap(recipe => recipe.source_url ? [recipe.source_url] : []);
+            }
             const { data, error } = await supabase.from("recipes").select("source_url").eq("household_id", householdId);
             if (error) throw new Error("Couldn't check existing recipes. Nothing was imported.");
             return (data ?? []).flatMap((recipe) => recipe.source_url ? [recipe.source_url] : []);
