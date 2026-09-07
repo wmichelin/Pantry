@@ -1,5 +1,9 @@
 // Fallback for environments without collaborative preview automation. Start a
 // fresh loopback-only Chromium debugging instance on port 9222 before use.
+// For desktop pointer coverage, launch headless with
+// --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4
+// (the same defaults used by Playwright's Chromium launcher). Otherwise headless
+// may advertise no hover and exercise Pantry's mobile handle UI at desktop width.
 import assert from 'node:assert/strict';
 import { origin } from './verify-staging-recipe-import.mjs';
 
