@@ -184,6 +184,33 @@ checks, typecheck, Protobuf format/lint/build/breaking, web export and API image
 
 ## Next-slice characterization checklist
 
+### Phase 3b first checkpoint: shopping checks and clearing
+
+Status: implementing. Staging: https://pantry-staging.waltermichelin.com (verified baseline).
+Six-role review confirmed the aggregation/catalog dependencies and identified
+duplicate metadata IDs during ordering, mismatched parsed/manual names, and legacy
+manual checks that reappear after reload. Product/architecture recommend an eventual
+whole-screen cutover; testing/staff recommend characterizing aggregation first;
+operations/QA require independent flags and failure-injected transaction gates.
+
+Decision: first ship the independently testable check/clear lifecycle under
+`EXPO_PUBLIC_PANTRY_API_SHOPPING_CHECKS`. The rest of the shopping screen remains
+legacy until its own parity gates pass. This intentionally splits Phase 3b, avoiding
+unreviewed parser/order changes in the same release. No full shopping-port claim.
+
+- Set checked state with explicit recipe versus standalone-manual identity;
+  repeated checks preserve the existing check row.
+- Clear checks preserves queue/manuals. Clear shopping week atomically deletes
+  queue/checks/manuals, preserving recipes, metadata and other households.
+- Intentional correction: unchecking a standalone manual also removes its legacy
+  bare-name check only when no queued recipe ingredient uses that name. Recipe and
+  manual checks remain independent when both rows exist.
+- API/domain/adapter tests, SQL second/third-delete rollback injection, owner/member/
+  outsider acceptance and desktop/mobile browser reload/confirmation checks precede
+  flag enablement. Existing images in the verified checkpoint remain rollback targets.
+
+Remaining aggregation/catalog/order issues above stay pending, not silently fixed.
+
 Shopping is not a query-only port: names normalize with lowercase+trim, quantities
 remain individual occurrences (not sums), and unit-bearing manual items can merge
 with recipe rows. Preserve `recipe:<name>` versus `manual:<uuid>` list identity,
