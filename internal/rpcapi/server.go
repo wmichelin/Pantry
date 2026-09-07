@@ -16,6 +16,7 @@ import (
 
 const MaxRequestBytes = 16 << 10
 const MaxImportRequestBytes = 256 << 10
+const MaxShoppingOrderRequestBytes = 1 << 20
 
 type Server struct {
 	pantryv1connect.UnimplementedIdentityServiceHandler
@@ -41,11 +42,16 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 	mux.Handle(pantryv1connect.NewShoppingServiceHandler(server, handlerOptions...))
 	_, importHandler := pantryv1connect.NewRecipeServiceHandler(server, connect.WithReadMaxBytes(MaxImportRequestBytes))
 	mux.Handle(pantryv1connect.RecipeServiceImportRecipeProcedure, importHandler)
+	_, orderHandler := pantryv1connect.NewShoppingServiceHandler(server, connect.WithReadMaxBytes(MaxShoppingOrderRequestBytes))
+	mux.Handle(pantryv1connect.ShoppingServiceSaveShoppingOrderProcedure, orderHandler)
 
 	bounded := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		limit := int64(MaxRequestBytes)
 		if request.URL.Path == pantryv1connect.RecipeServiceImportRecipeProcedure {
 			limit = MaxImportRequestBytes
+		}
+		if request.URL.Path == pantryv1connect.ShoppingServiceSaveShoppingOrderProcedure {
+			limit = MaxShoppingOrderRequestBytes
 		}
 		http.MaxBytesHandler(mux, limit).ServeHTTP(writer, request)
 	})

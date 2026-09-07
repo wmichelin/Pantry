@@ -17,6 +17,7 @@ import { IngredientAutocomplete } from "../../components/IngredientAutocomplete"
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth-context";
 import { shoppingChecksAPI, stagingShoppingChecksAPIOrigin } from "../../lib/shopping-api";
+import { shoppingListAPI, stagingShoppingListAPIOrigin, type ShoppingListView } from "../../lib/shopping-api";
 import { showError, throwOnError } from "../../lib/db";
 import { formatShoppingList } from "../../lib/format-shopping-list";
 import { formatQuantity } from "../../lib/format-quantity";
@@ -104,12 +105,30 @@ export default function ShoppingListScreen() {
   const [sectionRows, setSectionRows] = useState<ShoppingSectionRow[]>([]);
   /** Mobile / coarse: whole-row check + ≡ handle. Desktop web: checkbox check, text drags. */
   const mobileDragUi = useMobileDragUi();
+  const lastShoppingList = useRef<ShoppingListView | null>(null);
+  const shoppingMutationPending = useRef(false);
+  const shoppingVersion = useRef(0);
+  const acceptShoppingList = useCallback((list: ShoppingListView, keepGrouped = false) => {
+    lastShoppingList.current = list;
+    setItems(list.items); setCatalog(list.catalog); setAisleOrder(list.aisles);
+    if (!keepGrouped) { setAisleGrouped(false); setSectionRows([]); }
+    else setSectionRows(buildAisleSectionRows(list.items, list.aisles));
+  }, []);
 
   // ── Load ────────────────────────────────────────────────────────────────────
-  const loadList = useCallback(async () => {
+  const loadList = useCallback(async (duringMutation = false) => {
     if (!householdId) return;
+    if (stagingShoppingListAPIOrigin() && shoppingMutationPending.current && !duringMutation) return;
+    const version = ++shoppingVersion.current;
 
     try {
+      const shoppingURL = stagingShoppingListAPIOrigin();
+      if (shoppingURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        const list = await shoppingListAPI(shoppingURL, session.access_token).get(householdId);
+        if (version === shoppingVersion.current) acceptShoppingList(list);
+        return;
+      }
       const [queueRes, checksRes, manualRes, catalogList, aisles] =
         await Promise.all([
           supabase
@@ -287,7 +306,7 @@ export default function ShoppingListScreen() {
     } finally {
       setLoading(false);
     }
-  }, [householdId]);
+  }, [householdId, session?.access_token, acceptShoppingList]);
 
   useFocusEffect(
     useCallback(() => {
@@ -338,6 +357,9 @@ export default function ShoppingListScreen() {
 
   // ── Check-off ───────────────────────────────────────────────────────────────
   const toggleCheck = async (item: ConsolidatedItem) => {
+    const fullList = !!stagingShoppingListAPIOrigin();
+    if (fullList && shoppingMutationPending.current) return;
+    if (fullList) { shoppingMutationPending.current = true; shoppingVersion.current++; }
     const nowChecked = !item.checked;
     const checkKey = checkKeyFor(item);
     setItems((prev) =>
@@ -361,17 +383,23 @@ export default function ShoppingListScreen() {
           .eq("normalized_name", checkKey);
         if (error) throw error;
       }
+      if (fullList && lastShoppingList.current) {
+        lastShoppingList.current = { ...lastShoppingList.current, items: lastShoppingList.current.items.map(i => i.listKey === item.listKey ? { ...i, checked: nowChecked } : i) };
+      }
     } catch (error) {
       // Revert the optimistic check.
       setItems((prev) =>
         prev.map((i) => (i.listKey === item.listKey ? { ...i, checked: !nowChecked } : i))
       );
       showError("Couldn't update item", error);
-    }
+    } finally { if (fullList) shoppingMutationPending.current = false; }
   };
 
   // ── Clear checks ────────────────────────────────────────────────────────────
   const clearChecks = async () => {
+    const fullList = !!stagingShoppingListAPIOrigin();
+    if (fullList && shoppingMutationPending.current) return;
+    if (fullList) { shoppingMutationPending.current = true; shoppingVersion.current++; }
     const previous = items;
     setItems((prev) => prev.map((i) => ({ ...i, checked: false })));
     try {
@@ -382,15 +410,19 @@ export default function ShoppingListScreen() {
       } else {
         throwOnError(await supabase.from("shopping_list_checks").delete().eq("household_id", householdId));
       }
+      if (fullList && lastShoppingList.current) lastShoppingList.current = { ...lastShoppingList.current, items: lastShoppingList.current.items.map(i => ({ ...i, checked: false })) };
     } catch (error) {
       setItems(previous); // revert
       showError("Couldn't clear checks", error);
-    }
+    } finally { if (fullList) shoppingMutationPending.current = false; }
   };
 
   /** Only invoked from the confirmation modal — never call directly from UI. */
   const clearWeekAfterConfirm = async () => {
     if (!householdId) return;
+    const fullList = !!stagingShoppingListAPIOrigin();
+    if (fullList && shoppingMutationPending.current) return;
+    if (fullList) { shoppingMutationPending.current = true; shoppingVersion.current++; }
     setClearingWeek(true);
     try {
       const shoppingURL = stagingShoppingChecksAPIOrigin();
@@ -405,11 +437,13 @@ export default function ShoppingListScreen() {
         );
       }
       setClearWeekModalVisible(false);
-      await loadList();
+      if (fullList && lastShoppingList.current) acceptShoppingList({ ...lastShoppingList.current, revision: "", items: [] });
+      await loadList(true);
     } catch (err) {
       showError("Couldn't clear the week", err);
     } finally {
       setClearingWeek(false);
+      if (fullList) shoppingMutationPending.current = false;
     }
   };
 
@@ -417,7 +451,7 @@ export default function ShoppingListScreen() {
   const addManualItem = async (nameOverride?: string) => {
     const rawName = (nameOverride ?? newItemText).trim();
     const key = normalizeIngredient(rawName);
-    if (!key || !householdId || addingItem) return;
+    if (!key || !householdId || addingItem || shoppingMutationPending.current) return;
     if (key.endsWith(":")) return;
 
     // Clear immediately so select → add feels like one action, not fill-then-clear.
@@ -425,6 +459,14 @@ export default function ShoppingListScreen() {
     addInputRef.current?.focus();
     setAddingItem(true);
     try {
+      const shoppingURL = stagingShoppingListAPIOrigin();
+      if (shoppingURL) {
+        shoppingMutationPending.current = true;
+        shoppingVersion.current++;
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        acceptShoppingList(await shoppingListAPI(shoppingURL, session.access_token).add(householdId, rawName));
+        return;
+      }
       const catalogRow = await ensureCatalogIngredient(householdId, rawName);
       if (!catalogRow) {
         setNewItemText(rawName);
@@ -517,6 +559,7 @@ export default function ShoppingListScreen() {
       showError("Couldn't add item", err);
     } finally {
       setAddingItem(false);
+      shoppingMutationPending.current = false;
       // Keep typing — don't make add a focus-stealing two-step.
       requestAnimationFrame(() => addInputRef.current?.focus());
     }
@@ -525,6 +568,18 @@ export default function ShoppingListScreen() {
   // ── Remove manual item ──────────────────────────────────────────────────────
   const removeManualItem = async (item: ConsolidatedItem) => {
     if (!item.isManual || !item.manualItemId) return;
+    const shoppingURL = stagingShoppingListAPIOrigin();
+    if (shoppingURL) {
+      if (shoppingMutationPending.current) return;
+      shoppingMutationPending.current = true;
+      shoppingVersion.current++;
+      try {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        acceptShoppingList(await shoppingListAPI(shoppingURL, session.access_token).remove(householdId!, item.manualItemId), aisleGrouped);
+      } catch (error) { showError("Couldn't remove item", error); }
+      finally { shoppingMutationPending.current = false; }
+      return;
+    }
     const previous = items;
     if (isStandaloneManual(item)) {
       setItems((prev) => prev.filter((i) => i.listKey !== item.listKey));
@@ -556,6 +611,25 @@ export default function ShoppingListScreen() {
   // ── Reorder / save order ─────────────────────────────────────────────────────
   const saveOrder = useCallback(async (ordered: ConsolidatedItem[]) => {
     if (!householdId) return;
+    const shoppingURL = stagingShoppingListAPIOrigin();
+    if (shoppingURL) {
+      if (shoppingMutationPending.current) {
+        if (lastShoppingList.current) acceptShoppingList(lastShoppingList.current, true);
+        return;
+      }
+      shoppingMutationPending.current = true;
+      shoppingVersion.current++;
+      try {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        if (!lastShoppingList.current) throw new Error("Reload the shopping list before ordering.");
+        acceptShoppingList(await shoppingListAPI(shoppingURL, session.access_token).saveOrder(householdId, lastShoppingList.current.revision, ordered), true);
+      } catch (error) {
+        if (lastShoppingList.current) acceptShoppingList(lastShoppingList.current, true);
+        showError("Couldn't save the order", error);
+        await loadList(true);
+      } finally { shoppingMutationPending.current = false; }
+      return;
+    }
 
     const withOrder = ordered.map((item, i) => ({
       ...item,
@@ -606,10 +680,10 @@ export default function ShoppingListScreen() {
         return next && next !== c.category ? { ...c, category: next } : c;
       });
     });
-  }, [householdId]);
+  }, [householdId, session?.access_token, acceptShoppingList, loadList]);
 
   const sortByAisle = useCallback(() => {
-    if (items.length === 0) return;
+    if (items.length === 0 || shoppingMutationPending.current) return;
     const ordered = sortShoppingListByAisle(items, aisleOrder);
     const rows = buildAisleSectionRows(ordered, aisleOrder);
     setItems(ordered);
@@ -659,11 +733,13 @@ export default function ShoppingListScreen() {
   }, [items, shareList, sortByAisle, householdId, navigation, router]);
 
   const handleReorder = (data: ConsolidatedItem[]) => {
+    if (shoppingMutationPending.current) return;
     setItems(data);
     void saveOrder(data);
   };
 
   const handleSectionReorder = (rows: ShoppingSectionRow[]) => {
+    if (shoppingMutationPending.current) return;
     const { items: nextItems, rows: nextRows } = normalizeAisleRows(
       rows,
       aisleOrder

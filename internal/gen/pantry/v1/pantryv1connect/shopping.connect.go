@@ -33,6 +33,18 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// ShoppingServiceGetShoppingListProcedure is the fully-qualified name of the ShoppingService's
+	// GetShoppingList RPC.
+	ShoppingServiceGetShoppingListProcedure = "/pantry.v1.ShoppingService/GetShoppingList"
+	// ShoppingServiceAddShoppingManualItemProcedure is the fully-qualified name of the
+	// ShoppingService's AddShoppingManualItem RPC.
+	ShoppingServiceAddShoppingManualItemProcedure = "/pantry.v1.ShoppingService/AddShoppingManualItem"
+	// ShoppingServiceRemoveShoppingManualItemProcedure is the fully-qualified name of the
+	// ShoppingService's RemoveShoppingManualItem RPC.
+	ShoppingServiceRemoveShoppingManualItemProcedure = "/pantry.v1.ShoppingService/RemoveShoppingManualItem"
+	// ShoppingServiceSaveShoppingOrderProcedure is the fully-qualified name of the ShoppingService's
+	// SaveShoppingOrder RPC.
+	ShoppingServiceSaveShoppingOrderProcedure = "/pantry.v1.ShoppingService/SaveShoppingOrder"
 	// ShoppingServiceSetShoppingItemCheckedProcedure is the fully-qualified name of the
 	// ShoppingService's SetShoppingItemChecked RPC.
 	ShoppingServiceSetShoppingItemCheckedProcedure = "/pantry.v1.ShoppingService/SetShoppingItemChecked"
@@ -46,6 +58,11 @@ const (
 
 // ShoppingServiceClient is a client for the pantry.v1.ShoppingService service.
 type ShoppingServiceClient interface {
+	// May seed missing shopping catalog entries and default aisles.
+	GetShoppingList(context.Context, *connect.Request[v1.GetShoppingListRequest]) (*connect.Response[v1.GetShoppingListResponse], error)
+	AddShoppingManualItem(context.Context, *connect.Request[v1.AddShoppingManualItemRequest]) (*connect.Response[v1.AddShoppingManualItemResponse], error)
+	RemoveShoppingManualItem(context.Context, *connect.Request[v1.RemoveShoppingManualItemRequest]) (*connect.Response[v1.RemoveShoppingManualItemResponse], error)
+	SaveShoppingOrder(context.Context, *connect.Request[v1.SaveShoppingOrderRequest]) (*connect.Response[v1.SaveShoppingOrderResponse], error)
 	SetShoppingItemChecked(context.Context, *connect.Request[v1.SetShoppingItemCheckedRequest]) (*connect.Response[v1.SetShoppingItemCheckedResponse], error)
 	ClearShoppingChecks(context.Context, *connect.Request[v1.ClearShoppingChecksRequest]) (*connect.Response[v1.ClearShoppingChecksResponse], error)
 	ClearShoppingWeek(context.Context, *connect.Request[v1.ClearShoppingWeekRequest]) (*connect.Response[v1.ClearShoppingWeekResponse], error)
@@ -62,6 +79,30 @@ func NewShoppingServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 	baseURL = strings.TrimRight(baseURL, "/")
 	shoppingServiceMethods := v1.File_pantry_v1_shopping_proto.Services().ByName("ShoppingService").Methods()
 	return &shoppingServiceClient{
+		getShoppingList: connect.NewClient[v1.GetShoppingListRequest, v1.GetShoppingListResponse](
+			httpClient,
+			baseURL+ShoppingServiceGetShoppingListProcedure,
+			connect.WithSchema(shoppingServiceMethods.ByName("GetShoppingList")),
+			connect.WithClientOptions(opts...),
+		),
+		addShoppingManualItem: connect.NewClient[v1.AddShoppingManualItemRequest, v1.AddShoppingManualItemResponse](
+			httpClient,
+			baseURL+ShoppingServiceAddShoppingManualItemProcedure,
+			connect.WithSchema(shoppingServiceMethods.ByName("AddShoppingManualItem")),
+			connect.WithClientOptions(opts...),
+		),
+		removeShoppingManualItem: connect.NewClient[v1.RemoveShoppingManualItemRequest, v1.RemoveShoppingManualItemResponse](
+			httpClient,
+			baseURL+ShoppingServiceRemoveShoppingManualItemProcedure,
+			connect.WithSchema(shoppingServiceMethods.ByName("RemoveShoppingManualItem")),
+			connect.WithClientOptions(opts...),
+		),
+		saveShoppingOrder: connect.NewClient[v1.SaveShoppingOrderRequest, v1.SaveShoppingOrderResponse](
+			httpClient,
+			baseURL+ShoppingServiceSaveShoppingOrderProcedure,
+			connect.WithSchema(shoppingServiceMethods.ByName("SaveShoppingOrder")),
+			connect.WithClientOptions(opts...),
+		),
 		setShoppingItemChecked: connect.NewClient[v1.SetShoppingItemCheckedRequest, v1.SetShoppingItemCheckedResponse](
 			httpClient,
 			baseURL+ShoppingServiceSetShoppingItemCheckedProcedure,
@@ -85,9 +126,33 @@ func NewShoppingServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 
 // shoppingServiceClient implements ShoppingServiceClient.
 type shoppingServiceClient struct {
-	setShoppingItemChecked *connect.Client[v1.SetShoppingItemCheckedRequest, v1.SetShoppingItemCheckedResponse]
-	clearShoppingChecks    *connect.Client[v1.ClearShoppingChecksRequest, v1.ClearShoppingChecksResponse]
-	clearShoppingWeek      *connect.Client[v1.ClearShoppingWeekRequest, v1.ClearShoppingWeekResponse]
+	getShoppingList          *connect.Client[v1.GetShoppingListRequest, v1.GetShoppingListResponse]
+	addShoppingManualItem    *connect.Client[v1.AddShoppingManualItemRequest, v1.AddShoppingManualItemResponse]
+	removeShoppingManualItem *connect.Client[v1.RemoveShoppingManualItemRequest, v1.RemoveShoppingManualItemResponse]
+	saveShoppingOrder        *connect.Client[v1.SaveShoppingOrderRequest, v1.SaveShoppingOrderResponse]
+	setShoppingItemChecked   *connect.Client[v1.SetShoppingItemCheckedRequest, v1.SetShoppingItemCheckedResponse]
+	clearShoppingChecks      *connect.Client[v1.ClearShoppingChecksRequest, v1.ClearShoppingChecksResponse]
+	clearShoppingWeek        *connect.Client[v1.ClearShoppingWeekRequest, v1.ClearShoppingWeekResponse]
+}
+
+// GetShoppingList calls pantry.v1.ShoppingService.GetShoppingList.
+func (c *shoppingServiceClient) GetShoppingList(ctx context.Context, req *connect.Request[v1.GetShoppingListRequest]) (*connect.Response[v1.GetShoppingListResponse], error) {
+	return c.getShoppingList.CallUnary(ctx, req)
+}
+
+// AddShoppingManualItem calls pantry.v1.ShoppingService.AddShoppingManualItem.
+func (c *shoppingServiceClient) AddShoppingManualItem(ctx context.Context, req *connect.Request[v1.AddShoppingManualItemRequest]) (*connect.Response[v1.AddShoppingManualItemResponse], error) {
+	return c.addShoppingManualItem.CallUnary(ctx, req)
+}
+
+// RemoveShoppingManualItem calls pantry.v1.ShoppingService.RemoveShoppingManualItem.
+func (c *shoppingServiceClient) RemoveShoppingManualItem(ctx context.Context, req *connect.Request[v1.RemoveShoppingManualItemRequest]) (*connect.Response[v1.RemoveShoppingManualItemResponse], error) {
+	return c.removeShoppingManualItem.CallUnary(ctx, req)
+}
+
+// SaveShoppingOrder calls pantry.v1.ShoppingService.SaveShoppingOrder.
+func (c *shoppingServiceClient) SaveShoppingOrder(ctx context.Context, req *connect.Request[v1.SaveShoppingOrderRequest]) (*connect.Response[v1.SaveShoppingOrderResponse], error) {
+	return c.saveShoppingOrder.CallUnary(ctx, req)
 }
 
 // SetShoppingItemChecked calls pantry.v1.ShoppingService.SetShoppingItemChecked.
@@ -107,6 +172,11 @@ func (c *shoppingServiceClient) ClearShoppingWeek(ctx context.Context, req *conn
 
 // ShoppingServiceHandler is an implementation of the pantry.v1.ShoppingService service.
 type ShoppingServiceHandler interface {
+	// May seed missing shopping catalog entries and default aisles.
+	GetShoppingList(context.Context, *connect.Request[v1.GetShoppingListRequest]) (*connect.Response[v1.GetShoppingListResponse], error)
+	AddShoppingManualItem(context.Context, *connect.Request[v1.AddShoppingManualItemRequest]) (*connect.Response[v1.AddShoppingManualItemResponse], error)
+	RemoveShoppingManualItem(context.Context, *connect.Request[v1.RemoveShoppingManualItemRequest]) (*connect.Response[v1.RemoveShoppingManualItemResponse], error)
+	SaveShoppingOrder(context.Context, *connect.Request[v1.SaveShoppingOrderRequest]) (*connect.Response[v1.SaveShoppingOrderResponse], error)
 	SetShoppingItemChecked(context.Context, *connect.Request[v1.SetShoppingItemCheckedRequest]) (*connect.Response[v1.SetShoppingItemCheckedResponse], error)
 	ClearShoppingChecks(context.Context, *connect.Request[v1.ClearShoppingChecksRequest]) (*connect.Response[v1.ClearShoppingChecksResponse], error)
 	ClearShoppingWeek(context.Context, *connect.Request[v1.ClearShoppingWeekRequest]) (*connect.Response[v1.ClearShoppingWeekResponse], error)
@@ -119,6 +189,30 @@ type ShoppingServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewShoppingServiceHandler(svc ShoppingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	shoppingServiceMethods := v1.File_pantry_v1_shopping_proto.Services().ByName("ShoppingService").Methods()
+	shoppingServiceGetShoppingListHandler := connect.NewUnaryHandler(
+		ShoppingServiceGetShoppingListProcedure,
+		svc.GetShoppingList,
+		connect.WithSchema(shoppingServiceMethods.ByName("GetShoppingList")),
+		connect.WithHandlerOptions(opts...),
+	)
+	shoppingServiceAddShoppingManualItemHandler := connect.NewUnaryHandler(
+		ShoppingServiceAddShoppingManualItemProcedure,
+		svc.AddShoppingManualItem,
+		connect.WithSchema(shoppingServiceMethods.ByName("AddShoppingManualItem")),
+		connect.WithHandlerOptions(opts...),
+	)
+	shoppingServiceRemoveShoppingManualItemHandler := connect.NewUnaryHandler(
+		ShoppingServiceRemoveShoppingManualItemProcedure,
+		svc.RemoveShoppingManualItem,
+		connect.WithSchema(shoppingServiceMethods.ByName("RemoveShoppingManualItem")),
+		connect.WithHandlerOptions(opts...),
+	)
+	shoppingServiceSaveShoppingOrderHandler := connect.NewUnaryHandler(
+		ShoppingServiceSaveShoppingOrderProcedure,
+		svc.SaveShoppingOrder,
+		connect.WithSchema(shoppingServiceMethods.ByName("SaveShoppingOrder")),
+		connect.WithHandlerOptions(opts...),
+	)
 	shoppingServiceSetShoppingItemCheckedHandler := connect.NewUnaryHandler(
 		ShoppingServiceSetShoppingItemCheckedProcedure,
 		svc.SetShoppingItemChecked,
@@ -139,6 +233,14 @@ func NewShoppingServiceHandler(svc ShoppingServiceHandler, opts ...connect.Handl
 	)
 	return "/pantry.v1.ShoppingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case ShoppingServiceGetShoppingListProcedure:
+			shoppingServiceGetShoppingListHandler.ServeHTTP(w, r)
+		case ShoppingServiceAddShoppingManualItemProcedure:
+			shoppingServiceAddShoppingManualItemHandler.ServeHTTP(w, r)
+		case ShoppingServiceRemoveShoppingManualItemProcedure:
+			shoppingServiceRemoveShoppingManualItemHandler.ServeHTTP(w, r)
+		case ShoppingServiceSaveShoppingOrderProcedure:
+			shoppingServiceSaveShoppingOrderHandler.ServeHTTP(w, r)
 		case ShoppingServiceSetShoppingItemCheckedProcedure:
 			shoppingServiceSetShoppingItemCheckedHandler.ServeHTTP(w, r)
 		case ShoppingServiceClearShoppingChecksProcedure:
@@ -153,6 +255,22 @@ func NewShoppingServiceHandler(svc ShoppingServiceHandler, opts ...connect.Handl
 
 // UnimplementedShoppingServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedShoppingServiceHandler struct{}
+
+func (UnimplementedShoppingServiceHandler) GetShoppingList(context.Context, *connect.Request[v1.GetShoppingListRequest]) (*connect.Response[v1.GetShoppingListResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.ShoppingService.GetShoppingList is not implemented"))
+}
+
+func (UnimplementedShoppingServiceHandler) AddShoppingManualItem(context.Context, *connect.Request[v1.AddShoppingManualItemRequest]) (*connect.Response[v1.AddShoppingManualItemResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.ShoppingService.AddShoppingManualItem is not implemented"))
+}
+
+func (UnimplementedShoppingServiceHandler) RemoveShoppingManualItem(context.Context, *connect.Request[v1.RemoveShoppingManualItemRequest]) (*connect.Response[v1.RemoveShoppingManualItemResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.ShoppingService.RemoveShoppingManualItem is not implemented"))
+}
+
+func (UnimplementedShoppingServiceHandler) SaveShoppingOrder(context.Context, *connect.Request[v1.SaveShoppingOrderRequest]) (*connect.Response[v1.SaveShoppingOrderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.ShoppingService.SaveShoppingOrder is not implemented"))
+}
 
 func (UnimplementedShoppingServiceHandler) SetShoppingItemChecked(context.Context, *connect.Request[v1.SetShoppingItemCheckedRequest]) (*connect.Response[v1.SetShoppingItemCheckedResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.ShoppingService.SetShoppingItemChecked is not implemented"))

@@ -1,0 +1,32 @@
+{
+  "snapshot": {
+    "ingredients": [
+      {"name":" Milk ","recipe_title":"Added","quantity":null,"unit":null},
+      {"name":"milk","recipe_title":"Soup","quantity":0,"unit":""},
+      {"name":"rice","recipe_title":"Soup","quantity":0.5,"unit":"cup"},
+      {"name":"For sauce:","recipe_title":"Soup","quantity":null,"unit":null}
+    ],
+    "manuals": [
+      {"id":"m1","normalized_name":"milk","quantity":null,"unit":null,"sort_order":20},
+      {"id":"m2","normalized_name":"rice","quantity":2,"unit":"cups","sort_order":-10},
+      {"id":"m3","normalized_name":"tea","quantity":0,"unit":" ","sort_order":null}
+    ],
+    "catalog": [
+      {"id":"c1","normalized_name":"milk","display_name":"Custom Milk","sort_order":10,"category":" dairy "},
+      {"id":"c2","normalized_name":"rice","display_name":"","sort_order":30,"category":"custom"}
+    ],
+    "checks":["milk","tea"],"aisles":[]
+  },
+  "expected": [
+    {"list_key":"recipe:milk","normalized_name":"milk","display_name":"Custom Milk","metadata_id":"c1","sort_order":10,"category":"dairy","occurrences":[{"recipe_title":"Added","quantity":null,"unit":null},{"recipe_title":"Soup","quantity":0,"unit":""}],"checked":true,"is_manual":false,"manual_item_id":""},
+    {"list_key":"manual:m1","normalized_name":"milk","display_name":"Custom Milk","metadata_id":"c1","sort_order":20,"category":"dairy","occurrences":[],"checked":false,"is_manual":true,"manual_item_id":"m1"},
+    {"list_key":"recipe:rice","normalized_name":"rice","display_name":"","metadata_id":"c2","sort_order":30,"category":"custom","occurrences":[{"recipe_title":"Soup","quantity":0.5,"unit":"cup"},{"recipe_title":"Added","quantity":2,"unit":"cups"}],"checked":false,"is_manual":true,"manual_item_id":"m2"},
+    {"list_key":"manual:m3","normalized_name":"tea","display_name":"Tea","metadata_id":"","sort_order":null,"category":"other","occurrences":[{"recipe_title":"Added","quantity":0,"unit":" "}],"checked":true,"is_manual":true,"manual_item_id":"m3"}
+  ],
+  "names":[
+    {"raw":"\u00a0İ\ufeff","normalized":"i̇","display":"İ"},
+    {"raw":"ΟΣ","normalized":"ος","display":"ος"},
+    {"raw":" Green  Onion ","normalized":"green  onion","display":"Green  Onion"},
+    {"raw":"éclair","normalized":"éclair","display":"éClair"}
+  ]
+}

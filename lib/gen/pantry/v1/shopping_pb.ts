@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file pantry/v1/shopping.proto.
  */
 export const file_pantry_v1_shopping: GenFile = /*@__PURE__*/
-  fileDesc("ChhwYW50cnkvdjEvc2hvcHBpbmcucHJvdG8SCXBhbnRyeS52MSJ6Ch1TZXRTaG9wcGluZ0l0ZW1DaGVja2VkUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSFwoPbm9ybWFsaXplZF9uYW1lGAIgASgJEhkKEXN0YW5kYWxvbmVfbWFudWFsGAMgASgIEg8KB2NoZWNrZWQYBCABKAgiIAoeU2V0U2hvcHBpbmdJdGVtQ2hlY2tlZFJlc3BvbnNlIjIKGkNsZWFyU2hvcHBpbmdDaGVja3NSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCSIdChtDbGVhclNob3BwaW5nQ2hlY2tzUmVzcG9uc2UiMAoYQ2xlYXJTaG9wcGluZ1dlZWtSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCSIbChlDbGVhclNob3BwaW5nV2Vla1Jlc3BvbnNlMsYCCg9TaG9wcGluZ1NlcnZpY2USbQoWU2V0U2hvcHBpbmdJdGVtQ2hlY2tlZBIoLnBhbnRyeS52MS5TZXRTaG9wcGluZ0l0ZW1DaGVja2VkUmVxdWVzdBopLnBhbnRyeS52MS5TZXRTaG9wcGluZ0l0ZW1DaGVja2VkUmVzcG9uc2USZAoTQ2xlYXJTaG9wcGluZ0NoZWNrcxIlLnBhbnRyeS52MS5DbGVhclNob3BwaW5nQ2hlY2tzUmVxdWVzdBomLnBhbnRyeS52MS5DbGVhclNob3BwaW5nQ2hlY2tzUmVzcG9uc2USXgoRQ2xlYXJTaG9wcGluZ1dlZWsSIy5wYW50cnkudjEuQ2xlYXJTaG9wcGluZ1dlZWtSZXF1ZXN0GiQucGFudHJ5LnYxLkNsZWFyU2hvcHBpbmdXZWVrUmVzcG9uc2VCPVo7Z2l0aHViLmNvbS93bWljaGVsaW4vUGFudHJ5L2ludGVybmFsL2dlbi9wYW50cnkvdjE7cGFudHJ5djFiBnByb3RvMw");
+  fileDesc("ChhwYW50cnkvdjEvc2hvcHBpbmcucHJvdG8SCXBhbnRyeS52MSJ6Ch1TZXRTaG9wcGluZ0l0ZW1DaGVja2VkUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSFwoPbm9ybWFsaXplZF9uYW1lGAIgASgJEhkKEXN0YW5kYWxvbmVfbWFudWFsGAMgASgIEg8KB2NoZWNrZWQYBCABKAgiIAoeU2V0U2hvcHBpbmdJdGVtQ2hlY2tlZFJlc3BvbnNlIjIKGkNsZWFyU2hvcHBpbmdDaGVja3NSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCSIdChtDbGVhclNob3BwaW5nQ2hlY2tzUmVzcG9uc2UiMAoYQ2xlYXJTaG9wcGluZ1dlZWtSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCSIbChlDbGVhclNob3BwaW5nV2Vla1Jlc3BvbnNlImoKElNob3BwaW5nT2NjdXJyZW5jZRIUCgxyZWNpcGVfdGl0bGUYASABKAkSFQoIcXVhbnRpdHkYAiABKAFIAIgBARIRCgR1bml0GAMgASgJSAGIAQFCCwoJX3F1YW50aXR5QgcKBV91bml0Io4CCgxTaG9wcGluZ0l0ZW0SEAoIbGlzdF9rZXkYASABKAkSFwoPbm9ybWFsaXplZF9uYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRITCgttZXRhZGF0YV9pZBgEIAEoCRIXCgpzb3J0X29yZGVyGAUgASgFSACIAQESEAoIY2F0ZWdvcnkYBiABKAkSMgoLb2NjdXJyZW5jZXMYByADKAsyHS5wYW50cnkudjEuU2hvcHBpbmdPY2N1cnJlbmNlEg8KB2NoZWNrZWQYCCABKAgSEQoJaXNfbWFudWFsGAkgASgIEhYKDm1hbnVhbF9pdGVtX2lkGAogASgJQg0KC19zb3J0X29yZGVyInYKE1Nob3BwaW5nQ2F0YWxvZ0l0ZW0SCgoCaWQYASABKAkSFwoPbm9ybWFsaXplZF9uYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgpzb3J0X29yZGVyGAQgASgFEhAKCGNhdGVnb3J5GAUgASgJIj8KDVNob3BwaW5nQWlzbGUSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhIKCnNvcnRfb3JkZXIYAyABKAUiowEKDFNob3BwaW5nTGlzdBIQCghyZXZpc2lvbhgBIAEoCRImCgVpdGVtcxgCIAMoCzIXLnBhbnRyeS52MS5TaG9wcGluZ0l0ZW0SLwoHY2F0YWxvZxgDIAMoCzIeLnBhbnRyeS52MS5TaG9wcGluZ0NhdGFsb2dJdGVtEigKBmFpc2xlcxgEIAMoCzIYLnBhbnRyeS52MS5TaG9wcGluZ0Fpc2xlIi4KFkdldFNob3BwaW5nTGlzdFJlcXVlc3QSFAoMaG91c2Vob2xkX2lkGAEgASgJIkAKF0dldFNob3BwaW5nTGlzdFJlc3BvbnNlEiUKBGxpc3QYASABKAsyFy5wYW50cnkudjEuU2hvcHBpbmdMaXN0IkIKHEFkZFNob3BwaW5nTWFudWFsSXRlbVJlcXVlc3QSFAoMaG91c2Vob2xkX2lkGAEgASgJEgwKBG5hbWUYAiABKAkiRgodQWRkU2hvcHBpbmdNYW51YWxJdGVtUmVzcG9uc2USJQoEbGlzdBgBIAEoCzIXLnBhbnRyeS52MS5TaG9wcGluZ0xpc3QiTwofUmVtb3ZlU2hvcHBpbmdNYW51YWxJdGVtUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSFgoObWFudWFsX2l0ZW1faWQYAiABKAkiSQogUmVtb3ZlU2hvcHBpbmdNYW51YWxJdGVtUmVzcG9uc2USJQoEbGlzdBgBIAEoCzIXLnBhbnRyeS52MS5TaG9wcGluZ0xpc3QiNgoQU2hvcHBpbmdPcmRlclJvdxIQCghsaXN0X2tleRgBIAEoCRIQCghjYXRlZ29yeRgCIAEoCSJtChhTYXZlU2hvcHBpbmdPcmRlclJlcXVlc3QSFAoMaG91c2Vob2xkX2lkGAEgASgJEhAKCHJldmlzaW9uGAIgASgJEikKBHJvd3MYAyADKAsyGy5wYW50cnkudjEuU2hvcHBpbmdPcmRlclJvdyJCChlTYXZlU2hvcHBpbmdPcmRlclJlc3BvbnNlEiUKBGxpc3QYASABKAsyFy5wYW50cnkudjEuU2hvcHBpbmdMaXN0MuEFCg9TaG9wcGluZ1NlcnZpY2USWAoPR2V0U2hvcHBpbmdMaXN0EiEucGFudHJ5LnYxLkdldFNob3BwaW5nTGlzdFJlcXVlc3QaIi5wYW50cnkudjEuR2V0U2hvcHBpbmdMaXN0UmVzcG9uc2USagoVQWRkU2hvcHBpbmdNYW51YWxJdGVtEicucGFudHJ5LnYxLkFkZFNob3BwaW5nTWFudWFsSXRlbVJlcXVlc3QaKC5wYW50cnkudjEuQWRkU2hvcHBpbmdNYW51YWxJdGVtUmVzcG9uc2UScwoYUmVtb3ZlU2hvcHBpbmdNYW51YWxJdGVtEioucGFudHJ5LnYxLlJlbW92ZVNob3BwaW5nTWFudWFsSXRlbVJlcXVlc3QaKy5wYW50cnkudjEuUmVtb3ZlU2hvcHBpbmdNYW51YWxJdGVtUmVzcG9uc2USXgoRU2F2ZVNob3BwaW5nT3JkZXISIy5wYW50cnkudjEuU2F2ZVNob3BwaW5nT3JkZXJSZXF1ZXN0GiQucGFudHJ5LnYxLlNhdmVTaG9wcGluZ09yZGVyUmVzcG9uc2USbQoWU2V0U2hvcHBpbmdJdGVtQ2hlY2tlZBIoLnBhbnRyeS52MS5TZXRTaG9wcGluZ0l0ZW1DaGVja2VkUmVxdWVzdBopLnBhbnRyeS52MS5TZXRTaG9wcGluZ0l0ZW1DaGVja2VkUmVzcG9uc2USZAoTQ2xlYXJTaG9wcGluZ0NoZWNrcxIlLnBhbnRyeS52MS5DbGVhclNob3BwaW5nQ2hlY2tzUmVxdWVzdBomLnBhbnRyeS52MS5DbGVhclNob3BwaW5nQ2hlY2tzUmVzcG9uc2USXgoRQ2xlYXJTaG9wcGluZ1dlZWsSIy5wYW50cnkudjEuQ2xlYXJTaG9wcGluZ1dlZWtSZXF1ZXN0GiQucGFudHJ5LnYxLkNsZWFyU2hvcHBpbmdXZWVrUmVzcG9uc2VCPVo7Z2l0aHViLmNvbS93bWljaGVsaW4vUGFudHJ5L2ludGVybmFsL2dlbi9wYW50cnkvdjE7cGFudHJ5djFiBnByb3RvMw");
 
 /**
  * @generated from message pantry.v1.SetShoppingItemCheckedRequest
@@ -118,12 +118,409 @@ export const ClearShoppingWeekResponseSchema: GenMessage<ClearShoppingWeekRespon
   messageDesc(file_pantry_v1_shopping, 5);
 
 /**
+ * @generated from message pantry.v1.ShoppingOccurrence
+ */
+export type ShoppingOccurrence = Message<"pantry.v1.ShoppingOccurrence"> & {
+  /**
+   * @generated from field: string recipe_title = 1;
+   */
+  recipeTitle: string;
+
+  /**
+   * @generated from field: optional double quantity = 2;
+   */
+  quantity?: number | undefined;
+
+  /**
+   * @generated from field: optional string unit = 3;
+   */
+  unit?: string | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.ShoppingOccurrence.
+ * Use `create(ShoppingOccurrenceSchema)` to create a new message.
+ */
+export const ShoppingOccurrenceSchema: GenMessage<ShoppingOccurrence> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 6);
+
+/**
+ * @generated from message pantry.v1.ShoppingItem
+ */
+export type ShoppingItem = Message<"pantry.v1.ShoppingItem"> & {
+  /**
+   * @generated from field: string list_key = 1;
+   */
+  listKey: string;
+
+  /**
+   * @generated from field: string normalized_name = 2;
+   */
+  normalizedName: string;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: string metadata_id = 4;
+   */
+  metadataId: string;
+
+  /**
+   * @generated from field: optional int32 sort_order = 5;
+   */
+  sortOrder?: number | undefined;
+
+  /**
+   * @generated from field: string category = 6;
+   */
+  category: string;
+
+  /**
+   * @generated from field: repeated pantry.v1.ShoppingOccurrence occurrences = 7;
+   */
+  occurrences: ShoppingOccurrence[];
+
+  /**
+   * @generated from field: bool checked = 8;
+   */
+  checked: boolean;
+
+  /**
+   * @generated from field: bool is_manual = 9;
+   */
+  isManual: boolean;
+
+  /**
+   * @generated from field: string manual_item_id = 10;
+   */
+  manualItemId: string;
+};
+
+/**
+ * Describes the message pantry.v1.ShoppingItem.
+ * Use `create(ShoppingItemSchema)` to create a new message.
+ */
+export const ShoppingItemSchema: GenMessage<ShoppingItem> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 7);
+
+/**
+ * @generated from message pantry.v1.ShoppingCatalogItem
+ */
+export type ShoppingCatalogItem = Message<"pantry.v1.ShoppingCatalogItem"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string normalized_name = 2;
+   */
+  normalizedName: string;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: int32 sort_order = 4;
+   */
+  sortOrder: number;
+
+  /**
+   * @generated from field: string category = 5;
+   */
+  category: string;
+};
+
+/**
+ * Describes the message pantry.v1.ShoppingCatalogItem.
+ * Use `create(ShoppingCatalogItemSchema)` to create a new message.
+ */
+export const ShoppingCatalogItemSchema: GenMessage<ShoppingCatalogItem> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 8);
+
+/**
+ * @generated from message pantry.v1.ShoppingAisle
+ */
+export type ShoppingAisle = Message<"pantry.v1.ShoppingAisle"> & {
+  /**
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * @generated from field: string label = 2;
+   */
+  label: string;
+
+  /**
+   * @generated from field: int32 sort_order = 3;
+   */
+  sortOrder: number;
+};
+
+/**
+ * Describes the message pantry.v1.ShoppingAisle.
+ * Use `create(ShoppingAisleSchema)` to create a new message.
+ */
+export const ShoppingAisleSchema: GenMessage<ShoppingAisle> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 9);
+
+/**
+ * @generated from message pantry.v1.ShoppingList
+ */
+export type ShoppingList = Message<"pantry.v1.ShoppingList"> & {
+  /**
+   * @generated from field: string revision = 1;
+   */
+  revision: string;
+
+  /**
+   * @generated from field: repeated pantry.v1.ShoppingItem items = 2;
+   */
+  items: ShoppingItem[];
+
+  /**
+   * @generated from field: repeated pantry.v1.ShoppingCatalogItem catalog = 3;
+   */
+  catalog: ShoppingCatalogItem[];
+
+  /**
+   * @generated from field: repeated pantry.v1.ShoppingAisle aisles = 4;
+   */
+  aisles: ShoppingAisle[];
+};
+
+/**
+ * Describes the message pantry.v1.ShoppingList.
+ * Use `create(ShoppingListSchema)` to create a new message.
+ */
+export const ShoppingListSchema: GenMessage<ShoppingList> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 10);
+
+/**
+ * @generated from message pantry.v1.GetShoppingListRequest
+ */
+export type GetShoppingListRequest = Message<"pantry.v1.GetShoppingListRequest"> & {
+  /**
+   * @generated from field: string household_id = 1;
+   */
+  householdId: string;
+};
+
+/**
+ * Describes the message pantry.v1.GetShoppingListRequest.
+ * Use `create(GetShoppingListRequestSchema)` to create a new message.
+ */
+export const GetShoppingListRequestSchema: GenMessage<GetShoppingListRequest> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 11);
+
+/**
+ * @generated from message pantry.v1.GetShoppingListResponse
+ */
+export type GetShoppingListResponse = Message<"pantry.v1.GetShoppingListResponse"> & {
+  /**
+   * @generated from field: pantry.v1.ShoppingList list = 1;
+   */
+  list?: ShoppingList | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.GetShoppingListResponse.
+ * Use `create(GetShoppingListResponseSchema)` to create a new message.
+ */
+export const GetShoppingListResponseSchema: GenMessage<GetShoppingListResponse> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 12);
+
+/**
+ * @generated from message pantry.v1.AddShoppingManualItemRequest
+ */
+export type AddShoppingManualItemRequest = Message<"pantry.v1.AddShoppingManualItemRequest"> & {
+  /**
+   * @generated from field: string household_id = 1;
+   */
+  householdId: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message pantry.v1.AddShoppingManualItemRequest.
+ * Use `create(AddShoppingManualItemRequestSchema)` to create a new message.
+ */
+export const AddShoppingManualItemRequestSchema: GenMessage<AddShoppingManualItemRequest> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 13);
+
+/**
+ * @generated from message pantry.v1.AddShoppingManualItemResponse
+ */
+export type AddShoppingManualItemResponse = Message<"pantry.v1.AddShoppingManualItemResponse"> & {
+  /**
+   * @generated from field: pantry.v1.ShoppingList list = 1;
+   */
+  list?: ShoppingList | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.AddShoppingManualItemResponse.
+ * Use `create(AddShoppingManualItemResponseSchema)` to create a new message.
+ */
+export const AddShoppingManualItemResponseSchema: GenMessage<AddShoppingManualItemResponse> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 14);
+
+/**
+ * @generated from message pantry.v1.RemoveShoppingManualItemRequest
+ */
+export type RemoveShoppingManualItemRequest = Message<"pantry.v1.RemoveShoppingManualItemRequest"> & {
+  /**
+   * @generated from field: string household_id = 1;
+   */
+  householdId: string;
+
+  /**
+   * @generated from field: string manual_item_id = 2;
+   */
+  manualItemId: string;
+};
+
+/**
+ * Describes the message pantry.v1.RemoveShoppingManualItemRequest.
+ * Use `create(RemoveShoppingManualItemRequestSchema)` to create a new message.
+ */
+export const RemoveShoppingManualItemRequestSchema: GenMessage<RemoveShoppingManualItemRequest> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 15);
+
+/**
+ * @generated from message pantry.v1.RemoveShoppingManualItemResponse
+ */
+export type RemoveShoppingManualItemResponse = Message<"pantry.v1.RemoveShoppingManualItemResponse"> & {
+  /**
+   * @generated from field: pantry.v1.ShoppingList list = 1;
+   */
+  list?: ShoppingList | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.RemoveShoppingManualItemResponse.
+ * Use `create(RemoveShoppingManualItemResponseSchema)` to create a new message.
+ */
+export const RemoveShoppingManualItemResponseSchema: GenMessage<RemoveShoppingManualItemResponse> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 16);
+
+/**
+ * @generated from message pantry.v1.ShoppingOrderRow
+ */
+export type ShoppingOrderRow = Message<"pantry.v1.ShoppingOrderRow"> & {
+  /**
+   * @generated from field: string list_key = 1;
+   */
+  listKey: string;
+
+  /**
+   * @generated from field: string category = 2;
+   */
+  category: string;
+};
+
+/**
+ * Describes the message pantry.v1.ShoppingOrderRow.
+ * Use `create(ShoppingOrderRowSchema)` to create a new message.
+ */
+export const ShoppingOrderRowSchema: GenMessage<ShoppingOrderRow> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 17);
+
+/**
+ * @generated from message pantry.v1.SaveShoppingOrderRequest
+ */
+export type SaveShoppingOrderRequest = Message<"pantry.v1.SaveShoppingOrderRequest"> & {
+  /**
+   * @generated from field: string household_id = 1;
+   */
+  householdId: string;
+
+  /**
+   * @generated from field: string revision = 2;
+   */
+  revision: string;
+
+  /**
+   * @generated from field: repeated pantry.v1.ShoppingOrderRow rows = 3;
+   */
+  rows: ShoppingOrderRow[];
+};
+
+/**
+ * Describes the message pantry.v1.SaveShoppingOrderRequest.
+ * Use `create(SaveShoppingOrderRequestSchema)` to create a new message.
+ */
+export const SaveShoppingOrderRequestSchema: GenMessage<SaveShoppingOrderRequest> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 18);
+
+/**
+ * @generated from message pantry.v1.SaveShoppingOrderResponse
+ */
+export type SaveShoppingOrderResponse = Message<"pantry.v1.SaveShoppingOrderResponse"> & {
+  /**
+   * @generated from field: pantry.v1.ShoppingList list = 1;
+   */
+  list?: ShoppingList | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.SaveShoppingOrderResponse.
+ * Use `create(SaveShoppingOrderResponseSchema)` to create a new message.
+ */
+export const SaveShoppingOrderResponseSchema: GenMessage<SaveShoppingOrderResponse> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_shopping, 19);
+
+/**
  * Shopping checks and shopping-week clearing are distinct from queue clearing,
  * which deliberately preserves manual shopping items.
  *
  * @generated from service pantry.v1.ShoppingService
  */
 export const ShoppingService: GenService<{
+  /**
+   * May seed missing shopping catalog entries and default aisles.
+   *
+   * @generated from rpc pantry.v1.ShoppingService.GetShoppingList
+   */
+  getShoppingList: {
+    methodKind: "unary";
+    input: typeof GetShoppingListRequestSchema;
+    output: typeof GetShoppingListResponseSchema;
+  },
+  /**
+   * @generated from rpc pantry.v1.ShoppingService.AddShoppingManualItem
+   */
+  addShoppingManualItem: {
+    methodKind: "unary";
+    input: typeof AddShoppingManualItemRequestSchema;
+    output: typeof AddShoppingManualItemResponseSchema;
+  },
+  /**
+   * @generated from rpc pantry.v1.ShoppingService.RemoveShoppingManualItem
+   */
+  removeShoppingManualItem: {
+    methodKind: "unary";
+    input: typeof RemoveShoppingManualItemRequestSchema;
+    output: typeof RemoveShoppingManualItemResponseSchema;
+  },
+  /**
+   * @generated from rpc pantry.v1.ShoppingService.SaveShoppingOrder
+   */
+  saveShoppingOrder: {
+    methodKind: "unary";
+    input: typeof SaveShoppingOrderRequestSchema;
+    output: typeof SaveShoppingOrderResponseSchema;
+  },
   /**
    * @generated from rpc pantry.v1.ShoppingService.SetShoppingItemChecked
    */
