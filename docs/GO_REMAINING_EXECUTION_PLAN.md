@@ -210,6 +210,11 @@ unreviewed parser/order changes in the same release. No full shopping-port claim
   flag enablement. Existing images in the verified checkpoint remain rollback targets.
 
 Remaining aggregation/catalog/order issues above stay pending, not silently fixed.
+Review follow-up: legacy-check lookup pins PostgreSQL's ICU root collation for
+full Unicode lowercase and the ECMAScript trim character set; tests include dotted
+I, final Greek sigma, NBSP/BOM and skipped section headers. The existing staging
+collation was verified read-only before using it. No new collation is created.
+See [PostgreSQL collation behavior](https://www.postgresql.org/docs/current/collation.html).
 
 Shopping is not a query-only port: names normalize with lowercase+trim, quantities
 remain individual occurrences (not sums), and unit-bearing manual items can merge
