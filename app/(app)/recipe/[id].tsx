@@ -16,6 +16,7 @@ import { showError, throwOnError } from "../../../lib/db";
 import { formatQuantity } from "../../../lib/format-quantity";
 import TagEditor from "../../../components/TagEditor";
 import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../../lib/recipe-api";
+import { queueAPI, stagingQueueAPIOrigin } from "../../../lib/queue-api";
 
 type Recipe = {
   id: string;
@@ -66,8 +67,10 @@ export default function RecipeDetailScreen() {
         const loaded = await api.get(id!);
         setRecipe(loaded.recipe);
         setIngredients(loaded.ingredients);
+        const queueURL = stagingQueueAPIOrigin();
         const [qRes, rows] = await Promise.all([
-          supabase.from("week_queues").select("id").eq("household_id", loaded.recipe.household_id).eq("recipe_id", id).maybeSingle(),
+          queueURL ? queueAPI(queueURL, session.access_token).list(loaded.recipe.household_id, id).then(rows => ({ data: rows[0] ?? null, error: null }))
+            : supabase.from("week_queues").select("id").eq("household_id", loaded.recipe.household_id).eq("recipe_id", id).maybeSingle(),
           api.list(loaded.recipe.household_id),
         ]);
         if (qRes.error) throw qRes.error;
@@ -87,8 +90,9 @@ export default function RecipeDetailScreen() {
 
       if (rRes.error) throw rRes.error;
       setRecipe(rRes.data);
+      const queueURL = stagingQueueAPIOrigin();
       const [qRes, tRes] = await Promise.all([
-        supabase
+        queueURL ? queueAPI(queueURL, session?.access_token ?? "").list(rRes.data.household_id, id).then(rows => ({ data: rows[0] ?? null, error: null })) : supabase
           .from("week_queues")
           .select("id")
           .eq("household_id", rRes.data.household_id)
@@ -134,6 +138,13 @@ export default function RecipeDetailScreen() {
     if (!recipe) return;
     setQueueLoading(true);
     try {
+      const queueURL = stagingQueueAPIOrigin();
+      if (queueURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await queueAPI(queueURL, session.access_token).setQueued(recipe.household_id, recipe.id, !queued);
+        setQueued(!queued);
+        return;
+      }
       if (queued) {
         throwOnError(
           await supabase
