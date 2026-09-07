@@ -1,0 +1,18 @@
+name: Verify staging shopping list parity
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verify-staging-shopping-list
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify aggregation, manual items, ordering and household boundaries
+        run: node scripts/verify-staging-shopping-list.mjs
