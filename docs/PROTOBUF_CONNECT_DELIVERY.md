@@ -58,7 +58,8 @@ The change is eligible for staging only when all of these pass:
 7. The API image deploys first and passes health, anonymous-auth, legacy REST,
    and Connect probes on staging.
 8. The staging-only household/RLS acceptance workflow succeeds before the web
-   image is rebuilt with Connect enabled.
+   image is rebuilt with household Connect enabled. Recipe writes additionally
+   require that workflow to pass with `verify_recipe=true`.
 9. The web application loads and an authenticated staging household flow works
    through Connect. Native iOS and Android smoke checks remain required before a
    future production proposal.
@@ -68,6 +69,11 @@ The change is eligible for staging only when all of these pass:
 Deploy the immutable API image first. Keep the staging web client on REST until
 API and RLS acceptance gates pass, then deploy the web image with
 `EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect`.
+
+Recipe API writes have an independent build flag. Until staging reports the
+committed atomic recipe RPC and its acceptance gate passes, leave
+`EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES` unset so recipe creation stays on its
+known-good direct-Supabase path.
 
 If the web validation fails, restore the last-known-good web image first. If the
 API itself is faulty, restore its last-known-good image second. The workflows

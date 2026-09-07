@@ -76,6 +76,13 @@ Removing the transport build argument reverts the staging client to the legacy
 REST facade without changing the API or database. Production receives neither
 staging build value and stays on its current Supabase client path.
 
+Recipe writes are independently gated by
+`EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES=enabled`. Do not set it until the staging
+project has the committed `create_recipe_with_ingredients` migration and
+**Verify staging household membership parity** passes with
+`verify_recipe=true`. With the flag absent, staging recipe creation retains its
+existing direct-Supabase behavior while household calls use Connect.
+
 The workflow accepts a strict immutable API rollback tag and restores the prior
 API image if replacement or health probes fail. If no prior API image exists, it
 removes the failed new API container; the existing staging web service remains

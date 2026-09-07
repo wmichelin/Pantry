@@ -5,6 +5,12 @@ name: Verify staging household membership parity
 # production and leaves only isolated staging fixtures behind.
 on:
   workflow_dispatch:
+    inputs:
+      verify_recipe:
+        description: "Also require the staged atomic recipe database RPC"
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: verify-staging-household-membership
@@ -21,6 +27,7 @@ jobs:
       STAGING_SUPABASE_URL: https://fncsyvsgolbpviidmpuc.supabase.co
       STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
       GO_RLS_RUN_ID: ${{ github.run_id }}
+      VERIFY_RECIPE: ${{ inputs.verify_recipe }}
     steps:
       - name: Create isolated staging identities
         shell: bash
@@ -69,7 +76,7 @@ jobs:
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script_stop: true
-          envs: GO_RLS_OWNER_TOKEN,GO_RLS_OUTSIDER_TOKEN,GO_RLS_OUTSIDER_ID,GO_RLS_RUN_ID,STAGING_SUPABASE_ANON_KEY
+          envs: GO_RLS_OWNER_TOKEN,GO_RLS_OUTSIDER_TOKEN,GO_RLS_OUTSIDER_ID,GO_RLS_RUN_ID,STAGING_SUPABASE_ANON_KEY,VERIFY_RECIPE
           script: |
             set -euo pipefail
 
@@ -148,17 +155,21 @@ jobs:
             printf '%s' "$duplicate_join" | jq -e '.household.already_member == true' >/dev/null
             echo 'gate: cross-transport idempotent join passed'
 
-            saved_recipe="$(curl --fail --silent --show-error \
-              --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.RecipeService/SaveRecipe \
-              --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
-              --header 'Content-Type: application/json' \
-              --header 'Connect-Protocol-Version: 1' \
-              --data "$(jq -nc --arg household "$household_id" --arg title "Connect Soup ${GO_RLS_RUN_ID}" \
-                '{householdId: $household, title: $title, ingredients: [{name: "salt", unit: "", rawString: "salt"}, {name: "water", quantity: 0, unit: "cups", rawString: "0 cups water"}]}')")"
-            printf '%s' "$saved_recipe" | jq -e \
-              --arg title "Connect Soup ${GO_RLS_RUN_ID}" \
-              '.recipe.title == $title and .recipe.ingredientCount == 2' >/dev/null
-            echo 'gate: Connect atomic recipe save passed'
+            if [ "$VERIFY_RECIPE" = true ]; then
+              saved_recipe="$(curl --fail --silent --show-error \
+                --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.RecipeService/SaveRecipe \
+                --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
+                --header 'Content-Type: application/json' \
+                --header 'Connect-Protocol-Version: 1' \
+                --data "$(jq -nc --arg household "$household_id" --arg title "Connect Soup ${GO_RLS_RUN_ID}" \
+                  '{householdId: $household, title: $title, ingredients: [{name: "salt", unit: "", rawString: "salt"}, {name: "water", quantity: 0, unit: "cups", rawString: "0 cups water"}]}')")"
+              printf '%s' "$saved_recipe" | jq -e \
+                --arg title "Connect Soup ${GO_RLS_RUN_ID}" \
+                '.recipe.title == $title and .recipe.ingredientCount == 2' >/dev/null
+              echo 'gate: Connect atomic recipe save passed'
+            else
+              echo 'gate: recipe save intentionally skipped pending its staging database RPC'
+            fi
 
             outsider_membership="$(curl --fail --silent --show-error \
               --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}" \

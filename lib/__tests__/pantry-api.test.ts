@@ -6,7 +6,20 @@ import {
   GetMembershipResponseSchema,
 } from "../gen/pantry/v1/household_pb";
 import { SaveRecipeRequestSchema, SaveRecipeResponseSchema } from "../gen/pantry/v1/recipe_pb";
-import { createHousehold, createPantryAPIClient, findMembership, joinHousehold, saveRecipe } from "../pantry-api";
+import {
+  createHousehold,
+  createPantryAPIClient,
+  findMembership,
+  joinHousehold,
+  saveRecipe,
+  stagingRecipeAPIOrigin,
+} from "../pantry-api";
+
+describe("staging capability gates", () => {
+  it("keeps recipe API writes off until their database gate is explicit", () => {
+    expect(stagingRecipeAPIOrigin()).toBeNull();
+  });
+});
 
 describe("findMembership", () => {
   it("sends the current session token only to the configured API origin", async () => {
