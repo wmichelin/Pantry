@@ -2,12 +2,12 @@
 
 ## Status update
 
-Status: implementing
-Last completed: import persistence, recipe management, running queue and shopping
-check/clear lifecycle deployed and browser-verified in PRs 47–52.
-Now: verified incremental delivery checkpoint; the full remaining port is not complete.
-Next: shopping aggregation fixtures and catalog dependencies (Phase 3b/4), then
-settings, scraper, and remaining import parser/board orchestration ownership.
+Status: verified (shopping slice; full Go port remains incomplete)
+Last completed: shopping aggregation, catalog/aisle dependencies, manual add/remove
+and revision-checked atomic ordering, PRs 54–55; browser evidence in PR 56.
+Now: full shopping screen uses Go/Connect on staging, including checks and clearing.
+Next: catalog/settings editors and recipe-save catalog enrichment (Phase 4), then
+scraper and remaining import parser/board orchestration ownership.
 Staging: https://pantry-staging.waltermichelin.com (verified baseline)
 Blocker: none
 
@@ -15,7 +15,8 @@ Blocker: none
 
 ### Active slice: remaining shopping screen
 
-Status: implementing. Staging: https://pantry-staging.waltermichelin.com (verified baseline).
+Status: verified. Staging: https://pantry-staging.waltermichelin.com (verified).
+Pre-change recovery baseline (retained):
 Recovery web `staging-9ada40d4d99cb923e06424ab5cf8aecb39a8621d`, API
 `staging-api-423aaa83bda2a7576507726ae3460ac457447f3c`.
 Product/architect review approves GetShoppingList, manual add/remove and atomic
@@ -93,8 +94,8 @@ successful save. Failed saves must not suppress retrying the same URL.
 | 1 | Import contract/domain/storage + SQL + tests; single/board client + tests; acceptance + staged flag | All source metadata, instructions/tags order, null/zero, empty single import, long text, dedup, atomic failure and accurate board summary | Persistence verified; parser/board orchestration remain to port |
 | 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Verified in staging |
 | 3a | Running queue list/add/remove/clear and three screens | Add/remove/retry, targeted membership lookup, cross-household references, atomic clear preserves manual items | Verified in staging |
-| 3b | Shopping-list services and client | Occurrence aggregation, checked-key identity, manual items/editing, ordering; clear shopping week removes queue/checks/manuals | Check/clear lifecycle verified; aggregation/manual/order pending |
-| 4 | Ingredient catalog and household settings | Normalization, catalog seeding/backfill, category/store assignments, store CRUD, member/invite reads, aisle create/delete/reorder and reassignment | Pending |
+| 3b | Shopping-list services and client | Occurrence aggregation, checked-key identity, manual items, ordering; clear shopping week removes queue/checks/manuals | Verified in staging |
+| 4 | Ingredient catalog and household settings | Normalization, catalog seeding/backfill, category/store assignments, store CRUD, member/invite reads, aisle create/delete/reorder and reassignment | Shopping read/seed dependencies done; editors, settings and post-save enrichment pending |
 | 5 | Go scraper and client | Saved website/pin/board fixtures; parsing/errors, authenticated requests, DNS/redirect SSRF checks, bounded concurrency/time/body, rate limiting | Pending |
 | 6 | Cross-capability regression and residual-call audit | Real onboarding → import → queue → shop → clear journey; all remaining direct business-data calls accounted for; rollback rehearsal | Pending |
 
@@ -301,7 +302,7 @@ Production was not changed. Original-checkout local edits were preserved.
 No claim is made that shopping, catalog/settings, scraping, native mobile runtime
 validation, or all import business logic is complete. Their gates remain pending.
 
-## Latest verified checkpoint: shopping checks and clearing
+## Previous verified checkpoint: shopping checks and clearing
 
 Current known-good web:
 `ghcr.io/wmichelin/pantry:staging-9ada40d4d99cb923e06424ab5cf8aecb39a8621d`.
@@ -335,7 +336,81 @@ Staging: https://pantry-staging.waltermichelin.com (verified).
   [queue](https://github.com/wmichelin/Pantry/actions/runs/34167201931), and
   [shopping checks](https://github.com/wmichelin/Pantry/actions/runs/34167203194).
 
-Remaining next slice: characterize occurrence aggregation and catalog seeding,
+Next slice at that checkpoint (now completed below): characterize occurrence aggregation and catalog seeding,
 then port manual add/remove, deduplicated atomic ordering and remaining catalog/
 settings/scraping/import business logic. The full Go port is not complete.
 No production changes were made; original-checkout local edits remain preserved.
+
+## Latest verified checkpoint: complete shopping screen
+
+Staging: https://pantry-staging.waltermichelin.com (verified).
+Implementation [PR 54](https://github.com/wmichelin/Pantry/pull/54), flat-view
+follow-up [PR 55](https://github.com/wmichelin/Pantry/pull/55), browser evidence
+[PR 56](https://github.com/wmichelin/Pantry/pull/56).
+
+- API: `ghcr.io/wmichelin/pantry:staging-api-9d4c28e9451c6b3ab95ef44b92d34f062a574ff4`,
+  [deployment](https://github.com/wmichelin/Pantry/actions/runs/34169951004).
+- Web: `ghcr.io/wmichelin/pantry:staging-d76c9d55a88555161fc7bb9ec67fd41736a20bdd`,
+  [final deployment](https://github.com/wmichelin/Pantry/actions/runs/34170466567).
+  Only staging enables `EXPO_PUBLIC_PANTRY_API_SHOPPING_LIST`; production unchanged.
+- SQL: applied only `20260907225944_staged_shopping_list_operations.sql` to
+  `fncsyvsgolbpviidmpuc` with the CLI's explicitly targeted `db query --file`.
+  `verify-shopping-list-transaction.sql` passed atomic add/order failure injection,
+  same-caller foreign-ID rejection, outsider denial, stale revision rejection,
+  repeat add/remove, custom aisle/catalog preservation and grants. Fixtures and
+  temporary triggers rolled back. Baseline before fixtures: 57 households,
+  101 recipes, 8 queue rows, 22 manual rows. No existing household was reset.
+  The staging clone has no `supabase_migrations.schema_migrations` history table;
+  no broad history repair or `db push` was performed. Reconcile that history as a
+  separate staging operations task before adopting bulk migration deployment.
+- `node scripts/verify-staging-shopping-list.mjs` passed independent legacy/Go
+  snapshot parity, null/zero/empty units, Unicode, repeated occurrences, merged
+  versus standalone manuals, literal input, preserved UUID/quantities/catalog,
+  recipe titled `Added`, duplicate metadata resolution, complete ordering,
+  stale/foreign/anonymous/outsider denial, >1,000-row reads and >16 KiB reorder.
+  [Repeatable workflow](https://github.com/wmichelin/Pantry/actions/runs/34170251986)
+  passed. Bulk fixture rows were removed only from their generated test household.
+- `node scripts/verify-staging-shopping-list-browser.mjs` passed on the final web
+  image: real desktop pointer drag, settled flat-view preservation, drop into an
+  empty aisle, mobile-width emulated **touch** handle drag, persisted category/order,
+  manual add/remove, failure recovery, delayed check versus add/clear, delayed add
+  versus clear-week, and check-preserving rollback even when refresh fails.
+  Every shopping operation used binary Connect; **zero direct shopping table
+  requests** (including reads), zero uncaught browser exceptions.
+- `node scripts/verify-staging-shopping-stale-load-browser.mjs` passed a real SPA
+  navigation/refocus with an older Get response held until after a successful
+  check. Both UI and database retained the newer checkmark.
+- `node scripts/verify-staging-shopping-checks-browser.mjs` passed again with the
+  full-list flag: independent/legacy check identity, toggle/clear failure recovery,
+  canceled and failed clear-week, successful clear, retained recipes/catalog.
+  Legacy shopping read methods are now empty.
+- Local and [implementation CI](https://github.com/wmichelin/Pantry/actions/runs/34170163529):
+  152 Bun tests (321 assertions), Go vet/race, TypeScript, Protobuf format/lint/build/
+  breaking and generated-code checks, Expo web export and API Docker build.
+- Existing API regression workflows passed on the new API:
+  [household/manual saves](https://github.com/wmichelin/Pantry/actions/runs/34170227721),
+  [imports](https://github.com/wmichelin/Pantry/actions/runs/34170228512),
+  [recipe management](https://github.com/wmichelin/Pantry/actions/runs/34170229268),
+  [queue](https://github.com/wmichelin/Pantry/actions/runs/34170230241), and
+  [shopping checks](https://github.com/wmichelin/Pantry/actions/runs/34170231206).
+- Security advisors: zero errors/new-shopping-function findings, nine warnings
+  on untouched legacy functions/Auth (mutable search path, callable definer functions,
+  leaked-password protection disabled). Performance advisors at warn/error: none.
+- Team review caught and resolved mutation/read races and the add-at-limit edge.
+  Flat drags preserve the flat view; aisle sort/section drags explicitly keep grouping.
+  The acceptance fixture initially failed because manual `sort_order` is NOT NULL;
+  fixed the fixture, not the schema. Headless desktop coverage needed explicit
+  fine-pointer/hover launch settings; the suite asserts that desktop has no handles.
+
+Known limits: native iOS/Android runtime remains untested; emulated web touch is
+not a native-device claim. Competing shopping mutations are ignored while busy
+(add text remains available); visible disabled/busy feedback is a follow-up.
+Revision rejection is not serializable against existing non-cooperating queue,
+recipe or direct-table writers; see the active-slice decision above. Full catalog
+editing/settings, recipe-save enrichment, scraper and import parser/board ownership
+remain to port. This completes shopping, not the entire Go migration.
+
+No production deployment, DB access, migrations, configuration or backup changes.
+Original checkout's `docs/DEPLOY.md` and untracked `scripts/pantry-actions.sh`
+remain untouched. The verified images above are the next slice's recovery baseline;
+the pre-change images at the top remain available for this slice's rollback.
