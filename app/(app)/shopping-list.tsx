@@ -767,6 +767,7 @@ export default function ShoppingListScreen() {
             onPress={() => toggleCheck(item)}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: item.checked }}
+            aria-checked={item.checked}
             accessibilityLabel={item.displayName}
             {...webNoDrag}
           >
@@ -780,6 +781,7 @@ export default function ShoppingListScreen() {
               onPress={() => toggleCheck(item)}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: item.checked }}
+              aria-checked={item.checked}
               accessibilityLabel={item.displayName}
               {...webNoDrag}
             >
