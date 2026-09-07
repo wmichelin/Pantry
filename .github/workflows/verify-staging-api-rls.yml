@@ -54,6 +54,7 @@ jobs:
             fi
             token="$(printf '%s' "$body" | jq -er '.access_token')"
             user_id="$(printf '%s' "$body" | jq -er '.user.id')"
+            echo "::add-mask::$token"
             printf '%s=%s\n' "$token_variable" "$token" >> "$GITHUB_ENV"
             printf '%s=%s\n' "$id_variable" "$user_id" >> "$GITHUB_ENV"
           }
@@ -90,6 +91,20 @@ jobs:
               '.membership.household_id == $household_id and .membership.role == "owner" and .membership.households.name == $household_name' \
               >/dev/null
 
+            # Connect JSON exercises the same generated handlers as binary
+            # Protobuf while keeping this remote shell probe dependency-free.
+            connect_membership="$(curl --fail --silent --show-error \
+              --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.HouseholdService/GetMembership \
+              --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
+              --header 'Content-Type: application/json' \
+              --header 'Connect-Protocol-Version: 1' \
+              --data '{}')"
+            printf '%s' "$connect_membership" | jq -e \
+              --arg household_id "$household_id" \
+              --arg household_name "$household_name" \
+              '.membership.householdId == $household_id and .membership.role == "owner" and .membership.household.name == $household_name' \
+              >/dev/null
+
             direct_join_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
               --request POST https://fncsyvsgolbpviidmpuc.supabase.co/rest/v1/household_members \
               --header "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
@@ -102,20 +117,22 @@ jobs:
             fi
 
             invalid_status="$(curl --silent --show-error --output /tmp/invalid-invite.json --write-out '%{http_code}' \
-              --request POST http://127.0.0.1:18083/api/v1/household-joins \
+              --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.HouseholdService/JoinHousehold \
               --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}" \
               --header 'Content-Type: application/json' \
-              --data '{"invite_code":"NOT-A-REAL-INVITE"}')"
+              --header 'Connect-Protocol-Version: 1' \
+              --data '{"inviteCode":"NOT-A-REAL-INVITE"}')"
             test "$invalid_status" = 404
-            jq -e '.code == "invite_not_found"' /tmp/invalid-invite.json >/dev/null
+            jq -e '.code == "not_found" and (.details | length) == 1' /tmp/invalid-invite.json >/dev/null
 
             join_result="$(curl --fail --silent --show-error \
-              --request POST http://127.0.0.1:18083/api/v1/household-joins \
+              --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.HouseholdService/JoinHousehold \
               --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}" \
               --header 'Content-Type: application/json' \
-              --data "$(jq -nc --arg invite "$invite_code" --arg display "Go member" '{invite_code: $invite, display_name: $display}')")"
+              --header 'Connect-Protocol-Version: 1' \
+              --data "$(jq -nc --arg invite "$invite_code" --arg display "Go member" '{inviteCode: $invite, displayName: $display}')")"
             printf '%s' "$join_result" | jq -e --arg household_id "$household_id" \
-              '.household.id == $household_id and .household.already_member == false' >/dev/null
+              '.household.id == $household_id and .household.alreadyMember == false' >/dev/null
 
             duplicate_join="$(curl --fail --silent --show-error \
               --request POST http://127.0.0.1:18083/api/v1/household-joins \
@@ -123,6 +140,17 @@ jobs:
               --header 'Content-Type: application/json' \
               --data "$(jq -nc --arg invite "$invite_code" --arg display "Go member" '{invite_code: $invite, display_name: $display}')")"
             printf '%s' "$duplicate_join" | jq -e '.household.already_member == true' >/dev/null
+
+            saved_recipe="$(curl --fail --silent --show-error \
+              --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.RecipeService/SaveRecipe \
+              --header "Authorization: Bearer ${GO_RLS_OWNER_TOKEN}" \
+              --header 'Content-Type: application/json' \
+              --header 'Connect-Protocol-Version: 1' \
+              --data "$(jq -nc --arg household "$household_id" --arg title "Connect Soup ${GO_RLS_RUN_ID}" \
+                '{householdId: $household, title: $title, ingredients: [{name: "salt", unit: "", rawString: "salt"}, {name: "water", quantity: 0, unit: "cups", rawString: "0 cups water"}]}')")"
+            printf '%s' "$saved_recipe" | jq -e \
+              --arg title "Connect Soup ${GO_RLS_RUN_ID}" \
+              '.recipe.title == $title and .recipe.ingredientCount == 2' >/dev/null
 
             outsider_membership="$(curl --fail --silent --show-error \
               --header "Authorization: Bearer ${GO_RLS_OUTSIDER_TOKEN}" \
@@ -133,3 +161,10 @@ jobs:
             anonymous_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
               http://127.0.0.1:18083/api/v1/membership)"
             test "$anonymous_status" = 401
+
+            anonymous_connect_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --request POST http://127.0.0.1:18083/api/rpc/pantry.v1.HouseholdService/GetMembership \
+              --header 'Content-Type: application/proto' \
+              --header 'Connect-Protocol-Version: 1' \
+              --data-binary '')"
+            test "$anonymous_connect_status" = 401

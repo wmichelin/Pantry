@@ -33,8 +33,9 @@ logs.
 The deployment refuses any non-`staging-<40-character SHA>` image, checks that
 the production container is running without changing it, replaces only
 `pantry-staging`, and verifies both the loopback route and the configured HTTPS
-hostname. If the replacement fails after the new container starts, it restores
-the previously running staging image when one is available.
+hostname. If replacement fails at any point after the old staging container is
+removed—including a failed `docker run`—it restores the previously running
+staging image when one is available.
 
 The separate **Publish staging on approved domain** workflow is only for the
 staging Nginx vhost and certificate. It may be needed once for a new hostname.
@@ -64,14 +65,22 @@ After the staging RLS/database feasibility gate passes, run **Publish staging on
 approved domain** once to proxy the staging-only `/api/` path to this loopback
 container. It preserves the caller's `Authorization` header and checks that an
 anonymous membership request receives `401`; it adds no service credential.
+The API serves the legacy JSON endpoints under `/api/v1/` and generated Connect
+unary RPCs under `/api/rpc/pantry.v1.*`. Both transports authenticate before
+decoding the request and call the same application service. `/healthz` and
+`/readyz` remain small JSON endpoints.
+
 The staging web workflow builds `EXPO_PUBLIC_PANTRY_API_URL` only for the
-approved staging domain, allowing the landing screen to use the Go membership
-read route. Production receives no such build value and stays on its current
-Supabase client path.
+approved staging domain and sets `EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect`.
+Removing the transport build argument reverts the staging client to the legacy
+REST facade without changing the API or database. Production receives neither
+staging build value and stays on its current Supabase client path.
 
 The workflow accepts a strict immutable API rollback tag and restores the prior
-API image if its health probes fail. If no prior API image exists, it removes the
-failed new API container; the existing staging web service remains untouched.
+API image if replacement or health probes fail. If no prior API image exists, it
+removes the failed new API container; the existing staging web service remains
+untouched. For a two-container rollback, restore the web image first so it stops
+issuing Connect calls, then restore the API image.
 
 ## Production
 

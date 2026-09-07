@@ -8,9 +8,9 @@ same deterministic fixture suite and have no unexplained normalized state diff.
 | --- | --- | --- | --- | --- |
 | Auth/session | `lib/auth-context.tsx` + Supabase Auth | Foundation implemented | valid, expired, malformed, and wrong-role JWT cases | Go verifies asymmetric JWTs locally through Supabase JWKS; unavailable/unsupported verification fails closed |
 | Household landing read | `app/(app)/index.tsx` | Staging integration verified | owner and outsider membership projection through legacy REST and Go; anonymous request rejected at staging proxy | staging build only routes this read through Go; production remains on direct Supabase |
-| Household create | `app/(app)/create-household.tsx` | Deferred | owner/member/outsider state projections; invite collision; injected member-write failure | all-or-nothing household and owner membership |
-| Household join | `app/(app)/join-household.tsx` | Deferred | valid/invalid invite, duplicate join, outsider isolation | one transactional lookup/join; no invite enumeration |
-| Recipe create/import | `app/(app)/create-recipe.tsx`, `review-recipe.tsx` | Deferred | recipe/ingredient rows, catalog best-effort behavior, injected ingredient failure | individual recipe save becomes atomic |
+| Household create | `app/(app)/create-household.tsx` | REST and Connect implemented; staging transport gated | generated Go/TypeScript clients; owner/member/outsider state projections; invite collision; injected member-write failure | all-or-nothing household and owner membership |
+| Household join | `app/(app)/join-household.tsx` | REST and Connect implemented; staging transport gated | generated Go/TypeScript clients; valid/invalid invite, duplicate join, outsider isolation | one transactional lookup/join; no invite enumeration |
+| Recipe create/import | `app/(app)/create-recipe.tsx`, `review-recipe.tsx` | REST and Connect implemented; staging transport gated | generated Go/TypeScript clients; recipe/ingredient rows, absent-vs-zero quantity, injected ingredient failure | individual recipe save becomes atomic |
 | Board import | `app/(app)/review-board.tsx` | Deferred | per-recipe rows and user-visible saved/failed summary | each recipe atomic; board remains partial-success |
 | Queue and shopping mutations | `household.tsx`, `week-queue.tsx`, `shopping-list.tsx` | Deferred | owner/member/outsider state projections and failure injection | each named clear operation is atomic after current semantics are characterized |
 | Scrape | `supabase/functions/scrape-recipe` | Deferred | saved single/pin/board fixture JSON plus error mapping | authenticated, rate-limited, SSRF-safe outbound requests |
@@ -25,3 +25,16 @@ same deterministic fixture suite and have no unexplained normalized state diff.
   authorization or persisted-data differences.
 - Every approved difference must name the prior behavior, new behavior, reason,
   test, and rollback path.
+
+## Transport parity rules
+
+- `proto/pantry/v1` is the authoritative typed RPC contract. Generated code in
+  `internal/gen` and `lib/gen` is committed and must regenerate without a diff.
+- The legacy OpenAPI routes remain available during the staging migration; they
+  and Connect call the same application service and Supabase/RLS adapters.
+- Parity is semantic, not byte-for-byte HTTP equality: Protobuf uses lower-camel
+  JSON names when JSON encoding is requested, while the legacy facade preserves
+  the Expo client's snake_case objects.
+- The staging web build alone sets `EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect`.
+  Omitting that flag selects REST, which is the immediate web rollback. Production
+  receives neither the staging API origin nor the Connect transport flag.

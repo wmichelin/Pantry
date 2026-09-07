@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -18,6 +20,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate Protobuf contracts
+        run: |
+          npm run proto:format:check
+          npm run proto:lint
+          npm run proto:build
+          ./scripts/check-proto-breaking.sh
+
+      - name: Verify committed generated code
+        run: |
+          npm run proto:generate
+          git diff --exit-code -- internal/gen lib/gen
+          test -z "$(git status --porcelain --untracked-files=all -- internal/gen lib/gen)"
 
       - uses: oven-sh/setup-bun@v2
         with:
