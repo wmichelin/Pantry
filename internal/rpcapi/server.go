@@ -15,6 +15,7 @@ import (
 )
 
 const MaxRequestBytes = 16 << 10
+const MaxImportRequestBytes = 256 << 10
 
 type Server struct {
 	pantryv1connect.UnimplementedIdentityServiceHandler
@@ -34,8 +35,16 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 	mux.Handle(pantryv1connect.NewIdentityServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewHouseholdServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewRecipeServiceHandler(server, handlerOptions...))
+	_, importHandler := pantryv1connect.NewRecipeServiceHandler(server, connect.WithReadMaxBytes(MaxImportRequestBytes))
+	mux.Handle(pantryv1connect.RecipeServiceImportRecipeProcedure, importHandler)
 
-	bounded := http.MaxBytesHandler(mux, MaxRequestBytes)
+	bounded := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		limit := int64(MaxRequestBytes)
+		if request.URL.Path == pantryv1connect.RecipeServiceImportRecipeProcedure {
+			limit = MaxImportRequestBytes
+		}
+		http.MaxBytesHandler(mux, limit).ServeHTTP(writer, request)
+	})
 	authenticated := authenticate(verifier, logger, bounded)
 	return withRequestLog(logger, authenticated)
 }
@@ -132,7 +141,7 @@ func (server *Server) SaveRecipe(ctx context.Context, request *connect.Request[p
 			continue
 		}
 		recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{
-			Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
+			Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: &ingredient.Unit, RawString: ingredient.RawString,
 		})
 	}
 	saved, err := server.service.SaveRecipe(ctx, caller, recipe)
@@ -140,6 +149,41 @@ func (server *Server) SaveRecipe(ctx context.Context, request *connect.Request[p
 		return nil, server.serviceError(ctx, "save recipe", err)
 	}
 	return connect.NewResponse(&pantryv1.SaveRecipeResponse{Recipe: &pantryv1.SavedRecipe{
+		Id: saved.ID, Title: saved.Title, IngredientCount: int32(saved.IngredientCount),
+	}}), nil
+}
+
+func (server *Server) ImportRecipe(ctx context.Context, request *connect.Request[pantryv1.ImportRecipeRequest]) (*connect.Response[pantryv1.ImportRecipeResponse], error) {
+	caller, ok := authn.CallerFromContext(ctx)
+	if !ok {
+		return nil, connectError(connect.CodeUnauthenticated, "unauthenticated", "A valid Pantry session is required.")
+	}
+	recipe := pantry.RecipeSave{
+		HouseholdID: request.Msg.HouseholdId, Title: request.Msg.Title,
+		Ingredients: make([]pantry.RecipeIngredient, 0, len(request.Msg.Ingredients)),
+	}
+	if metadata := request.Msg.Metadata; metadata != nil {
+		recipe.Metadata = &pantry.RecipeImportMetadata{
+			SourceURL: metadata.SourceUrl, SourceType: metadata.SourceType,
+			ImageURL: metadata.ImageUrl, Instructions: append([]string{}, metadata.Instructions...),
+			Tags: append([]string{}, metadata.Tags...), Servings: metadata.Servings,
+			PrepTimeMinutes: metadata.PrepTimeMinutes, CookTimeMinutes: metadata.CookTimeMinutes,
+		}
+	}
+	for _, ingredient := range request.Msg.Ingredients {
+		if ingredient == nil {
+			recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{})
+			continue
+		}
+		recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{
+			Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
+		})
+	}
+	saved, err := server.service.ImportRecipe(ctx, caller, recipe)
+	if err != nil {
+		return nil, server.serviceError(ctx, "import recipe", err)
+	}
+	return connect.NewResponse(&pantryv1.ImportRecipeResponse{Recipe: &pantryv1.SavedRecipe{
 		Id: saved.ID, Title: saved.Title, IngredientCount: int32(saved.IngredientCount),
 	}}), nil
 }

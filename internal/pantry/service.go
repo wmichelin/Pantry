@@ -59,14 +59,26 @@ type JoinedHousehold struct {
 type RecipeIngredient struct {
 	Name      string   `json:"name"`
 	Quantity  *float64 `json:"quantity"`
-	Unit      string   `json:"unit"`
+	Unit      *string  `json:"unit"`
 	RawString string   `json:"raw_string"`
 }
 
 type RecipeSave struct {
-	HouseholdID string             `json:"household_id"`
-	Title       string             `json:"title"`
-	Ingredients []RecipeIngredient `json:"ingredients"`
+	HouseholdID string                `json:"household_id"`
+	Title       string                `json:"title"`
+	Ingredients []RecipeIngredient    `json:"ingredients"`
+	Metadata    *RecipeImportMetadata `json:"metadata,omitempty"`
+}
+
+type RecipeImportMetadata struct {
+	SourceURL       string   `json:"source_url"`
+	SourceType      string   `json:"source_type"`
+	ImageURL        *string  `json:"image_url"`
+	Instructions    []string `json:"instructions"`
+	Tags            []string `json:"tags"`
+	Servings        *int32   `json:"servings"`
+	PrepTimeMinutes *int32   `json:"prep_time_minutes"`
+	CookTimeMinutes *int32   `json:"cook_time_minutes"`
 }
 
 type SavedRecipe struct {
@@ -169,9 +181,27 @@ func (service *Service) JoinHousehold(ctx context.Context, caller authn.Caller, 
 }
 
 func (service *Service) SaveRecipe(ctx context.Context, caller authn.Caller, recipe RecipeSave) (*SavedRecipe, error) {
+	// Metadata is accepted only by the dedicated import operation.
+	if recipe.Metadata != nil {
+		return nil, invalid("Use the recipe import operation for source metadata.")
+	}
 	if strings.TrimSpace(recipe.HouseholdID) == "" || strings.TrimSpace(recipe.Title) == "" || len(recipe.Ingredients) == 0 {
 		return nil, invalid("A household, title, and at least one ingredient are required.")
 	}
+	return service.persistRecipe(ctx, caller, recipe)
+}
+
+func (service *Service) ImportRecipe(ctx context.Context, caller authn.Caller, recipe RecipeSave) (*SavedRecipe, error) {
+	if strings.TrimSpace(recipe.HouseholdID) == "" || strings.TrimSpace(recipe.Title) == "" || recipe.Metadata == nil {
+		return nil, invalid("A household, title, and import metadata are required.")
+	}
+	if recipe.Metadata.SourceType != "url" && recipe.Metadata.SourceType != "pinterest_pin" {
+		return nil, invalid("An imported recipe must have a URL or Pinterest source type.")
+	}
+	return service.persistRecipe(ctx, caller, recipe)
+}
+
+func (service *Service) persistRecipe(ctx context.Context, caller authn.Caller, recipe RecipeSave) (*SavedRecipe, error) {
 	for _, ingredient := range recipe.Ingredients {
 		if strings.TrimSpace(ingredient.Name) == "" {
 			return nil, invalid("Every recipe ingredient needs a name.")

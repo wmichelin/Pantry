@@ -36,11 +36,15 @@ const (
 	// RecipeServiceSaveRecipeProcedure is the fully-qualified name of the RecipeService's SaveRecipe
 	// RPC.
 	RecipeServiceSaveRecipeProcedure = "/pantry.v1.RecipeService/SaveRecipe"
+	// RecipeServiceImportRecipeProcedure is the fully-qualified name of the RecipeService's
+	// ImportRecipe RPC.
+	RecipeServiceImportRecipeProcedure = "/pantry.v1.RecipeService/ImportRecipe"
 )
 
 // RecipeServiceClient is a client for the pantry.v1.RecipeService service.
 type RecipeServiceClient interface {
 	SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error)
+	ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error)
 }
 
 // NewRecipeServiceClient constructs a client for the pantry.v1.RecipeService service. By default,
@@ -60,12 +64,19 @@ func NewRecipeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(recipeServiceMethods.ByName("SaveRecipe")),
 			connect.WithClientOptions(opts...),
 		),
+		importRecipe: connect.NewClient[v1.ImportRecipeRequest, v1.ImportRecipeResponse](
+			httpClient,
+			baseURL+RecipeServiceImportRecipeProcedure,
+			connect.WithSchema(recipeServiceMethods.ByName("ImportRecipe")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // recipeServiceClient implements RecipeServiceClient.
 type recipeServiceClient struct {
-	saveRecipe *connect.Client[v1.SaveRecipeRequest, v1.SaveRecipeResponse]
+	saveRecipe   *connect.Client[v1.SaveRecipeRequest, v1.SaveRecipeResponse]
+	importRecipe *connect.Client[v1.ImportRecipeRequest, v1.ImportRecipeResponse]
 }
 
 // SaveRecipe calls pantry.v1.RecipeService.SaveRecipe.
@@ -73,9 +84,15 @@ func (c *recipeServiceClient) SaveRecipe(ctx context.Context, req *connect.Reque
 	return c.saveRecipe.CallUnary(ctx, req)
 }
 
+// ImportRecipe calls pantry.v1.RecipeService.ImportRecipe.
+func (c *recipeServiceClient) ImportRecipe(ctx context.Context, req *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error) {
+	return c.importRecipe.CallUnary(ctx, req)
+}
+
 // RecipeServiceHandler is an implementation of the pantry.v1.RecipeService service.
 type RecipeServiceHandler interface {
 	SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error)
+	ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error)
 }
 
 // NewRecipeServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -91,10 +108,18 @@ func NewRecipeServiceHandler(svc RecipeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(recipeServiceMethods.ByName("SaveRecipe")),
 		connect.WithHandlerOptions(opts...),
 	)
+	recipeServiceImportRecipeHandler := connect.NewUnaryHandler(
+		RecipeServiceImportRecipeProcedure,
+		svc.ImportRecipe,
+		connect.WithSchema(recipeServiceMethods.ByName("ImportRecipe")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/pantry.v1.RecipeService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RecipeServiceSaveRecipeProcedure:
 			recipeServiceSaveRecipeHandler.ServeHTTP(w, r)
+		case RecipeServiceImportRecipeProcedure:
+			recipeServiceImportRecipeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +131,8 @@ type UnimplementedRecipeServiceHandler struct{}
 
 func (UnimplementedRecipeServiceHandler) SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.SaveRecipe is not implemented"))
+}
+
+func (UnimplementedRecipeServiceHandler) ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.ImportRecipe is not implemented"))
 }

@@ -253,6 +253,288 @@ func (x *SaveRecipeResponse) GetRecipe() *SavedRecipe {
 	return nil
 }
 
+// Imports retain source metadata and may legitimately have no ingredients.
+// Manual SaveRecipe retains its existing, stricter contract.
+type RecipeImportMetadata struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	SourceUrl       string                 `protobuf:"bytes,1,opt,name=source_url,json=sourceUrl,proto3" json:"source_url,omitempty"`
+	SourceType      string                 `protobuf:"bytes,2,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	ImageUrl        *string                `protobuf:"bytes,3,opt,name=image_url,json=imageUrl,proto3,oneof" json:"image_url,omitempty"`
+	Instructions    []string               `protobuf:"bytes,4,rep,name=instructions,proto3" json:"instructions,omitempty"`
+	Tags            []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
+	Servings        *int32                 `protobuf:"varint,6,opt,name=servings,proto3,oneof" json:"servings,omitempty"`
+	PrepTimeMinutes *int32                 `protobuf:"varint,7,opt,name=prep_time_minutes,json=prepTimeMinutes,proto3,oneof" json:"prep_time_minutes,omitempty"`
+	CookTimeMinutes *int32                 `protobuf:"varint,8,opt,name=cook_time_minutes,json=cookTimeMinutes,proto3,oneof" json:"cook_time_minutes,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RecipeImportMetadata) Reset() {
+	*x = RecipeImportMetadata{}
+	mi := &file_pantry_v1_recipe_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecipeImportMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecipeImportMetadata) ProtoMessage() {}
+
+func (x *RecipeImportMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_pantry_v1_recipe_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecipeImportMetadata.ProtoReflect.Descriptor instead.
+func (*RecipeImportMetadata) Descriptor() ([]byte, []int) {
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RecipeImportMetadata) GetSourceUrl() string {
+	if x != nil {
+		return x.SourceUrl
+	}
+	return ""
+}
+
+func (x *RecipeImportMetadata) GetSourceType() string {
+	if x != nil {
+		return x.SourceType
+	}
+	return ""
+}
+
+func (x *RecipeImportMetadata) GetImageUrl() string {
+	if x != nil && x.ImageUrl != nil {
+		return *x.ImageUrl
+	}
+	return ""
+}
+
+func (x *RecipeImportMetadata) GetInstructions() []string {
+	if x != nil {
+		return x.Instructions
+	}
+	return nil
+}
+
+func (x *RecipeImportMetadata) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *RecipeImportMetadata) GetServings() int32 {
+	if x != nil && x.Servings != nil {
+		return *x.Servings
+	}
+	return 0
+}
+
+func (x *RecipeImportMetadata) GetPrepTimeMinutes() int32 {
+	if x != nil && x.PrepTimeMinutes != nil {
+		return *x.PrepTimeMinutes
+	}
+	return 0
+}
+
+func (x *RecipeImportMetadata) GetCookTimeMinutes() int32 {
+	if x != nil && x.CookTimeMinutes != nil {
+		return *x.CookTimeMinutes
+	}
+	return 0
+}
+
+type ImportRecipeRequest struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	HouseholdId   string                      `protobuf:"bytes,1,opt,name=household_id,json=householdId,proto3" json:"household_id,omitempty"`
+	Title         string                      `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Ingredients   []*ImportedRecipeIngredient `protobuf:"bytes,3,rep,name=ingredients,proto3" json:"ingredients,omitempty"`
+	Metadata      *RecipeImportMetadata       `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportRecipeRequest) Reset() {
+	*x = ImportRecipeRequest{}
+	mi := &file_pantry_v1_recipe_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportRecipeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportRecipeRequest) ProtoMessage() {}
+
+func (x *ImportRecipeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pantry_v1_recipe_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportRecipeRequest.ProtoReflect.Descriptor instead.
+func (*ImportRecipeRequest) Descriptor() ([]byte, []int) {
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ImportRecipeRequest) GetHouseholdId() string {
+	if x != nil {
+		return x.HouseholdId
+	}
+	return ""
+}
+
+func (x *ImportRecipeRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ImportRecipeRequest) GetIngredients() []*ImportedRecipeIngredient {
+	if x != nil {
+		return x.Ingredients
+	}
+	return nil
+}
+
+func (x *ImportRecipeRequest) GetMetadata() *RecipeImportMetadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type ImportedRecipeIngredient struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Quantity      *float64               `protobuf:"fixed64,2,opt,name=quantity,proto3,oneof" json:"quantity,omitempty"`
+	Unit          *string                `protobuf:"bytes,3,opt,name=unit,proto3,oneof" json:"unit,omitempty"`
+	RawString     string                 `protobuf:"bytes,4,opt,name=raw_string,json=rawString,proto3" json:"raw_string,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportedRecipeIngredient) Reset() {
+	*x = ImportedRecipeIngredient{}
+	mi := &file_pantry_v1_recipe_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportedRecipeIngredient) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportedRecipeIngredient) ProtoMessage() {}
+
+func (x *ImportedRecipeIngredient) ProtoReflect() protoreflect.Message {
+	mi := &file_pantry_v1_recipe_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportedRecipeIngredient.ProtoReflect.Descriptor instead.
+func (*ImportedRecipeIngredient) Descriptor() ([]byte, []int) {
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ImportedRecipeIngredient) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ImportedRecipeIngredient) GetQuantity() float64 {
+	if x != nil && x.Quantity != nil {
+		return *x.Quantity
+	}
+	return 0
+}
+
+func (x *ImportedRecipeIngredient) GetUnit() string {
+	if x != nil && x.Unit != nil {
+		return *x.Unit
+	}
+	return ""
+}
+
+func (x *ImportedRecipeIngredient) GetRawString() string {
+	if x != nil {
+		return x.RawString
+	}
+	return ""
+}
+
+type ImportRecipeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Recipe        *SavedRecipe           `protobuf:"bytes,1,opt,name=recipe,proto3" json:"recipe,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportRecipeResponse) Reset() {
+	*x = ImportRecipeResponse{}
+	mi := &file_pantry_v1_recipe_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportRecipeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportRecipeResponse) ProtoMessage() {}
+
+func (x *ImportRecipeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pantry_v1_recipe_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportRecipeResponse.ProtoReflect.Descriptor instead.
+func (*ImportRecipeResponse) Descriptor() ([]byte, []int) {
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ImportRecipeResponse) GetRecipe() *SavedRecipe {
+	if x != nil {
+		return x.Recipe
+	}
+	return nil
+}
+
 var File_pantry_v1_recipe_proto protoreflect.FileDescriptor
 
 const file_pantry_v1_recipe_proto_rawDesc = "" +
@@ -274,10 +556,42 @@ const file_pantry_v1_recipe_proto_rawDesc = "" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12)\n" +
 	"\x10ingredient_count\x18\x03 \x01(\x05R\x0fingredientCount\"D\n" +
 	"\x12SaveRecipeResponse\x12.\n" +
-	"\x06recipe\x18\x01 \x01(\v2\x16.pantry.v1.SavedRecipeR\x06recipe2Z\n" +
+	"\x06recipe\x18\x01 \x01(\v2\x16.pantry.v1.SavedRecipeR\x06recipe\"\xfa\x02\n" +
+	"\x14RecipeImportMetadata\x12\x1d\n" +
+	"\n" +
+	"source_url\x18\x01 \x01(\tR\tsourceUrl\x12\x1f\n" +
+	"\vsource_type\x18\x02 \x01(\tR\n" +
+	"sourceType\x12 \n" +
+	"\timage_url\x18\x03 \x01(\tH\x00R\bimageUrl\x88\x01\x01\x12\"\n" +
+	"\finstructions\x18\x04 \x03(\tR\finstructions\x12\x12\n" +
+	"\x04tags\x18\x05 \x03(\tR\x04tags\x12\x1f\n" +
+	"\bservings\x18\x06 \x01(\x05H\x01R\bservings\x88\x01\x01\x12/\n" +
+	"\x11prep_time_minutes\x18\a \x01(\x05H\x02R\x0fprepTimeMinutes\x88\x01\x01\x12/\n" +
+	"\x11cook_time_minutes\x18\b \x01(\x05H\x03R\x0fcookTimeMinutes\x88\x01\x01B\f\n" +
+	"\n" +
+	"_image_urlB\v\n" +
+	"\t_servingsB\x14\n" +
+	"\x12_prep_time_minutesB\x14\n" +
+	"\x12_cook_time_minutes\"\xd2\x01\n" +
+	"\x13ImportRecipeRequest\x12!\n" +
+	"\fhousehold_id\x18\x01 \x01(\tR\vhouseholdId\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12E\n" +
+	"\vingredients\x18\x03 \x03(\v2#.pantry.v1.ImportedRecipeIngredientR\vingredients\x12;\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1f.pantry.v1.RecipeImportMetadataR\bmetadata\"\x9d\x01\n" +
+	"\x18ImportedRecipeIngredient\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1f\n" +
+	"\bquantity\x18\x02 \x01(\x01H\x00R\bquantity\x88\x01\x01\x12\x17\n" +
+	"\x04unit\x18\x03 \x01(\tH\x01R\x04unit\x88\x01\x01\x12\x1d\n" +
+	"\n" +
+	"raw_string\x18\x04 \x01(\tR\trawStringB\v\n" +
+	"\t_quantityB\a\n" +
+	"\x05_unit\"F\n" +
+	"\x14ImportRecipeResponse\x12.\n" +
+	"\x06recipe\x18\x01 \x01(\v2\x16.pantry.v1.SavedRecipeR\x06recipe2\xab\x01\n" +
 	"\rRecipeService\x12I\n" +
 	"\n" +
-	"SaveRecipe\x12\x1c.pantry.v1.SaveRecipeRequest\x1a\x1d.pantry.v1.SaveRecipeResponseB=Z;github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1b\x06proto3"
+	"SaveRecipe\x12\x1c.pantry.v1.SaveRecipeRequest\x1a\x1d.pantry.v1.SaveRecipeResponse\x12O\n" +
+	"\fImportRecipe\x12\x1e.pantry.v1.ImportRecipeRequest\x1a\x1f.pantry.v1.ImportRecipeResponseB=Z;github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1b\x06proto3"
 
 var (
 	file_pantry_v1_recipe_proto_rawDescOnce sync.Once
@@ -291,23 +605,32 @@ func file_pantry_v1_recipe_proto_rawDescGZIP() []byte {
 	return file_pantry_v1_recipe_proto_rawDescData
 }
 
-var file_pantry_v1_recipe_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_pantry_v1_recipe_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_pantry_v1_recipe_proto_goTypes = []any{
-	(*RecipeIngredient)(nil),   // 0: pantry.v1.RecipeIngredient
-	(*SaveRecipeRequest)(nil),  // 1: pantry.v1.SaveRecipeRequest
-	(*SavedRecipe)(nil),        // 2: pantry.v1.SavedRecipe
-	(*SaveRecipeResponse)(nil), // 3: pantry.v1.SaveRecipeResponse
+	(*RecipeIngredient)(nil),         // 0: pantry.v1.RecipeIngredient
+	(*SaveRecipeRequest)(nil),        // 1: pantry.v1.SaveRecipeRequest
+	(*SavedRecipe)(nil),              // 2: pantry.v1.SavedRecipe
+	(*SaveRecipeResponse)(nil),       // 3: pantry.v1.SaveRecipeResponse
+	(*RecipeImportMetadata)(nil),     // 4: pantry.v1.RecipeImportMetadata
+	(*ImportRecipeRequest)(nil),      // 5: pantry.v1.ImportRecipeRequest
+	(*ImportedRecipeIngredient)(nil), // 6: pantry.v1.ImportedRecipeIngredient
+	(*ImportRecipeResponse)(nil),     // 7: pantry.v1.ImportRecipeResponse
 }
 var file_pantry_v1_recipe_proto_depIdxs = []int32{
 	0, // 0: pantry.v1.SaveRecipeRequest.ingredients:type_name -> pantry.v1.RecipeIngredient
 	2, // 1: pantry.v1.SaveRecipeResponse.recipe:type_name -> pantry.v1.SavedRecipe
-	1, // 2: pantry.v1.RecipeService.SaveRecipe:input_type -> pantry.v1.SaveRecipeRequest
-	3, // 3: pantry.v1.RecipeService.SaveRecipe:output_type -> pantry.v1.SaveRecipeResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	6, // 2: pantry.v1.ImportRecipeRequest.ingredients:type_name -> pantry.v1.ImportedRecipeIngredient
+	4, // 3: pantry.v1.ImportRecipeRequest.metadata:type_name -> pantry.v1.RecipeImportMetadata
+	2, // 4: pantry.v1.ImportRecipeResponse.recipe:type_name -> pantry.v1.SavedRecipe
+	1, // 5: pantry.v1.RecipeService.SaveRecipe:input_type -> pantry.v1.SaveRecipeRequest
+	5, // 6: pantry.v1.RecipeService.ImportRecipe:input_type -> pantry.v1.ImportRecipeRequest
+	3, // 7: pantry.v1.RecipeService.SaveRecipe:output_type -> pantry.v1.SaveRecipeResponse
+	7, // 8: pantry.v1.RecipeService.ImportRecipe:output_type -> pantry.v1.ImportRecipeResponse
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_pantry_v1_recipe_proto_init() }
@@ -316,13 +639,15 @@ func file_pantry_v1_recipe_proto_init() {
 		return
 	}
 	file_pantry_v1_recipe_proto_msgTypes[0].OneofWrappers = []any{}
+	file_pantry_v1_recipe_proto_msgTypes[4].OneofWrappers = []any{}
+	file_pantry_v1_recipe_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pantry_v1_recipe_proto_rawDesc), len(file_pantry_v1_recipe_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
