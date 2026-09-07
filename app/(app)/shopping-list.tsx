@@ -609,12 +609,12 @@ export default function ShoppingListScreen() {
   };
 
   // ── Reorder / save order ─────────────────────────────────────────────────────
-  const saveOrder = useCallback(async (ordered: ConsolidatedItem[]) => {
+  const saveOrder = useCallback(async (ordered: ConsolidatedItem[], keepGrouped = false) => {
     if (!householdId) return;
     const shoppingURL = stagingShoppingListAPIOrigin();
     if (shoppingURL) {
       if (shoppingMutationPending.current) {
-        if (lastShoppingList.current) acceptShoppingList(lastShoppingList.current, true);
+        if (lastShoppingList.current) acceptShoppingList(lastShoppingList.current, keepGrouped);
         return;
       }
       shoppingMutationPending.current = true;
@@ -622,9 +622,9 @@ export default function ShoppingListScreen() {
       try {
         if (!session?.access_token) throw new Error("A valid Pantry session is required.");
         if (!lastShoppingList.current) throw new Error("Reload the shopping list before ordering.");
-        acceptShoppingList(await shoppingListAPI(shoppingURL, session.access_token).saveOrder(householdId, lastShoppingList.current.revision, ordered), true);
+        acceptShoppingList(await shoppingListAPI(shoppingURL, session.access_token).saveOrder(householdId, lastShoppingList.current.revision, ordered), keepGrouped);
       } catch (error) {
-        if (lastShoppingList.current) acceptShoppingList(lastShoppingList.current, true);
+        if (lastShoppingList.current) acceptShoppingList(lastShoppingList.current, keepGrouped);
         showError("Couldn't save the order", error);
         await loadList(true);
       } finally { shoppingMutationPending.current = false; }
@@ -689,7 +689,7 @@ export default function ShoppingListScreen() {
     setItems(ordered);
     setSectionRows(rows);
     setAisleGrouped(true);
-    void saveOrder(ordered);
+    void saveOrder(ordered, true);
   }, [items, aisleOrder, saveOrder]);
 
   // ── Header buttons ──────────────────────────────────────────────────────────
@@ -746,7 +746,7 @@ export default function ShoppingListScreen() {
     );
     setSectionRows(nextRows);
     setItems(nextItems);
-    void saveOrder(nextItems);
+    void saveOrder(nextItems, true);
   };
 
   // Keep section headers in sync when items change while grouped (check/add/remove).

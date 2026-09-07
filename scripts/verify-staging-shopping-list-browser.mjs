@@ -74,8 +74,10 @@ try {
   // Controlled delayed check: add/clear cannot race its optimistic intent.
   await fault('SetShoppingItemChecked', true); await browser.evaluate(`${item('Milk')}.click()`); await browser.until('window.__shoppingIntercepted');
   const beforeAddCount = browser.responses.filter(r => r.path.endsWith('/AddShoppingManualItem')).length;
+  const beforeClearCount = browser.responses.filter(r => r.path.endsWith('/ClearShoppingChecks')).length;
   await add('After check'); await browser.click('Clear checks');
   assert.equal(browser.responses.filter(r => r.path.endsWith('/AddShoppingManualItem')).length, beforeAddCount);
+  assert.equal(browser.responses.filter(r => r.path.endsWith('/ClearShoppingChecks')).length, beforeClearCount);
   await browser.evaluate('window.__releaseShopping()'); await waitCall('SetShoppingItemChecked');
   await add('After check'); await waitCall('AddShoppingManualItem', 2); await browser.until(`!!${item('After check')}`);
   assert.equal(await browser.evaluate(`${item('Milk')}.getAttribute('aria-checked')`), 'true');
