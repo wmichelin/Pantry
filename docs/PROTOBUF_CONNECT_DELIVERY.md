@@ -2,6 +2,11 @@
 
 ## Outcome
 
+Current capability status and rollout images are maintained in
+[GO_REMAINING_EXECUTION_PLAN.md](GO_REMAINING_EXECUTION_PLAN.md). This document
+records the initial transport rollout; imports, recipe management and running
+queue were subsequently added and verified in staging in PRs 47–49.
+
 Pantry now has a versioned Protobuf contract and generated ConnectRPC clients and
 servers for identity, household membership, and atomic recipe saves. The legacy
 JSON routes remain available and share the same application service, making the
