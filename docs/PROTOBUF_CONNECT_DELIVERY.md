@@ -70,10 +70,22 @@ Deploy the immutable API image first. Keep the staging web client on REST until
 API and RLS acceptance gates pass, then deploy the web image with
 `EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect`.
 
-Recipe API writes have an independent build flag. Until staging reports the
-committed atomic recipe RPC and its acceptance gate passes, leave
-`EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES` unset so recipe creation stays on its
-known-good direct-Supabase path.
+Recipe API writes have an independent build flag. On 2026-09-07, the committed
+`20260902021251_staged_recipe_save_operation.sql` was applied via the Supabase
+CLI to staging project `fncsyvsgolbpviidmpuc`. Existing row counts were unchanged
+by the migration. The authenticated acceptance workflow passed with
+`verify_recipe=true` ([run 34142194945](https://github.com/wmichelin/Pantry/actions/runs/34142194945)).
+Additional transaction checks verified persisted null/zero quantities,
+rollback of the recipe when ingredient insertion fails, and non-member
+rejection. Those additional test writes were rolled back. Security advisors
+reported no error-level findings.
+
+The staging web workflow now sets `EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES=enabled`
+for manual recipe creation. Imports remain on their existing path. The web
+rollback image from before this change is
+`ghcr.io/wmichelin/pantry:staging-9914fcd632a9b819ff72c123cec6314eaf9dcba2`;
+the API remains
+`ghcr.io/wmichelin/pantry:staging-api-26e63fd4a80ca194ced19be200265233a4cd0cc6`.
 
 If the web validation fails, restore the last-known-good web image first. If the
 API itself is faulty, restore its last-known-good image second. The workflows
