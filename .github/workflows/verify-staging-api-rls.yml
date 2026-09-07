@@ -75,7 +75,6 @@ jobs:
           host: ${{ secrets.DROPLET_HOST }}
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          script_stop: true
           envs: GO_RLS_OWNER_TOKEN,GO_RLS_OUTSIDER_TOKEN,GO_RLS_OUTSIDER_ID,GO_RLS_RUN_ID,STAGING_SUPABASE_ANON_KEY,VERIFY_RECIPE
           script: |
             set -euo pipefail
