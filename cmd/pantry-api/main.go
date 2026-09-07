@@ -29,7 +29,7 @@ func main() {
 		slog.Error("configure JWT verifier", "error", err)
 		os.Exit(1)
 	}
-	service := pantry.NewService(households, households, households, households, households)
+	service := pantry.NewService(households, households, households, households, households, pantry.WithRecipeManager(households))
 
 	server := &http.Server{
 		Addr:              cfg.ListenAddr,
