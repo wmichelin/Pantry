@@ -19,7 +19,7 @@ import {
   listCatalogIngredients,
   type CatalogIngredient,
 } from "../../lib/ingredient-catalog";
-import { saveRecipe, stagingAPIOrigin } from "../../lib/pantry-api";
+import { saveRecipe, stagingRecipeAPIOrigin } from "../../lib/pantry-api";
 
 type Ingredient = { name: string; quantity: string; unit: string };
 
@@ -70,7 +70,7 @@ export default function CreateRecipeScreen() {
 
     setLoading(true);
 
-    const apiURL = stagingAPIOrigin();
+    const apiURL = stagingRecipeAPIOrigin();
     if (apiURL && session?.access_token) {
       try {
         await saveRecipe(

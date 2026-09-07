@@ -32,6 +32,7 @@ type Fetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 const apiOrigin = process.env.EXPO_PUBLIC_PANTRY_API_URL?.trim();
 const configuredTransport: PantryAPITransport =
   process.env.EXPO_PUBLIC_PANTRY_API_TRANSPORT?.trim() === "connect" ? "connect" : "rest";
+const recipeAPIWritesEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES?.trim() === "enabled";
 const defaultFetch: Fetch = (input, init) => globalThis.fetch(input, init);
 
 // Both settings are intentionally opt-in so production remains on its
@@ -48,6 +49,12 @@ export function stagingAPIOrigin(): string | null {
 
 export function stagingAPITransport(): PantryAPITransport {
   return configuredTransport;
+}
+
+// Recipe writes have a separate staging gate because their atomic database RPC
+// must exist before the client may leave its established Supabase path.
+export function stagingRecipeAPIOrigin(): string | null {
+  return recipeAPIWritesEnabled ? stagingAPIOrigin() : null;
 }
 
 export function createPantryAPIClient(
