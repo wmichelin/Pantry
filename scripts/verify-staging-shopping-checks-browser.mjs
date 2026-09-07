@@ -85,8 +85,11 @@ try {
   assert.equal((await rest(key, user.token, `recipes?select=id&household_id=eq.${h}`)).length, 1);
   assert.equal((await rest(key, user.token, `ingredient_metadata?select=id&household_id=eq.${h}`)).length, 2);
   const targetTables = ['/rest/v1/week_queues', '/rest/v1/shopping_list_checks', '/rest/v1/shopping_list_manual_items'];
-  assert(!browser.responses.some(r => targetTables.includes(r.path) && r.method !== 'GET'), 'Direct check/clear write remains');
+  // Legacy reads remain in this scoped slice. CORS OPTIONS preflights and HEAD
+  // requests are not writes; report only real mutation verbs.
+  const directWrites = browser.responses.filter(r => targetTables.includes(r.path) && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method));
+  assert.deepEqual(directWrites, [], 'Direct check/clear write remains');
   for (const method of ['SetShoppingItemChecked', 'ClearShoppingChecks', 'ClearShoppingWeek']) assert(browser.responses.some(r => r.path.endsWith('/' + method) && r.contentType === 'application/proto' && r.status === 200));
   assert.deepEqual(browser.errors, []);
-  console.log(JSON.stringify({ separateChecksPersist: true, legacyUncheckPersists: true, optimisticFailureRecovery: true, cancellationSafe: true, mobileClear: true, failedClearPreservesList: true, recipesCatalogPreserved: true, binaryConnect: true, directCheckClearWrites: false, uncaughtExceptions: 0 }));
+  console.log(JSON.stringify({ separateChecksPersist: true, legacyUncheckPersists: true, optimisticFailureRecovery: true, cancellationSafe: true, mobileClear: true, failedClearPreservesList: true, recipesCatalogPreserved: true, binaryConnect: true, directCheckClearWrites: false, legacyReadMethods: [...new Set(browser.responses.filter(r => targetTables.includes(r.path)).map(r => r.method))], uncaughtExceptions: 0 }));
 } finally { await browser.close(); }

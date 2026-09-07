@@ -3,8 +3,8 @@
 ## Status update
 
 Status: implementing
-Last completed: import persistence, recipe management and running queue deployed
-and browser-verified in PRs 47, 48 and 49.
+Last completed: import persistence, recipe management, running queue and shopping
+check/clear lifecycle deployed and browser-verified in PRs 47–52.
 Now: verified incremental delivery checkpoint; the full remaining port is not complete.
 Next: shopping aggregation fixtures and catalog dependencies (Phase 3b/4), then
 settings, scraper, and remaining import parser/board orchestration ownership.
@@ -59,7 +59,7 @@ successful save. Failed saves must not suppress retrying the same URL.
 | 1 | Import contract/domain/storage + SQL + tests; single/board client + tests; acceptance + staged flag | All source metadata, instructions/tags order, null/zero, empty single import, long text, dedup, atomic failure and accurate board summary | Persistence verified; parser/board orchestration remain to port |
 | 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Verified in staging |
 | 3a | Running queue list/add/remove/clear and three screens | Add/remove/retry, targeted membership lookup, cross-household references, atomic clear preserves manual items | Verified in staging |
-| 3b | Shopping-list services and client | Occurrence aggregation, checked-key identity, manual items/editing, ordering; clear shopping week removes queue/checks/manuals | Pending |
+| 3b | Shopping-list services and client | Occurrence aggregation, checked-key identity, manual items/editing, ordering; clear shopping week removes queue/checks/manuals | Check/clear lifecycle verified; aggregation/manual/order pending |
 | 4 | Ingredient catalog and household settings | Normalization, catalog seeding/backfill, category/store assignments, store CRUD, member/invite reads, aisle create/delete/reorder and reassignment | Pending |
 | 5 | Go scraper and client | Saved website/pin/board fixtures; parsing/errors, authenticated requests, DNS/redirect SSRF checks, bounded concurrency/time/body, rate limiting | Pending |
 | 6 | Cross-capability regression and residual-call audit | Real onboarding → import → queue → shop → clear journey; all remaining direct business-data calls accounted for; rollback rehearsal | Pending |
@@ -186,7 +186,7 @@ checks, typecheck, Protobuf format/lint/build/breaking, web export and API image
 
 ### Phase 3b first checkpoint: shopping checks and clearing
 
-Status: implementing. Staging: https://pantry-staging.waltermichelin.com (verified baseline).
+Status: verified for check/clear lifecycle only. Staging: https://pantry-staging.waltermichelin.com (verified).
 Six-role review confirmed the aggregation/catalog dependencies and identified
 duplicate metadata IDs during ordering, mismatched parsed/manual names, and legacy
 manual checks that reappear after reload. Product/architecture recommend an eventual
@@ -224,8 +224,8 @@ Transaction gate passed; pre/post staging counts remained 3 queue / 5 checks /
 14 manual items; no security advisor errors. Live acceptance passed repeated
 check/uncheck, preserved UUID, independent recipe/manual checks, legacy fallback,
 Unicode/header cases, exact outsider/anonymous before-after equality, clear scope
-and foreign-household preservation. Shopping check web flag may now be enabled;
-browser release gate remains pending. Concurrent optimistic-action races in the
+and foreign-household preservation. Shopping check web flag is enabled and the
+browser release gate passed. Concurrent optimistic-action races in the
 legacy UI are unchanged and remain a follow-up, not a claimed concurrency proof.
 The first browser gate found a pre-existing web accessibility defect: this installed
 React Native Web version does not map `accessibilityState.checked` to `aria-checked`.
@@ -266,3 +266,42 @@ Staging: https://pantry-staging.waltermichelin.com (verified).
 Production was not changed. Original-checkout local edits were preserved.
 No claim is made that shopping, catalog/settings, scraping, native mobile runtime
 validation, or all import business logic is complete. Their gates remain pending.
+
+## Latest verified checkpoint: shopping checks and clearing
+
+Current known-good web:
+`ghcr.io/wmichelin/pantry:staging-9ada40d4d99cb923e06424ab5cf8aecb39a8621d`.
+Current known-good API:
+`ghcr.io/wmichelin/pantry:staging-api-423aaa83bda2a7576507726ae3460ac457447f3c`.
+Staging: https://pantry-staging.waltermichelin.com (verified).
+
+- [PR 51](https://github.com/wmichelin/Pantry/pull/51) delivered the check/clear
+  lifecycle in five incremental commits; [PR 52](https://github.com/wmichelin/Pantry/pull/52)
+  fixed the checkbox accessibility issue exposed by the browser gate.
+- [Final web deployment](https://github.com/wmichelin/Pantry/actions/runs/34166993786)
+  and [API deployment](https://github.com/wmichelin/Pantry/actions/runs/34166522572)
+  passed immutable image and health gates.
+- `node scripts/verify-staging-shopping-checks-browser.mjs` passed desktop and
+  mobile-width check persistence, independent recipe/manual check keys, legacy
+  manual uncheck, toggle/clear-check failure recovery, canceled clear, failed clear
+  preservation, successful atomic clear and recipe/catalog preservation. All three
+  mutations used binary Connect; no direct check/clear writes or uncaught exceptions.
+- The transport assertion initially counted any non-GET request as a mutation;
+  it now distinguishes POST/PUT/PATCH/DELETE from legacy reads and CORS preflights.
+  No business-state assertion was relaxed. Legacy shopping reads remain expected.
+- Local/CI gates: 147 Bun tests, `go vet ./...`, `go test -race ./...`, TypeScript
+  check, Protobuf format/lint/build/breaking, Expo web export and API image build.
+- SQL gate: `scripts/verify-shopping-check-transaction.sql` passed injected failures
+  at the second and third delete, grants, outsider denial, Unicode check identity
+  and unrelated-household preservation; all fixtures rolled back. No advisor errors.
+- Final deployed-revision regressions passed:
+  [household/manual saves](https://github.com/wmichelin/Pantry/actions/runs/34167197514),
+  [imports](https://github.com/wmichelin/Pantry/actions/runs/34167198887),
+  [recipe management](https://github.com/wmichelin/Pantry/actions/runs/34167200291),
+  [queue](https://github.com/wmichelin/Pantry/actions/runs/34167201931), and
+  [shopping checks](https://github.com/wmichelin/Pantry/actions/runs/34167203194).
+
+Remaining next slice: characterize occurrence aggregation and catalog seeding,
+then port manual add/remove, deduplicated atomic ordering and remaining catalog/
+settings/scraping/import business logic. The full Go port is not complete.
+No production changes were made; original-checkout local edits remain preserved.
