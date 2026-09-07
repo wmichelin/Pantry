@@ -4,8 +4,8 @@
 
 Status: implementing
 Last completed: recipe management deployed and browser-verified (PR 48).
-Now: Phase 3a running queue implementation; transactional SQL gate passed.
-Next: live queue acceptance and three-screen browser verification.
+Now: Phase 3a API/live acceptance passed; web browser verification next.
+Next: shopping aggregation fixtures and catalog dependencies (Phase 3b/4).
 Staging: https://pantry-staging.waltermichelin.com (verified baseline)
 Blocker: none
 
@@ -170,3 +170,23 @@ outsider add/clear denial, successful clear preserving manuals and other househo
 All test writes and the injected trigger rolled back. Baseline row counts remained
 1 queue / 2 checks / 8 manuals; no security-advisor errors. Shopping aggregation,
 shopping clear-week, catalog seeding, and aisle/store settings are not yet ported.
+
+Queue checkpoints: API/SQL `b34ae8e`, gated client `2e835c8`, browser gate `d63e2e3`.
+API `2e835c805a1a0c47d99b5d8a5dadc37e0e17fabf` deployed in
+[run 34155263800](https://github.com/wmichelin/Pantry/actions/runs/34155263800).
+`node scripts/verify-staging-queue.mjs` passed ordered legacy equality, exact
+lookup, duplicate add, repeated remove, caller/two-household isolation, manual
+preservation and foreign-household sentinels. Queue web flag enabled only after
+this acceptance. CI/local verification: 144 Bun tests, Go vet/race, generated-code
+checks, typecheck, Protobuf format/lint/build/breaking, web export and API image.
+
+## Next-slice characterization checklist
+
+Shopping is not a query-only port: names normalize with lowercase+trim, quantities
+remain individual occurrences (not sums), and unit-bearing manual items can merge
+with recipe rows. Preserve `recipe:<name>` versus `manual:<uuid>` list identity,
+`<name>` versus `<name>::manual` checks and legacy check fallback. Missing catalog
+metadata currently causes writes during load. Characterize these with independent
+fixtures before moving aggregation, ordering and catalog ownership to Go. Keep
+client-only share formatting in TypeScript. Queue clearing is now separate from
+shopping-week clearing; do not reuse the wrong operation in the shopping screen.
