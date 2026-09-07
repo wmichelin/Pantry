@@ -18,13 +18,15 @@ import { parseIngredients } from "../../lib/parse-ingredient";
 import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
+import { importRecipe, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
+import { importedRecipeInput, saveImportedBoard } from "../../lib/recipe-import";
 
 export default function ReviewBoardScreen() {
   const { householdId, recipesJson } = useLocalSearchParams<{
     householdId: string;
     recipesJson: string;
   }>();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
 
   const recipes: ScrapedRecipe[] = JSON.parse(recipesJson);
@@ -64,6 +66,35 @@ export default function ReviewBoardScreen() {
     }
     setSaving(true);
     setSaveProgress(0);
+
+    const apiURL = stagingRecipeImportAPIOrigin();
+    if (apiURL) {
+      try {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        const inputs = recipes.flatMap((recipe, index) => selected.has(index)
+          ? [importedRecipeInput(householdId!, recipe, recipe.title, tagSelections[index] ?? recipe.suggested_tags)] : []);
+        const result = await saveImportedBoard(inputs, {
+          save: (input) => importRecipe(apiURL, session.access_token, input),
+          ensureCatalog: (name) => ensureCatalogIngredient(householdId!, name),
+          catalogWarning: () => console.warn("Catalog enrichment after import failed"),
+          progress: setSaveProgress,
+          existingURLs: async () => {
+            const { data, error } = await supabase.from("recipes").select("source_url").eq("household_id", householdId);
+            if (error) throw new Error("Couldn't check existing recipes. Nothing was imported.");
+            return (data ?? []).flatMap((recipe) => recipe.source_url ? [recipe.source_url] : []);
+          },
+        });
+        if (result.failed.length) {
+          Alert.alert("Some recipes didn't save", `Saved ${result.saved}. Skipped ${result.skipped}.\n\nNot saved: ${result.failed.join(", ")}`);
+        }
+        router.replace({ pathname: "/(app)/household", params: { id: householdId } });
+      } catch (error) {
+        Alert.alert("Couldn't import board", error instanceof Error ? error.message : "Could not import board.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
 
     const { data: existing } = await supabase
       .from("recipes")

@@ -17,13 +17,15 @@ import { parseIngredients } from "../../lib/parse-ingredient";
 import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
+import { importRecipe, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
+import { importedRecipeInput, saveImportedRecipe } from "../../lib/recipe-import";
 
 export default function ReviewRecipeScreen() {
   const { householdId, recipeJson } = useLocalSearchParams<{
     householdId: string;
     recipeJson: string;
   }>();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
 
   const scraped: ScrapedRecipe = JSON.parse(recipeJson);
@@ -39,6 +41,24 @@ export default function ReviewRecipeScreen() {
       return;
     }
     setSaving(true);
+
+    const apiURL = stagingRecipeImportAPIOrigin();
+    if (apiURL) {
+      try {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await saveImportedRecipe(importedRecipeInput(householdId!, scraped, title.trim(), selectedTags), {
+          save: (input) => importRecipe(apiURL, session.access_token, input),
+          ensureCatalog: (name) => ensureCatalogIngredient(householdId!, name),
+          catalogWarning: () => console.warn("Catalog enrichment after import failed"),
+        });
+        router.replace({ pathname: "/(app)/household", params: { id: householdId } });
+      } catch (error) {
+        Alert.alert("Couldn't save recipe", error instanceof Error ? error.message : "Could not import recipe.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
 
     const { data: recipe, error: recipeError } = await supabase
       .from("recipes")
