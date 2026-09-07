@@ -38,9 +38,15 @@ async function drag(from, to, mobile = false, after = false) {
     const r=target.getBoundingClientRect(),s=b.getBoundingClientRect();
     return {x:${mobile ? 'r.left+r.width/2' : 'r.left+r.width/2'},y:r.top+r.height/2,tx:s.left+s.width/2,ty:${after ? 's.bottom-2' : 's.top+2'}};
   })()`);
-  await browser.call('Input.dispatchMouseEvent', { type: 'mousePressed', x: points.x, y: points.y, button: 'left', buttons: 1, clickCount: 1 });
-  for (let n = 1; n <= 8; n++) await browser.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: points.x + (points.tx - points.x) * n / 8, y: points.y + (points.ty - points.y) * n / 8, button: 'left', buttons: 1 });
-  await browser.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: points.tx, y: points.ty, button: 'left', buttons: 0, clickCount: 1 });
+  if (mobile) {
+    await browser.call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: points.x, y: points.y, id: 1 }] });
+    for (let n = 1; n <= 8; n++) await browser.call('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: points.x + (points.tx - points.x) * n / 8, y: points.y + (points.ty - points.y) * n / 8, id: 1 }] });
+    await browser.call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } else {
+    await browser.call('Input.dispatchMouseEvent', { type: 'mousePressed', x: points.x, y: points.y, button: 'left', buttons: 1, clickCount: 1 });
+    for (let n = 1; n <= 8; n++) await browser.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: points.x + (points.tx - points.x) * n / 8, y: points.y + (points.ty - points.y) * n / 8, button: 'left', buttons: 1 });
+    await browser.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: points.tx, y: points.ty, button: 'left', buttons: 0, clickCount: 1 });
+  }
 }
 try {
   await browser.call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false });
@@ -54,6 +60,8 @@ try {
   await drag('recipe:rice', tea.listKey); await waitCall('SaveShoppingOrder');
   await browser.until(`${listKeys}[0]==='recipe:rice'`);
   assert.equal((await db()).items[0].listKey, 'recipe:rice');
+  await browser.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+  assert.equal(await browser.evaluate("document.querySelectorAll('[data-sortable-id^=\"header:\"]').length"), 0, 'Flat drag unexpectedly grouped the list');
   await browser.click('Sort by aisle'); await waitCall('SaveShoppingOrder', 2);
   await browser.until("!!document.querySelector('[data-sortable-id=\"header:produce\"]')");
   await drag('recipe:milk', 'header:produce', false, true); await waitCall('SaveShoppingOrder', 3);
