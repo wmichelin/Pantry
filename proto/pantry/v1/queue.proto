@@ -1,0 +1,41 @@
+syntax = "proto3";
+package pantry.v1;
+
+option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1";
+
+service QueueService {
+  rpc ListQueue(ListQueueRequest) returns (ListQueueResponse);
+  rpc AddQueueRecipe(AddQueueRecipeRequest) returns (AddQueueRecipeResponse);
+  rpc RemoveQueueRecipe(RemoveQueueRecipeRequest) returns (RemoveQueueRecipeResponse);
+  rpc ClearQueueAndChecks(ClearQueueAndChecksRequest) returns (ClearQueueAndChecksResponse);
+}
+message QueueEntry {
+  string id = 1;
+  string recipe_id = 2;
+  string recipe_title = 3;
+}
+message ListQueueRequest {
+  string household_id = 1;
+  // Optional exact lookup for recipe detail, independent of list row limits.
+  string recipe_id = 2;
+}
+message ListQueueResponse {
+  repeated QueueEntry entries = 1;
+}
+message AddQueueRecipeRequest {
+  string household_id = 1;
+  string recipe_id = 2;
+}
+message AddQueueRecipeResponse {
+  QueueEntry entry = 1;
+}
+message RemoveQueueRecipeRequest {
+  string household_id = 1;
+  string recipe_id = 2;
+}
+message RemoveQueueRecipeResponse {}
+// This deliberately preserves manual shopping items.
+message ClearQueueAndChecksRequest {
+  string household_id = 1;
+}
+message ClearQueueAndChecksResponse {}

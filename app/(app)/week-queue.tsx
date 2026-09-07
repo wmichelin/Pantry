@@ -11,6 +11,8 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { showError, throwOnError } from "../../lib/db";
+import { useAuth } from "../../lib/auth-context";
+import { queueAPI, stagingQueueAPIOrigin } from "../../lib/queue-api";
 
 type WeekQueueEntry = {
   id: string;
@@ -21,6 +23,7 @@ type WeekQueueEntry = {
 export default function WeekQueueScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
   const router = useRouter();
+  const { session } = useAuth();
   const [entries, setEntries] = useState<WeekQueueEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
@@ -29,6 +32,12 @@ export default function WeekQueueScreen() {
 
   const loadQueue = useCallback(async () => {
     try {
+      const queueURL = stagingQueueAPIOrigin();
+      if (queueURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        setEntries(await queueAPI(queueURL, session.access_token).list(householdId!));
+        return;
+      }
       const { data, error } = await supabase
         .from("week_queues")
         .select("id, recipe_id, recipes(id, title)")
@@ -43,11 +52,23 @@ export default function WeekQueueScreen() {
     } finally {
       setLoading(false);
     }
-  }, [householdId]);
+  }, [householdId, session?.access_token]);
 
   useFocusEffect(useCallback(() => { loadQueue(); }, [loadQueue]));
 
   const handleRemove = async (entryId: string) => {
+    const queueURL = stagingQueueAPIOrigin();
+    if (queueURL) {
+      try {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        const entry = entries.find(row => row.id === entryId);
+        if (!entry) throw new Error("Queue entry not found.");
+        await queueAPI(queueURL, session.access_token).setQueued(householdId!, entry.recipe_id, false);
+        loadQueue();
+      } catch (error) { showError("Couldn't remove from queue", error); }
+      finally { setConfirmRemoveId(null); }
+      return;
+    }
     const { error } = await supabase.from("week_queues").delete().eq("id", entryId);
     setConfirmRemoveId(null);
     if (error) {
@@ -62,8 +83,14 @@ export default function WeekQueueScreen() {
     if (!householdId) return;
     setClearingWeek(true);
     try {
-      throwOnError(await supabase.from("week_queues").delete().eq("household_id", householdId));
-      throwOnError(await supabase.from("shopping_list_checks").delete().eq("household_id", householdId));
+      const queueURL = stagingQueueAPIOrigin();
+      if (queueURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await queueAPI(queueURL, session.access_token).clearQueueAndChecks(householdId);
+      } else {
+        throwOnError(await supabase.from("week_queues").delete().eq("household_id", householdId));
+        throwOnError(await supabase.from("shopping_list_checks").delete().eq("household_id", householdId));
+      }
       setClearWeekModalVisible(false);
       loadQueue();
     } catch (err) {

@@ -15,6 +15,7 @@ import { supabase } from "../../lib/supabase";
 import { errorMessage, showError, throwOnError } from "../../lib/db";
 import TagEditor from "../../components/TagEditor";
 import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../lib/recipe-api";
+import { queueAPI, stagingQueueAPIOrigin } from "../../lib/queue-api";
 
 type Recipe = { id: string; title: string; tags: string[] | null };
 type Household = { id: string; name: string };
@@ -51,12 +52,14 @@ export default function HouseholdScreen() {
     if (!id) return;
     try {
       const apiURL = stagingRecipeManagementAPIOrigin();
+      const queueURL = stagingQueueAPIOrigin();
       if (apiURL && !session?.access_token) throw new Error("A valid Pantry session is required.");
+      if (queueURL && !session?.access_token) throw new Error("A valid Pantry session is required.");
       const [hRes, rRes, qRes] = await Promise.all([
         supabase.from("households").select("id, name").eq("id", id).single(),
         apiURL ? recipeAPI(apiURL, session!.access_token).list(id).then(data => ({ data, error: null }))
           : supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
-        supabase
+        queueURL ? queueAPI(queueURL, session!.access_token).list(id).then(data => ({ data, error: null })) : supabase
           .from("week_queues")
           .select("id, recipe_id, recipes(id, title)")
           .eq("household_id", id)
@@ -125,7 +128,10 @@ export default function HouseholdScreen() {
         },
       ]);
     }
-    const { error } = wasQueued
+    const queueURL = stagingQueueAPIOrigin();
+    const { error } = queueURL
+      ? await queueAPI(queueURL, session?.access_token ?? "").setQueued(id!, recipe.id, !wasQueued).then(() => ({ error: null }), error => ({ error }))
+      : wasQueued
       ? await supabase.from("week_queues").delete().eq("household_id", id).eq("recipe_id", recipe.id)
       : await supabase.from("week_queues").insert({
           household_id: id,

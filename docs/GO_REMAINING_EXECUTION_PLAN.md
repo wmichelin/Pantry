@@ -3,9 +3,9 @@
 ## Status update
 
 Status: implementing
-Last completed: import persistence slice deployed and browser-verified (PR 47).
-Now: Phase 2 API/acceptance passed; web browser gate next.
-Next: queue operations, then shopping/catalog dependencies.
+Last completed: recipe management deployed and browser-verified (PR 48).
+Now: Phase 3a API/live acceptance passed; web browser verification next.
+Next: shopping aggregation fixtures and catalog dependencies (Phase 3b/4).
 Staging: https://pantry-staging.waltermichelin.com (verified baseline)
 Blocker: none
 
@@ -55,8 +55,9 @@ successful save. Failed saves must not suppress retrying the same URL.
 | --- | --- | --- | --- |
 | 0 | Commit this plan and baseline/review | Scope, clean implementation tree, staging rollback identified | Complete |
 | 1 | Import contract/domain/storage + SQL + tests; single/board client + tests; acceptance + staged flag | All source metadata, instructions/tags order, null/zero, empty single import, long text, dedup, atomic failure and accurate board summary | Persistence verified; parser/board orchestration remain to port |
-| 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Implementing |
-| 3 | Queue and shopping-list services and client | Add/remove/retry, cross-household references, quantity aggregation, checks/manual items/editing; clear queue preserves manual items, clear week removes them | Pending |
+| 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Verified in staging |
+| 3a | Running queue list/add/remove/clear and three screens | Add/remove/retry, targeted membership lookup, cross-household references, atomic clear preserves manual items | Implementing |
+| 3b | Shopping-list services and client | Occurrence aggregation, checked-key identity, manual items/editing, ordering; clear shopping week removes queue/checks/manuals | Pending |
 | 4 | Ingredient catalog and household settings | Normalization, catalog seeding/backfill, category/store assignments, store CRUD, member/invite reads, aisle create/delete/reorder and reassignment | Pending |
 | 5 | Go scraper and client | Saved website/pin/board fixtures; parsing/errors, authenticated requests, DNS/redirect SSRF checks, bounded concurrency/time/body, rate limiting | Pending |
 | 6 | Cross-capability regression and residual-call audit | Real onboarding → import → queue → shop → clear journey; all remaining direct business-data calls accounted for; rollback rehearsal | Pending |
@@ -146,4 +147,46 @@ search, member empty-tag replacement, genuine outsider and anonymous denial,
 two-household scoping, atomic deletion of test ingredients/queue entries, and
 preservation of other recipes, catalog rows, checks and manual items.
 No SQL migration was needed. Management web flag is enabled after these gates;
-browser verification remains pending until the web image is deployed.
+browser verification passed for all five binary methods, persisted tags and mobile
+deletion, with no direct recipe-data requests. Evidence:
+[PR 48](https://github.com/wmichelin/Pantry/pull/48#issuecomment-5574774534).
+The first title-visibility assertion assumed expanded tag sections; correcting the
+test to use search verified the existing collapsed-section behavior.
+
+## Phase 3a review and recovery point
+
+Known-good web: `ghcr.io/wmichelin/pantry:staging-1ec114e7d8510e0676fa5cef4c36924a8bfa262c`.
+Known-good API: `ghcr.io/wmichelin/pantry:staging-api-024b4fb65e25a37e0e3b39bf96a1e3f9f5a4b137`.
+Queue is running, not calendar-week scoped. Add derives its actor from auth.uid(),
+validates the recipe belongs to the requested household under a row lock, and
+preserves the existing queue entry on duplicate calls. Remove is desired-state
+idempotent. ClearQueueAndChecks preserves manual shopping items and recipes.
+Recipe-detail lookup filters by exact recipe before database row limits; it must
+not infer membership by scanning only the first page of a household list.
+
+The invoker-only staging migration and transaction gate passed: duplicate adds,
+same-user/two-household rejection, real trigger-injected failure after queue delete,
+outsider add/clear denial, successful clear preserving manuals and other households.
+All test writes and the injected trigger rolled back. Baseline row counts remained
+1 queue / 2 checks / 8 manuals; no security-advisor errors. Shopping aggregation,
+shopping clear-week, catalog seeding, and aisle/store settings are not yet ported.
+
+Queue checkpoints: API/SQL `b34ae8e`, gated client `2e835c8`, browser gate `d63e2e3`.
+API `2e835c805a1a0c47d99b5d8a5dadc37e0e17fabf` deployed in
+[run 34155263800](https://github.com/wmichelin/Pantry/actions/runs/34155263800).
+`node scripts/verify-staging-queue.mjs` passed ordered legacy equality, exact
+lookup, duplicate add, repeated remove, caller/two-household isolation, manual
+preservation and foreign-household sentinels. Queue web flag enabled only after
+this acceptance. CI/local verification: 144 Bun tests, Go vet/race, generated-code
+checks, typecheck, Protobuf format/lint/build/breaking, web export and API image.
+
+## Next-slice characterization checklist
+
+Shopping is not a query-only port: names normalize with lowercase+trim, quantities
+remain individual occurrences (not sums), and unit-bearing manual items can merge
+with recipe rows. Preserve `recipe:<name>` versus `manual:<uuid>` list identity,
+`<name>` versus `<name>::manual` checks and legacy check fallback. Missing catalog
+metadata currently causes writes during load. Characterize these with independent
+fixtures before moving aggregation, ordering and catalog ownership to Go. Keep
+client-only share formatting in TypeScript. Queue clearing is now separate from
+shopping-week clearing; do not reuse the wrong operation in the shopping screen.

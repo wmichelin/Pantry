@@ -21,6 +21,7 @@ type Server struct {
 	pantryv1connect.UnimplementedIdentityServiceHandler
 	pantryv1connect.UnimplementedHouseholdServiceHandler
 	pantryv1connect.UnimplementedRecipeServiceHandler
+	pantryv1connect.UnimplementedQueueServiceHandler
 
 	service *pantry.Service
 	logger  *slog.Logger
@@ -35,6 +36,7 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 	mux.Handle(pantryv1connect.NewIdentityServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewHouseholdServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewRecipeServiceHandler(server, handlerOptions...))
+	mux.Handle(pantryv1connect.NewQueueServiceHandler(server, handlerOptions...))
 	_, importHandler := pantryv1connect.NewRecipeServiceHandler(server, connect.WithReadMaxBytes(MaxImportRequestBytes))
 	mux.Handle(pantryv1connect.RecipeServiceImportRecipeProcedure, importHandler)
 
