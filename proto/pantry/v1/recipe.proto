@@ -7,6 +7,11 @@ option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1
 service RecipeService {
   rpc SaveRecipe(SaveRecipeRequest) returns (SaveRecipeResponse);
   rpc ImportRecipe(ImportRecipeRequest) returns (ImportRecipeResponse);
+  rpc ListRecipes(ListRecipesRequest) returns (ListRecipesResponse);
+  rpc GetRecipe(GetRecipeRequest) returns (GetRecipeResponse);
+  rpc SearchRecipeIngredients(SearchRecipeIngredientsRequest) returns (SearchRecipeIngredientsResponse);
+  rpc UpdateRecipeTags(UpdateRecipeTagsRequest) returns (UpdateRecipeTagsResponse);
+  rpc DeleteRecipe(DeleteRecipeRequest) returns (DeleteRecipeResponse);
 }
 
 message RecipeIngredient {
@@ -62,3 +67,63 @@ message ImportedRecipeIngredient {
 message ImportRecipeResponse {
   SavedRecipe recipe = 1;
 }
+
+// Wrapper preserves database null versus an empty JSON array.
+message RecipeTextList {
+  repeated string values = 1;
+}
+message RecipeSummary {
+  string id = 1;
+  string title = 2;
+  RecipeTextList tags = 3;
+  optional string source_url = 4;
+}
+message RecipeDetail {
+  string id = 1;
+  string title = 2;
+  string household_id = 3;
+  string created_at = 4;
+  string source_type = 5;
+  optional string source_url = 6;
+  optional string image_url = 7;
+  optional int32 servings = 8;
+  optional int32 prep_time_minutes = 9;
+  optional int32 cook_time_minutes = 10;
+  RecipeTextList instructions = 11;
+  RecipeTextList tags = 12;
+}
+message StoredRecipeIngredient {
+  string id = 1;
+  string name = 2;
+  optional double quantity = 3;
+  optional string unit = 4;
+}
+message ListRecipesRequest {
+  string household_id = 1;
+}
+message ListRecipesResponse {
+  repeated RecipeSummary recipes = 1;
+}
+message GetRecipeRequest {
+  string recipe_id = 1;
+}
+message GetRecipeResponse {
+  RecipeDetail recipe = 1;
+  repeated StoredRecipeIngredient ingredients = 2;
+}
+message SearchRecipeIngredientsRequest {
+  string household_id = 1;
+  string query = 2;
+}
+message SearchRecipeIngredientsResponse {
+  repeated string recipe_ids = 1;
+}
+message UpdateRecipeTagsRequest {
+  string recipe_id = 1;
+  repeated string tags = 2;
+}
+message UpdateRecipeTagsResponse {}
+message DeleteRecipeRequest {
+  string recipe_id = 1;
+}
+message DeleteRecipeResponse {}

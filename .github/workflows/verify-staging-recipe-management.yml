@@ -1,0 +1,18 @@
+name: Verify staging recipe management parity
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verify-staging-recipe-management
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify recipe reads, authorization, tags and delete cascades
+        run: node scripts/verify-staging-recipe-management.mjs

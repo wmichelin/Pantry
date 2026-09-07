@@ -110,17 +110,21 @@ export async function saveRecipe(apiURL: string, accessToken: string, householdI
   return createPantryAPIClient(apiURL, accessToken, fetcher).saveRecipe(householdID, title, ingredients);
 }
 
-function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch) {
+export function pantryConnectTransport(apiURL: string, accessToken: string, fetcher: Fetch = defaultFetch) {
   const authorize: Interceptor = (next) => async (request) => {
     request.header.set("Authorization", `Bearer ${accessToken}`);
     return next(request);
   };
-  const transport = createConnectTransport({
+  return createConnectTransport({
     baseUrl: `${apiURL}/api/rpc`,
     useBinaryFormat: true,
     interceptors: [authorize],
     fetch: fetcher as typeof globalThis.fetch,
   });
+}
+
+function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch) {
+  const transport = pantryConnectTransport(apiURL, accessToken, fetcher);
   const identity = createClient(IdentityService, transport);
   const households = createClient(HouseholdService, transport);
   const recipes = createClient(RecipeService, transport);
@@ -231,7 +235,7 @@ function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch
   };
 }
 
-function safeConnectError(error: unknown, fallback: string): Error {
+export function safeConnectError(error: unknown, fallback: string): Error {
   const detail = ConnectError.from(error).findDetails(PantryErrorDetailSchema)[0];
   return new Error(detail?.userMessage.trim() || fallback);
 }

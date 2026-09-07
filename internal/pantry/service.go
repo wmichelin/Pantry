@@ -116,21 +116,32 @@ func (err *Error) Unwrap() error {
 }
 
 type Service struct {
-	households  HouseholdReader
-	memberships MembershipReader
-	creator     HouseholdCreator
-	joiner      HouseholdJoiner
-	recipes     RecipeSaver
+	households    HouseholdReader
+	memberships   MembershipReader
+	creator       HouseholdCreator
+	joiner        HouseholdJoiner
+	recipes       RecipeSaver
+	recipeManager RecipeManager
 }
 
-func NewService(households HouseholdReader, memberships MembershipReader, creator HouseholdCreator, joiner HouseholdJoiner, recipes RecipeSaver) *Service {
-	return &Service{
+type Option func(*Service)
+
+func WithRecipeManager(manager RecipeManager) Option {
+	return func(service *Service) { service.recipeManager = manager }
+}
+
+func NewService(households HouseholdReader, memberships MembershipReader, creator HouseholdCreator, joiner HouseholdJoiner, recipes RecipeSaver, options ...Option) *Service {
+	service := &Service{
 		households:  households,
 		memberships: memberships,
 		creator:     creator,
 		joiner:      joiner,
 		recipes:     recipes,
 	}
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
 func (service *Service) ListHouseholds(ctx context.Context, caller authn.Caller) ([]Household, error) {

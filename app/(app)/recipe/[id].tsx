@@ -15,6 +15,7 @@ import { useAuth } from "../../../lib/auth-context";
 import { showError, throwOnError } from "../../../lib/db";
 import { formatQuantity } from "../../../lib/format-quantity";
 import TagEditor from "../../../components/TagEditor";
+import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../../lib/recipe-api";
 
 type Recipe = {
   id: string;
@@ -40,7 +41,7 @@ type Ingredient = {
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,10 +55,27 @@ export default function RecipeDetailScreen() {
 
   useEffect(() => {
     loadRecipe();
-  }, [id]);
+  }, [id, session?.access_token]);
 
   const loadRecipe = async () => {
     try {
+      const apiURL = stagingRecipeManagementAPIOrigin();
+      if (apiURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        const api = recipeAPI(apiURL, session.access_token);
+        const loaded = await api.get(id!);
+        setRecipe(loaded.recipe);
+        setIngredients(loaded.ingredients);
+        const [qRes, rows] = await Promise.all([
+          supabase.from("week_queues").select("id").eq("household_id", loaded.recipe.household_id).eq("recipe_id", id).maybeSingle(),
+          api.list(loaded.recipe.household_id),
+        ]);
+        if (qRes.error) throw qRes.error;
+        setQueued(!!qRes.data);
+        setQueueChecked(true);
+        setAllKnownTags([...new Set(rows.flatMap(r => r.tags ?? []))].sort());
+        return;
+      }
       const [rRes, iRes] = await Promise.all([
         supabase
           .from("recipes")
@@ -97,8 +115,14 @@ export default function RecipeDetailScreen() {
   const handleDelete = async () => {
     if (!recipe) return;
     try {
-      throwOnError(await supabase.from("recipe_ingredients").delete().eq("recipe_id", id));
-      throwOnError(await supabase.from("recipes").delete().eq("id", id));
+      const apiURL = stagingRecipeManagementAPIOrigin();
+      if (apiURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await recipeAPI(apiURL, session.access_token).delete(id!);
+      } else {
+        throwOnError(await supabase.from("recipe_ingredients").delete().eq("recipe_id", id));
+        throwOnError(await supabase.from("recipes").delete().eq("id", id));
+      }
       router.replace({ pathname: "/(app)/household", params: { id: recipe.household_id } });
     } catch (err) {
       setConfirmDelete(false);
@@ -140,7 +164,13 @@ export default function RecipeDetailScreen() {
     if (editingTags === null) return;
     setSavingTags(true);
     try {
-      throwOnError(await supabase.from("recipes").update({ tags: editingTags }).eq("id", id));
+      const apiURL = stagingRecipeManagementAPIOrigin();
+      if (apiURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await recipeAPI(apiURL, session.access_token).updateTags(id!, editingTags);
+      } else {
+        throwOnError(await supabase.from("recipes").update({ tags: editingTags }).eq("id", id));
+      }
       setRecipe((prev) => (prev ? { ...prev, tags: editingTags } : prev));
       setEditingTags(null);
     } catch (err) {

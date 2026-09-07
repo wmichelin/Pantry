@@ -14,6 +14,7 @@ import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
 import { errorMessage, showError, throwOnError } from "../../lib/db";
 import TagEditor from "../../components/TagEditor";
+import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../lib/recipe-api";
 
 type Recipe = { id: string; title: string; tags: string[] | null };
 type Household = { id: string; name: string };
@@ -25,7 +26,7 @@ type QueueEntry = {
 
 export default function HouseholdScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
   const [household, setHousehold] = useState<Household | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -49,9 +50,12 @@ export default function HouseholdScreen() {
   const loadData = useCallback(async () => {
     if (!id) return;
     try {
+      const apiURL = stagingRecipeManagementAPIOrigin();
+      if (apiURL && !session?.access_token) throw new Error("A valid Pantry session is required.");
       const [hRes, rRes, qRes] = await Promise.all([
         supabase.from("households").select("id, name").eq("id", id).single(),
-        supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
+        apiURL ? recipeAPI(apiURL, session!.access_token).list(id).then(data => ({ data, error: null }))
+          : supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
         supabase
           .from("week_queues")
           .select("id, recipe_id, recipes(id, title)")
@@ -70,7 +74,7 @@ export default function HouseholdScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, session?.access_token]);
 
   useFocusEffect(
     useCallback(() => {
@@ -87,7 +91,13 @@ export default function HouseholdScreen() {
     if (!editingRecipe) return;
     setSavingTags(true);
     try {
-      throwOnError(await supabase.from("recipes").update({ tags: editingTags }).eq("id", editingRecipe.id));
+      const apiURL = stagingRecipeManagementAPIOrigin();
+      if (apiURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await recipeAPI(apiURL, session.access_token).updateTags(editingRecipe.id, editingTags);
+      } else {
+        throwOnError(await supabase.from("recipes").update({ tags: editingTags }).eq("id", editingRecipe.id));
+      }
       setRecipes((prev) =>
         prev.map((r) => (r.id === editingRecipe.id ? { ...r, tags: editingTags } : r))
       );
@@ -156,6 +166,22 @@ export default function HouseholdScreen() {
       const titleMatches = recipes.filter((r) => r.title.toLowerCase().includes(q));
       const titleMatchIds = new Set(titleMatches.map((r) => r.id));
       const recipeIds = recipes.map((r) => r.id);
+      const apiURL = stagingRecipeManagementAPIOrigin();
+      if (apiURL && recipeIds.length > 0) {
+        try {
+          if (!session?.access_token || !id) throw new Error("A valid Pantry session is required.");
+          const matches = await recipeAPI(apiURL, session.access_token).searchIngredients(id, q);
+          if (cancelled) return;
+          const ids = new Set([...titleMatchIds, ...matches]);
+          setSearchResults(recipes.filter(r => ids.has(r.id)));
+        } catch (error) {
+          if (cancelled) return;
+          setSearchResults(titleMatches);
+          setSearchError(`Couldn't search ingredients: ${errorMessage(error)}`);
+        }
+        if (!cancelled) setSearching(false);
+        return;
+      }
       if (recipeIds.length > 0) {
         const { data, error } = await supabase
           .from("recipe_ingredients")
@@ -183,7 +209,7 @@ export default function HouseholdScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, recipes]);
+  }, [query, recipes, id, session?.access_token]);
 
   const taggedSections = useMemo(() => {
     const map = new Map<string, Recipe[]>();

@@ -39,12 +39,31 @@ const (
 	// RecipeServiceImportRecipeProcedure is the fully-qualified name of the RecipeService's
 	// ImportRecipe RPC.
 	RecipeServiceImportRecipeProcedure = "/pantry.v1.RecipeService/ImportRecipe"
+	// RecipeServiceListRecipesProcedure is the fully-qualified name of the RecipeService's ListRecipes
+	// RPC.
+	RecipeServiceListRecipesProcedure = "/pantry.v1.RecipeService/ListRecipes"
+	// RecipeServiceGetRecipeProcedure is the fully-qualified name of the RecipeService's GetRecipe RPC.
+	RecipeServiceGetRecipeProcedure = "/pantry.v1.RecipeService/GetRecipe"
+	// RecipeServiceSearchRecipeIngredientsProcedure is the fully-qualified name of the RecipeService's
+	// SearchRecipeIngredients RPC.
+	RecipeServiceSearchRecipeIngredientsProcedure = "/pantry.v1.RecipeService/SearchRecipeIngredients"
+	// RecipeServiceUpdateRecipeTagsProcedure is the fully-qualified name of the RecipeService's
+	// UpdateRecipeTags RPC.
+	RecipeServiceUpdateRecipeTagsProcedure = "/pantry.v1.RecipeService/UpdateRecipeTags"
+	// RecipeServiceDeleteRecipeProcedure is the fully-qualified name of the RecipeService's
+	// DeleteRecipe RPC.
+	RecipeServiceDeleteRecipeProcedure = "/pantry.v1.RecipeService/DeleteRecipe"
 )
 
 // RecipeServiceClient is a client for the pantry.v1.RecipeService service.
 type RecipeServiceClient interface {
 	SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error)
 	ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error)
+	ListRecipes(context.Context, *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error)
+	GetRecipe(context.Context, *connect.Request[v1.GetRecipeRequest]) (*connect.Response[v1.GetRecipeResponse], error)
+	SearchRecipeIngredients(context.Context, *connect.Request[v1.SearchRecipeIngredientsRequest]) (*connect.Response[v1.SearchRecipeIngredientsResponse], error)
+	UpdateRecipeTags(context.Context, *connect.Request[v1.UpdateRecipeTagsRequest]) (*connect.Response[v1.UpdateRecipeTagsResponse], error)
+	DeleteRecipe(context.Context, *connect.Request[v1.DeleteRecipeRequest]) (*connect.Response[v1.DeleteRecipeResponse], error)
 }
 
 // NewRecipeServiceClient constructs a client for the pantry.v1.RecipeService service. By default,
@@ -70,13 +89,48 @@ func NewRecipeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(recipeServiceMethods.ByName("ImportRecipe")),
 			connect.WithClientOptions(opts...),
 		),
+		listRecipes: connect.NewClient[v1.ListRecipesRequest, v1.ListRecipesResponse](
+			httpClient,
+			baseURL+RecipeServiceListRecipesProcedure,
+			connect.WithSchema(recipeServiceMethods.ByName("ListRecipes")),
+			connect.WithClientOptions(opts...),
+		),
+		getRecipe: connect.NewClient[v1.GetRecipeRequest, v1.GetRecipeResponse](
+			httpClient,
+			baseURL+RecipeServiceGetRecipeProcedure,
+			connect.WithSchema(recipeServiceMethods.ByName("GetRecipe")),
+			connect.WithClientOptions(opts...),
+		),
+		searchRecipeIngredients: connect.NewClient[v1.SearchRecipeIngredientsRequest, v1.SearchRecipeIngredientsResponse](
+			httpClient,
+			baseURL+RecipeServiceSearchRecipeIngredientsProcedure,
+			connect.WithSchema(recipeServiceMethods.ByName("SearchRecipeIngredients")),
+			connect.WithClientOptions(opts...),
+		),
+		updateRecipeTags: connect.NewClient[v1.UpdateRecipeTagsRequest, v1.UpdateRecipeTagsResponse](
+			httpClient,
+			baseURL+RecipeServiceUpdateRecipeTagsProcedure,
+			connect.WithSchema(recipeServiceMethods.ByName("UpdateRecipeTags")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteRecipe: connect.NewClient[v1.DeleteRecipeRequest, v1.DeleteRecipeResponse](
+			httpClient,
+			baseURL+RecipeServiceDeleteRecipeProcedure,
+			connect.WithSchema(recipeServiceMethods.ByName("DeleteRecipe")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // recipeServiceClient implements RecipeServiceClient.
 type recipeServiceClient struct {
-	saveRecipe   *connect.Client[v1.SaveRecipeRequest, v1.SaveRecipeResponse]
-	importRecipe *connect.Client[v1.ImportRecipeRequest, v1.ImportRecipeResponse]
+	saveRecipe              *connect.Client[v1.SaveRecipeRequest, v1.SaveRecipeResponse]
+	importRecipe            *connect.Client[v1.ImportRecipeRequest, v1.ImportRecipeResponse]
+	listRecipes             *connect.Client[v1.ListRecipesRequest, v1.ListRecipesResponse]
+	getRecipe               *connect.Client[v1.GetRecipeRequest, v1.GetRecipeResponse]
+	searchRecipeIngredients *connect.Client[v1.SearchRecipeIngredientsRequest, v1.SearchRecipeIngredientsResponse]
+	updateRecipeTags        *connect.Client[v1.UpdateRecipeTagsRequest, v1.UpdateRecipeTagsResponse]
+	deleteRecipe            *connect.Client[v1.DeleteRecipeRequest, v1.DeleteRecipeResponse]
 }
 
 // SaveRecipe calls pantry.v1.RecipeService.SaveRecipe.
@@ -89,10 +143,40 @@ func (c *recipeServiceClient) ImportRecipe(ctx context.Context, req *connect.Req
 	return c.importRecipe.CallUnary(ctx, req)
 }
 
+// ListRecipes calls pantry.v1.RecipeService.ListRecipes.
+func (c *recipeServiceClient) ListRecipes(ctx context.Context, req *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error) {
+	return c.listRecipes.CallUnary(ctx, req)
+}
+
+// GetRecipe calls pantry.v1.RecipeService.GetRecipe.
+func (c *recipeServiceClient) GetRecipe(ctx context.Context, req *connect.Request[v1.GetRecipeRequest]) (*connect.Response[v1.GetRecipeResponse], error) {
+	return c.getRecipe.CallUnary(ctx, req)
+}
+
+// SearchRecipeIngredients calls pantry.v1.RecipeService.SearchRecipeIngredients.
+func (c *recipeServiceClient) SearchRecipeIngredients(ctx context.Context, req *connect.Request[v1.SearchRecipeIngredientsRequest]) (*connect.Response[v1.SearchRecipeIngredientsResponse], error) {
+	return c.searchRecipeIngredients.CallUnary(ctx, req)
+}
+
+// UpdateRecipeTags calls pantry.v1.RecipeService.UpdateRecipeTags.
+func (c *recipeServiceClient) UpdateRecipeTags(ctx context.Context, req *connect.Request[v1.UpdateRecipeTagsRequest]) (*connect.Response[v1.UpdateRecipeTagsResponse], error) {
+	return c.updateRecipeTags.CallUnary(ctx, req)
+}
+
+// DeleteRecipe calls pantry.v1.RecipeService.DeleteRecipe.
+func (c *recipeServiceClient) DeleteRecipe(ctx context.Context, req *connect.Request[v1.DeleteRecipeRequest]) (*connect.Response[v1.DeleteRecipeResponse], error) {
+	return c.deleteRecipe.CallUnary(ctx, req)
+}
+
 // RecipeServiceHandler is an implementation of the pantry.v1.RecipeService service.
 type RecipeServiceHandler interface {
 	SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error)
 	ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error)
+	ListRecipes(context.Context, *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error)
+	GetRecipe(context.Context, *connect.Request[v1.GetRecipeRequest]) (*connect.Response[v1.GetRecipeResponse], error)
+	SearchRecipeIngredients(context.Context, *connect.Request[v1.SearchRecipeIngredientsRequest]) (*connect.Response[v1.SearchRecipeIngredientsResponse], error)
+	UpdateRecipeTags(context.Context, *connect.Request[v1.UpdateRecipeTagsRequest]) (*connect.Response[v1.UpdateRecipeTagsResponse], error)
+	DeleteRecipe(context.Context, *connect.Request[v1.DeleteRecipeRequest]) (*connect.Response[v1.DeleteRecipeResponse], error)
 }
 
 // NewRecipeServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -114,12 +198,52 @@ func NewRecipeServiceHandler(svc RecipeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(recipeServiceMethods.ByName("ImportRecipe")),
 		connect.WithHandlerOptions(opts...),
 	)
+	recipeServiceListRecipesHandler := connect.NewUnaryHandler(
+		RecipeServiceListRecipesProcedure,
+		svc.ListRecipes,
+		connect.WithSchema(recipeServiceMethods.ByName("ListRecipes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recipeServiceGetRecipeHandler := connect.NewUnaryHandler(
+		RecipeServiceGetRecipeProcedure,
+		svc.GetRecipe,
+		connect.WithSchema(recipeServiceMethods.ByName("GetRecipe")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recipeServiceSearchRecipeIngredientsHandler := connect.NewUnaryHandler(
+		RecipeServiceSearchRecipeIngredientsProcedure,
+		svc.SearchRecipeIngredients,
+		connect.WithSchema(recipeServiceMethods.ByName("SearchRecipeIngredients")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recipeServiceUpdateRecipeTagsHandler := connect.NewUnaryHandler(
+		RecipeServiceUpdateRecipeTagsProcedure,
+		svc.UpdateRecipeTags,
+		connect.WithSchema(recipeServiceMethods.ByName("UpdateRecipeTags")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recipeServiceDeleteRecipeHandler := connect.NewUnaryHandler(
+		RecipeServiceDeleteRecipeProcedure,
+		svc.DeleteRecipe,
+		connect.WithSchema(recipeServiceMethods.ByName("DeleteRecipe")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/pantry.v1.RecipeService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RecipeServiceSaveRecipeProcedure:
 			recipeServiceSaveRecipeHandler.ServeHTTP(w, r)
 		case RecipeServiceImportRecipeProcedure:
 			recipeServiceImportRecipeHandler.ServeHTTP(w, r)
+		case RecipeServiceListRecipesProcedure:
+			recipeServiceListRecipesHandler.ServeHTTP(w, r)
+		case RecipeServiceGetRecipeProcedure:
+			recipeServiceGetRecipeHandler.ServeHTTP(w, r)
+		case RecipeServiceSearchRecipeIngredientsProcedure:
+			recipeServiceSearchRecipeIngredientsHandler.ServeHTTP(w, r)
+		case RecipeServiceUpdateRecipeTagsProcedure:
+			recipeServiceUpdateRecipeTagsHandler.ServeHTTP(w, r)
+		case RecipeServiceDeleteRecipeProcedure:
+			recipeServiceDeleteRecipeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -135,4 +259,24 @@ func (UnimplementedRecipeServiceHandler) SaveRecipe(context.Context, *connect.Re
 
 func (UnimplementedRecipeServiceHandler) ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.ImportRecipe is not implemented"))
+}
+
+func (UnimplementedRecipeServiceHandler) ListRecipes(context.Context, *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.ListRecipes is not implemented"))
+}
+
+func (UnimplementedRecipeServiceHandler) GetRecipe(context.Context, *connect.Request[v1.GetRecipeRequest]) (*connect.Response[v1.GetRecipeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.GetRecipe is not implemented"))
+}
+
+func (UnimplementedRecipeServiceHandler) SearchRecipeIngredients(context.Context, *connect.Request[v1.SearchRecipeIngredientsRequest]) (*connect.Response[v1.SearchRecipeIngredientsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.SearchRecipeIngredients is not implemented"))
+}
+
+func (UnimplementedRecipeServiceHandler) UpdateRecipeTags(context.Context, *connect.Request[v1.UpdateRecipeTagsRequest]) (*connect.Response[v1.UpdateRecipeTagsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.UpdateRecipeTags is not implemented"))
+}
+
+func (UnimplementedRecipeServiceHandler) DeleteRecipe(context.Context, *connect.Request[v1.DeleteRecipeRequest]) (*connect.Response[v1.DeleteRecipeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.DeleteRecipe is not implemented"))
 }
