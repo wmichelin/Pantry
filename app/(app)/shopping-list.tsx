@@ -15,6 +15,8 @@ import { useLocalSearchParams, useNavigation, useFocusEffect, useRouter } from "
 import { SortableList } from "../../components/SortableList";
 import { IngredientAutocomplete } from "../../components/IngredientAutocomplete";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../lib/auth-context";
+import { shoppingChecksAPI, stagingShoppingChecksAPIOrigin } from "../../lib/shopping-api";
 import { showError, throwOnError } from "../../lib/db";
 import { formatShoppingList } from "../../lib/format-shopping-list";
 import { formatQuantity } from "../../lib/format-quantity";
@@ -83,6 +85,7 @@ const formatQty = (quantity: number | null, unit: string | null): string => {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ShoppingListScreen() {
+  const { session } = useAuth();
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
   const navigation = useNavigation();
   const router = useRouter();
@@ -340,7 +343,13 @@ export default function ShoppingListScreen() {
     setItems((prev) =>
       prev.map((i) => (i.listKey === item.listKey ? { ...i, checked: nowChecked } : i))
     );
-    const { error } = nowChecked
+    try {
+      const shoppingURL = stagingShoppingChecksAPIOrigin();
+      if (shoppingURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await shoppingChecksAPI(shoppingURL, session.access_token).setChecked(householdId!, item.normalizedName, isStandaloneManual(item), nowChecked);
+      } else {
+        const { error } = nowChecked
       ? await supabase.from("shopping_list_checks").upsert({
           household_id: householdId,
           normalized_name: checkKey,
@@ -350,7 +359,9 @@ export default function ShoppingListScreen() {
           .delete()
           .eq("household_id", householdId)
           .eq("normalized_name", checkKey);
-    if (error) {
+        if (error) throw error;
+      }
+    } catch (error) {
       // Revert the optimistic check.
       setItems((prev) =>
         prev.map((i) => (i.listKey === item.listKey ? { ...i, checked: !nowChecked } : i))
@@ -363,8 +374,15 @@ export default function ShoppingListScreen() {
   const clearChecks = async () => {
     const previous = items;
     setItems((prev) => prev.map((i) => ({ ...i, checked: false })));
-    const { error } = await supabase.from("shopping_list_checks").delete().eq("household_id", householdId);
-    if (error) {
+    try {
+      const shoppingURL = stagingShoppingChecksAPIOrigin();
+      if (shoppingURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await shoppingChecksAPI(shoppingURL, session.access_token).clearChecks(householdId!);
+      } else {
+        throwOnError(await supabase.from("shopping_list_checks").delete().eq("household_id", householdId));
+      }
+    } catch (error) {
       setItems(previous); // revert
       showError("Couldn't clear checks", error);
     }
@@ -375,11 +393,17 @@ export default function ShoppingListScreen() {
     if (!householdId) return;
     setClearingWeek(true);
     try {
-      throwOnError(await supabase.from("week_queues").delete().eq("household_id", householdId));
-      throwOnError(await supabase.from("shopping_list_checks").delete().eq("household_id", householdId));
-      throwOnError(
-        await supabase.from("shopping_list_manual_items").delete().eq("household_id", householdId)
-      );
+      const shoppingURL = stagingShoppingChecksAPIOrigin();
+      if (shoppingURL) {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        await shoppingChecksAPI(shoppingURL, session.access_token).clearWeek(householdId);
+      } else {
+        throwOnError(await supabase.from("week_queues").delete().eq("household_id", householdId));
+        throwOnError(await supabase.from("shopping_list_checks").delete().eq("household_id", householdId));
+        throwOnError(
+          await supabase.from("shopping_list_manual_items").delete().eq("household_id", householdId)
+        );
+      }
       setClearWeekModalVisible(false);
       await loadList();
     } catch (err) {
