@@ -9,9 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wmichelin/Pantry/internal/api"
 	"github.com/wmichelin/Pantry/internal/authn"
 	"github.com/wmichelin/Pantry/internal/config"
-	"github.com/wmichelin/Pantry/internal/httpapi"
+	"github.com/wmichelin/Pantry/internal/pantry"
 	"github.com/wmichelin/Pantry/internal/supabase"
 )
 
@@ -28,10 +29,11 @@ func main() {
 		slog.Error("configure JWT verifier", "error", err)
 		os.Exit(1)
 	}
+	service := pantry.NewService(households, households, households, households, households)
 
 	server := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           httpapi.New(verifier, households, households, households, households, households, slog.Default()),
+		Handler:           api.New(verifier, service, slog.Default()),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,

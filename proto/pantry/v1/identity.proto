@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package pantry.v1;
+
+option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1";
+
+service IdentityService {
+  rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse);
+}
+
+// WhoAmIRequest is intentionally method-specific so it can evolve additively.
+message WhoAmIRequest {}
+
+message WhoAmIResponse {
+  string user_id = 1;
+}

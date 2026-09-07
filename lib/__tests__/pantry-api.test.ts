@@ -1,5 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { createHousehold, findMembership, joinHousehold, saveRecipe } from "../pantry-api";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { PantryErrorDetailSchema } from "../gen/pantry/v1/errors_pb";
+import {
+  CreateHouseholdRequestSchema,
+  GetMembershipResponseSchema,
+} from "../gen/pantry/v1/household_pb";
+import { SaveRecipeRequestSchema, SaveRecipeResponseSchema } from "../gen/pantry/v1/recipe_pb";
+import { createHousehold, createPantryAPIClient, findMembership, joinHousehold, saveRecipe } from "../pantry-api";
 
 describe("findMembership", () => {
   it("sends the current session token only to the configured API origin", async () => {
@@ -118,3 +125,106 @@ describe("recipe mutation API", () => {
     expect(recipe).toMatchObject({ id: "recipe-1", ingredient_count: 1 });
   });
 });
+
+describe("generated Connect client", () => {
+  it("calls the prefixed RPC with binary Protobuf and the current token", async () => {
+    const responseBytes = toBinary(
+      GetMembershipResponseSchema,
+      create(GetMembershipResponseSchema, {
+        membership: {
+          householdId: "household-1",
+          role: "owner",
+          household: { id: "household-1", name: "Pantry", inviteCode: "ABC123" },
+        },
+      })
+    );
+    const client = createPantryAPIClient(
+      "https://pantry-staging.waltermichelin.com",
+      "fresh-access-token",
+      async (input, init) => {
+        expect(String(input)).toBe(
+          "https://pantry-staging.waltermichelin.com/api/rpc/pantry.v1.HouseholdService/GetMembership"
+        );
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer fresh-access-token");
+        expect(headers.get("Content-Type")).toBe("application/proto");
+        return new Response(responseBytes, { status: 200, headers: { "Content-Type": "application/proto" } });
+      },
+      "connect"
+    );
+
+    await expect(client.findMembership()).resolves.toEqual({
+      household_id: "household-1",
+      role: "owner",
+      households: { id: "household-1", name: "Pantry", invite_code: "ABC123" },
+    });
+  });
+
+  it("preserves absent and zero ingredient quantities", async () => {
+    const seenQuantities: Array<number | undefined> = [];
+    const responseBytes = toBinary(
+      SaveRecipeResponseSchema,
+      create(SaveRecipeResponseSchema, {
+        recipe: { id: "recipe-1", title: "Soup", ingredientCount: 1 },
+      })
+    );
+    const client = createPantryAPIClient(
+      "https://pantry-staging.waltermichelin.com",
+      "token",
+      async (_input, init) => {
+        const request = fromBinary(SaveRecipeRequestSchema, await bodyBytes(init?.body));
+        seenQuantities.push(request.ingredients[0]?.quantity);
+        return new Response(responseBytes, { status: 200, headers: { "Content-Type": "application/proto" } });
+      },
+      "connect"
+    );
+
+    await client.saveRecipe("household-1", "Soup", [{ name: "salt", quantity: null, unit: "", raw_string: "salt" }]);
+    await client.saveRecipe("household-1", "Soup", [{ name: "salt", quantity: 0, unit: "", raw_string: "0 salt" }]);
+    expect(seenQuantities).toEqual([undefined, 0]);
+  });
+
+  it("surfaces the safe typed Pantry error message", async () => {
+    const detail = toBinary(
+      PantryErrorDetailSchema,
+      create(PantryErrorDetailSchema, {
+        code: "invite_not_found",
+        userMessage: "No household found with that invite code.",
+      })
+    );
+    const client = createPantryAPIClient(
+      "https://pantry-staging.waltermichelin.com",
+      "token",
+      async () => new Response(
+        JSON.stringify({
+          code: "not_found",
+          message: "No household found with that invite code.",
+          details: [{ type: "pantry.v1.PantryErrorDetail", value: bytesToBase64(detail) }],
+        }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      ),
+      "connect"
+    );
+
+    await expect(client.joinHousehold("missing", "Member")).rejects.toThrow(
+      "No household found with that invite code."
+    );
+  });
+
+  it("matches the Go cross-language wire fixture", () => {
+    const encoded = toBinary(
+      CreateHouseholdRequestSchema,
+      create(CreateHouseholdRequestSchema, { name: "Pantry", displayName: "Owner" })
+    );
+    expect(Array.from(encoded, (byte) => byte.toString(16).padStart(2, "0")).join(""))
+      .toBe("0a0650616e74727912054f776e6572");
+  });
+});
+
+async function bodyBytes(body: BodyInit | null | undefined): Promise<Uint8Array> {
+  return new Uint8Array(await new Response(body).arrayBuffer());
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
+}

@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package pantry.v1;
+
+option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1";
+
+// PantryErrorDetail preserves Pantry's stable client-facing error contract.
+message PantryErrorDetail {
+  string code = 1;
+  string user_message = 2;
+}

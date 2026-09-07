@@ -8,80 +8,19 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/wmichelin/Pantry/internal/pantry"
 )
 
-// HouseholdReader preserves the existing Supabase RLS boundary by accepting
-// the verified caller token for every operation. It must never use a
-// service-role key or a connection that bypasses RLS.
-type HouseholdReader interface {
-	ListHouseholds(context.Context, string) ([]Household, error)
-}
-
-// MembershipReader preserves the legacy landing-screen query: one caller-visible
-// household membership, including the nested household projection.
-type MembershipReader interface {
-	FindMembership(context.Context, string, string) (*Membership, error)
-}
-
-// HouseholdCreator and HouseholdJoiner expose the staged atomic membership
-// operations. Both preserve the caller JWT so Supabase can derive auth.uid()
-// inside the RPC rather than trusting a user ID supplied by the client.
-type HouseholdCreator interface {
-	CreateHousehold(context.Context, string, string, string) (*CreatedHousehold, error)
-}
-
-type HouseholdJoiner interface {
-	JoinHouseholdByInvite(context.Context, string, string, string) (*JoinedHousehold, error)
-}
-
-type RecipeSaver interface {
-	SaveRecipe(context.Context, string, RecipeSave) (*SavedRecipe, error)
-}
-
-type Household struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	InviteCode string `json:"invite_code"`
-	CreatedBy  string `json:"created_by"`
-	CreatedAt  string `json:"created_at"`
-}
-
-type Membership struct {
-	HouseholdID string    `json:"household_id"`
-	Role        string    `json:"role"`
-	Household   Household `json:"households"`
-}
-
-type CreatedHousehold struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	InviteCode string `json:"invite_code"`
-}
-
-type JoinedHousehold struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	AlreadyMember bool   `json:"already_member"`
-}
-
-type RecipeIngredient struct {
-	Name      string   `json:"name"`
-	Quantity  *float64 `json:"quantity"`
-	Unit      string   `json:"unit"`
-	RawString string   `json:"raw_string"`
-}
-
-type RecipeSave struct {
-	HouseholdID string             `json:"household_id"`
-	Title       string             `json:"title"`
-	Ingredients []RecipeIngredient `json:"ingredients"`
-}
-
-type SavedRecipe struct {
-	ID              string `json:"id"`
-	Title           string `json:"title"`
-	IngredientCount int    `json:"ingredient_count"`
-}
+// These aliases keep the storage adapter's existing API stable while the
+// application package owns Pantry's domain contract.
+type Household = pantry.Household
+type Membership = pantry.Membership
+type CreatedHousehold = pantry.CreatedHousehold
+type JoinedHousehold = pantry.JoinedHousehold
+type RecipeIngredient = pantry.RecipeIngredient
+type RecipeSave = pantry.RecipeSave
+type SavedRecipe = pantry.SavedRecipe
 
 type RESTClient struct {
 	baseURL string
