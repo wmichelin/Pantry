@@ -13,14 +13,14 @@ import (
 
 func (c *RESTClient) ListRecipes(ctx context.Context, token, householdID string) ([]pantry.RecipeSummary, error) {
 	var recipes []pantry.RecipeSummary
-	err := c.recipeRequest(ctx, token, http.MethodGet, "recipes", url.Values{
+	err := c.dataRequest(ctx, token, http.MethodGet, "recipes", url.Values{
 		"select": {"id,title,tags,source_url"}, "household_id": {"eq." + householdID}, "order": {"created_at.desc"},
 	}, nil, &recipes)
 	return recipes, err
 }
 func (c *RESTClient) GetRecipe(ctx context.Context, token, id string) (*pantry.RecipeDetail, error) {
 	var rows []pantry.RecipeDetail
-	err := c.recipeRequest(ctx, token, http.MethodGet, "recipes", url.Values{
+	err := c.dataRequest(ctx, token, http.MethodGet, "recipes", url.Values{
 		"select": {"id,title,household_id,created_at,source_type,source_url,image_url,servings,prep_time_minutes,cook_time_minutes,instructions,tags,recipe_ingredients(id,name,quantity,unit)"}, "id": {"eq." + id},
 	}, nil, &rows)
 	if err != nil {
@@ -38,7 +38,7 @@ func (c *RESTClient) SearchRecipeIngredients(ctx context.Context, token, househo
 	var rows []struct {
 		RecipeID string `json:"recipe_id"`
 	}
-	err := c.recipeRequest(ctx, token, http.MethodGet, "recipe_ingredients", url.Values{
+	err := c.dataRequest(ctx, token, http.MethodGet, "recipe_ingredients", url.Values{
 		"select": {"recipe_id,recipes!inner(household_id)"}, "recipes.household_id": {"eq." + householdID}, "name": {"ilike.%" + query + "%"},
 	}, nil, &rows)
 	if err != nil {
@@ -58,7 +58,7 @@ func (c *RESTClient) UpdateRecipeTags(ctx context.Context, token, id string, tag
 	var rows []struct {
 		ID string `json:"id"`
 	}
-	err := c.recipeRequest(ctx, token, http.MethodPatch, "recipes", url.Values{"id": {"eq." + id}, "select": {"id"}}, map[string]any{"tags": tags}, &rows)
+	err := c.dataRequest(ctx, token, http.MethodPatch, "recipes", url.Values{"id": {"eq." + id}, "select": {"id"}}, map[string]any{"tags": tags}, &rows)
 	return len(rows) == 1, err
 }
 func (c *RESTClient) DeleteRecipe(ctx context.Context, token, id string) (bool, error) {
@@ -67,11 +67,11 @@ func (c *RESTClient) DeleteRecipe(ctx context.Context, token, id string) (bool, 
 	var rows []struct {
 		ID string `json:"id"`
 	}
-	err := c.recipeRequest(ctx, token, http.MethodDelete, "recipes", url.Values{"id": {"eq." + id}, "select": {"id"}}, nil, &rows)
+	err := c.dataRequest(ctx, token, http.MethodDelete, "recipes", url.Values{"id": {"eq." + id}, "select": {"id"}}, nil, &rows)
 	return len(rows) == 1, err
 }
 
-func (c *RESTClient) recipeRequest(ctx context.Context, token, method, table string, query url.Values, input, output any) error {
+func (c *RESTClient) dataRequest(ctx context.Context, token, method, table string, query url.Values, input, output any) error {
 	var body bytes.Buffer
 	if input != nil {
 		if err := json.NewEncoder(&body).Encode(input); err != nil {

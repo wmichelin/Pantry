@@ -122,12 +122,17 @@ type Service struct {
 	joiner        HouseholdJoiner
 	recipes       RecipeSaver
 	recipeManager RecipeManager
+	queueManager  QueueManager
 }
 
 type Option func(*Service)
 
 func WithRecipeManager(manager RecipeManager) Option {
 	return func(service *Service) { service.recipeManager = manager }
+}
+
+func WithQueueManager(manager QueueManager) Option {
+	return func(service *Service) { service.queueManager = manager }
 }
 
 func NewService(households HouseholdReader, memberships MembershipReader, creator HouseholdCreator, joiner HouseholdJoiner, recipes RecipeSaver, options ...Option) *Service {
