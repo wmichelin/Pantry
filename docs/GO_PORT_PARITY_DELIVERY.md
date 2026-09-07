@@ -2,6 +2,12 @@
 
 ## Status update
 
+Current execution status and verified images are maintained in
+[GO_REMAINING_EXECUTION_PLAN.md](GO_REMAINING_EXECUTION_PLAN.md). As of
+2026-09-07, import persistence, recipe management and running queue are also
+deployed and browser-verified (PRs 47–49). The original delivery review and
+initial gate definitions below are retained as historical context.
+
 Status: in progress
 Last completed: household landing read plus atomic household create/join are
 deployed and verified in staging.

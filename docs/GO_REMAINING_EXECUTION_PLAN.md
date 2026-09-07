@@ -3,9 +3,11 @@
 ## Status update
 
 Status: implementing
-Last completed: recipe management deployed and browser-verified (PR 48).
-Now: Phase 3a API/live acceptance passed; web browser verification next.
-Next: shopping aggregation fixtures and catalog dependencies (Phase 3b/4).
+Last completed: import persistence, recipe management and running queue deployed
+and browser-verified in PRs 47, 48 and 49.
+Now: verified incremental delivery checkpoint; the full remaining port is not complete.
+Next: shopping aggregation fixtures and catalog dependencies (Phase 3b/4), then
+settings, scraper, and remaining import parser/board orchestration ownership.
 Staging: https://pantry-staging.waltermichelin.com (verified baseline)
 Blocker: none
 
@@ -56,7 +58,7 @@ successful save. Failed saves must not suppress retrying the same URL.
 | 0 | Commit this plan and baseline/review | Scope, clean implementation tree, staging rollback identified | Complete |
 | 1 | Import contract/domain/storage + SQL + tests; single/board client + tests; acceptance + staged flag | All source metadata, instructions/tags order, null/zero, empty single import, long text, dedup, atomic failure and accurate board summary | Persistence verified; parser/board orchestration remain to port |
 | 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Verified in staging |
-| 3a | Running queue list/add/remove/clear and three screens | Add/remove/retry, targeted membership lookup, cross-household references, atomic clear preserves manual items | Implementing |
+| 3a | Running queue list/add/remove/clear and three screens | Add/remove/retry, targeted membership lookup, cross-household references, atomic clear preserves manual items | Verified in staging |
 | 3b | Shopping-list services and client | Occurrence aggregation, checked-key identity, manual items/editing, ordering; clear shopping week removes queue/checks/manuals | Pending |
 | 4 | Ingredient catalog and household settings | Normalization, catalog seeding/backfill, category/store assignments, store CRUD, member/invite reads, aisle create/delete/reorder and reassignment | Pending |
 | 5 | Go scraper and client | Saved website/pin/board fixtures; parsing/errors, authenticated requests, DNS/redirect SSRF checks, bounded concurrency/time/body, rate limiting | Pending |
@@ -190,3 +192,29 @@ metadata currently causes writes during load. Characterize these with independen
 fixtures before moving aggregation, ordering and catalog ownership to Go. Keep
 client-only share formatting in TypeScript. Queue clearing is now separate from
 shopping-week clearing; do not reuse the wrong operation in the shopping screen.
+
+## Verified checkpoint: 2026-09-07
+
+Current known-good web:
+`ghcr.io/wmichelin/pantry:staging-5a6a36b51c54d642ff3ef7d4a7e7d31b24fd455b`.
+Current known-good API:
+`ghcr.io/wmichelin/pantry:staging-api-2e835c805a1a0c47d99b5d8a5dadc37e0e17fabf`.
+Staging: https://pantry-staging.waltermichelin.com (verified).
+
+- [Web deployment](https://github.com/wmichelin/Pantry/actions/runs/34155526494) passed.
+- [Queue acceptance](https://github.com/wmichelin/Pantry/actions/runs/34155527777) passed.
+- Final regressions passed:
+  [households/manual saves](https://github.com/wmichelin/Pantry/actions/runs/34155624428),
+  [imports](https://github.com/wmichelin/Pantry/actions/runs/34155626176),
+  [recipe management](https://github.com/wmichelin/Pantry/actions/runs/34155627919).
+- Real browser queue journey passed household add, detail toggle, queue-screen
+  remove and mobile clear; all four methods used binary Connect, manual item
+  persisted, no direct queue/check calls, no uncaught browser exceptions.
+- Review/browser evidence:
+  [imports PR 47](https://github.com/wmichelin/Pantry/pull/47#issuecomment-5574638016),
+  [recipes PR 48](https://github.com/wmichelin/Pantry/pull/48#issuecomment-5574774534),
+  [queue PR 49](https://github.com/wmichelin/Pantry/pull/49).
+
+Production was not changed. Original-checkout local edits were preserved.
+No claim is made that shopping, catalog/settings, scraping, native mobile runtime
+validation, or all import business logic is complete. Their gates remain pending.
