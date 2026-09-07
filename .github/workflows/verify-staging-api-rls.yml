@@ -137,7 +137,7 @@ jobs:
               --header 'Connect-Protocol-Version: 1' \
               --data "$(jq -nc --arg invite "$invite_code" --arg display "Go member" '{inviteCode: $invite, displayName: $display}')")"
             printf '%s' "$join_result" | jq -e --arg household_id "$household_id" \
-              '.household.id == $household_id and .household.alreadyMember == false' >/dev/null
+              '.household.id == $household_id and ((.household.alreadyMember // false) == false)' >/dev/null
             echo 'gate: Connect household join passed'
 
             duplicate_join="$(curl --fail --silent --show-error \

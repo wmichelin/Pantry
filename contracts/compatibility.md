@@ -33,8 +33,9 @@ same deterministic fixture suite and have no unexplained normalized state diff.
 - The legacy OpenAPI routes remain available during the staging migration; they
   and Connect call the same application service and Supabase/RLS adapters.
 - Parity is semantic, not byte-for-byte HTTP equality: Protobuf uses lower-camel
-  JSON names when JSON encoding is requested, while the legacy facade preserves
-  the Expo client's snake_case objects.
+  JSON names and omits default-valued fields when JSON encoding is requested,
+  while the legacy facade preserves the Expo client's snake_case objects. The
+  generated binary client restores Protobuf defaults during decoding.
 - The staging web build alone sets `EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect`.
   Omitting that flag selects REST, which is the immediate web rollback. Production
   receives neither the staging API origin nor the Connect transport flag.
