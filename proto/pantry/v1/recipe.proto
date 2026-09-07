@@ -6,6 +6,7 @@ option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1
 
 service RecipeService {
   rpc SaveRecipe(SaveRecipeRequest) returns (SaveRecipeResponse);
+  rpc ImportRecipe(ImportRecipeRequest) returns (ImportRecipeResponse);
 }
 
 message RecipeIngredient {
@@ -28,5 +29,36 @@ message SavedRecipe {
 }
 
 message SaveRecipeResponse {
+  SavedRecipe recipe = 1;
+}
+
+// Imports retain source metadata and may legitimately have no ingredients.
+// Manual SaveRecipe retains its existing, stricter contract.
+message RecipeImportMetadata {
+  string source_url = 1;
+  string source_type = 2;
+  optional string image_url = 3;
+  repeated string instructions = 4;
+  repeated string tags = 5;
+  optional int32 servings = 6;
+  optional int32 prep_time_minutes = 7;
+  optional int32 cook_time_minutes = 8;
+}
+
+message ImportRecipeRequest {
+  string household_id = 1;
+  string title = 2;
+  repeated ImportedRecipeIngredient ingredients = 3;
+  RecipeImportMetadata metadata = 4;
+}
+
+message ImportedRecipeIngredient {
+  string name = 1;
+  optional double quantity = 2;
+  optional string unit = 3;
+  string raw_string = 4;
+}
+
+message ImportRecipeResponse {
   SavedRecipe recipe = 1;
 }

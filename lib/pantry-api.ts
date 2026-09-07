@@ -24,6 +24,17 @@ export type CreatedHousehold = { id: string; name: string; invite_code: string }
 export type JoinedHousehold = { id: string; name: string; already_member: boolean };
 export type RecipeSaveIngredient = { name: string; quantity: number | null; unit: string; raw_string: string };
 export type SavedRecipe = { id: string; title: string; ingredient_count: number };
+export type RecipeImportMetadata = {
+  source_url: string;
+  source_type: "url" | "pinterest_pin";
+  image_url?: string;
+  instructions: string[];
+  tags: string[];
+  servings?: number;
+  prep_time_minutes?: number;
+  cook_time_minutes?: number;
+};
+export type RecipeImport = { household_id: string; title: string; ingredients: (Omit<RecipeSaveIngredient, "unit"> & { unit: string | null })[]; metadata: RecipeImportMetadata };
 export type PantryAPITransport = "rest" | "connect";
 
 type APIProblem = { message?: unknown };
@@ -33,6 +44,7 @@ const apiOrigin = process.env.EXPO_PUBLIC_PANTRY_API_URL?.trim();
 const configuredTransport: PantryAPITransport =
   process.env.EXPO_PUBLIC_PANTRY_API_TRANSPORT?.trim() === "connect" ? "connect" : "rest";
 const recipeAPIWritesEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES?.trim() === "enabled";
+const recipeAPIImportsEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS?.trim() === "enabled";
 const defaultFetch: Fetch = (input, init) => globalThis.fetch(input, init);
 
 // Both settings are intentionally opt-in so production remains on its
@@ -55,6 +67,20 @@ export function stagingAPITransport(): PantryAPITransport {
 // must exist before the client may leave its established Supabase path.
 export function stagingRecipeAPIOrigin(): string | null {
   return recipeAPIWritesEnabled ? stagingAPIOrigin() : null;
+}
+
+export function stagingRecipeImportAPIOrigin(): string | null {
+  return recipeAPIImportsEnabled ? stagingAPIOrigin() : null;
+}
+
+// New capabilities use Connect; legacy REST endpoints remain unchanged.
+export async function importRecipe(apiURL: string, accessToken: string, input: RecipeImport, fetcher: Fetch = defaultFetch): Promise<SavedRecipe> {
+  for (const value of [input.metadata.servings, input.metadata.prep_time_minutes, input.metadata.cook_time_minutes]) {
+    if (value !== undefined && (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)) {
+      throw new Error("Recipe servings and times must be whole numbers within the supported range.");
+    }
+  }
+  return createConnectClient(apiURL, accessToken, fetcher).importRecipe(input);
 }
 
 export function createPantryAPIClient(
@@ -100,6 +126,29 @@ function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch
   const recipes = createClient(RecipeService, transport);
 
   return {
+    async importRecipe(input: RecipeImport): Promise<SavedRecipe> {
+      try {
+        const metadata = input.metadata;
+        const recipe = (await recipes.importRecipe({
+          householdId: input.household_id, title: input.title,
+          ingredients: input.ingredients.map((ingredient) => ({
+            name: ingredient.name, quantity: ingredient.quantity ?? undefined,
+            unit: ingredient.unit ?? undefined, rawString: ingredient.raw_string,
+          })),
+          metadata: {
+            sourceUrl: metadata.source_url, sourceType: metadata.source_type,
+            imageUrl: metadata.image_url, instructions: metadata.instructions,
+            tags: metadata.tags, servings: metadata.servings,
+            prepTimeMinutes: metadata.prep_time_minutes, cookTimeMinutes: metadata.cook_time_minutes,
+          },
+        })).recipe;
+        if (!recipe) throw new Error("Pantry returned an invalid recipe response.");
+        return { id: recipe.id, title: recipe.title, ingredient_count: recipe.ingredientCount };
+      } catch (error) {
+        if (isInvalidResponse(error, "recipe")) throw error;
+        throw safeConnectError(error, "Pantry could not import the recipe right now.");
+      }
+    },
     async whoAmI(): Promise<string> {
       try {
         return (await identity.whoAmI({})).userId;

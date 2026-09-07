@@ -66,6 +66,7 @@ jobs:
             EXPO_PUBLIC_PANTRY_API_URL=https://pantry-staging.waltermichelin.com
             EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect
             EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES=enabled
+            EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS=enabled
 
   deploy:
     name: Deploy and smoke-test staging only

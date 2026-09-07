@@ -138,9 +138,25 @@ func (client *RESTClient) JoinHouseholdByInvite(ctx context.Context, accessToken
 
 func (client *RESTClient) SaveRecipe(ctx context.Context, accessToken string, recipe RecipeSave) (*SavedRecipe, error) {
 	var recipes []SavedRecipe
-	if err := client.callRPC(ctx, accessToken, "create_recipe_with_ingredients", map[string]any{
+	function := "create_recipe_with_ingredients"
+	fields := map[string]any{"title": recipe.Title}
+	if metadata := recipe.Metadata; metadata != nil {
+		function = "import_recipe_with_ingredients"
+		fields["source_url"] = metadata.SourceURL
+		fields["source_type"] = metadata.SourceType
+		fields["image_url"] = metadata.ImageURL
+		fields["instructions"] = metadata.Instructions
+		fields["tags"] = metadata.Tags
+		fields["servings"] = metadata.Servings
+		fields["prep_time_minutes"] = metadata.PrepTimeMinutes
+		fields["cook_time_minutes"] = metadata.CookTimeMinutes
+	}
+	if recipe.Ingredients == nil {
+		recipe.Ingredients = []RecipeIngredient{}
+	}
+	if err := client.callRPC(ctx, accessToken, function, map[string]any{
 		"p_household_id": recipe.HouseholdID,
-		"p_recipe":       map[string]string{"title": recipe.Title},
+		"p_recipe":       fields,
 		"p_ingredients":  recipe.Ingredients,
 	}, &recipes); err != nil {
 		return nil, err

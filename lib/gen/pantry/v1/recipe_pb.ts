@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file pantry/v1/recipe.proto.
  */
 export const file_pantry_v1_recipe: GenFile = /*@__PURE__*/
-  fileDesc("ChZwYW50cnkvdjEvcmVjaXBlLnByb3RvEglwYW50cnkudjEiZgoQUmVjaXBlSW5ncmVkaWVudBIMCgRuYW1lGAEgASgJEhUKCHF1YW50aXR5GAIgASgBSACIAQESDAoEdW5pdBgDIAEoCRISCgpyYXdfc3RyaW5nGAQgASgJQgsKCV9xdWFudGl0eSJqChFTYXZlUmVjaXBlUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSDQoFdGl0bGUYAiABKAkSMAoLaW5ncmVkaWVudHMYAyADKAsyGy5wYW50cnkudjEuUmVjaXBlSW5ncmVkaWVudCJCCgtTYXZlZFJlY2lwZRIKCgJpZBgBIAEoCRINCgV0aXRsZRgCIAEoCRIYChBpbmdyZWRpZW50X2NvdW50GAMgASgFIjwKElNhdmVSZWNpcGVSZXNwb25zZRImCgZyZWNpcGUYASABKAsyFi5wYW50cnkudjEuU2F2ZWRSZWNpcGUyWgoNUmVjaXBlU2VydmljZRJJCgpTYXZlUmVjaXBlEhwucGFudHJ5LnYxLlNhdmVSZWNpcGVSZXF1ZXN0Gh0ucGFudHJ5LnYxLlNhdmVSZWNpcGVSZXNwb25zZUI9WjtnaXRodWIuY29tL3dtaWNoZWxpbi9QYW50cnkvaW50ZXJuYWwvZ2VuL3BhbnRyeS92MTtwYW50cnl2MWIGcHJvdG8z");
+  fileDesc("ChZwYW50cnkvdjEvcmVjaXBlLnByb3RvEglwYW50cnkudjEiZgoQUmVjaXBlSW5ncmVkaWVudBIMCgRuYW1lGAEgASgJEhUKCHF1YW50aXR5GAIgASgBSACIAQESDAoEdW5pdBgDIAEoCRISCgpyYXdfc3RyaW5nGAQgASgJQgsKCV9xdWFudGl0eSJqChFTYXZlUmVjaXBlUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSDQoFdGl0bGUYAiABKAkSMAoLaW5ncmVkaWVudHMYAyADKAsyGy5wYW50cnkudjEuUmVjaXBlSW5ncmVkaWVudCJCCgtTYXZlZFJlY2lwZRIKCgJpZBgBIAEoCRINCgV0aXRsZRgCIAEoCRIYChBpbmdyZWRpZW50X2NvdW50GAMgASgFIjwKElNhdmVSZWNpcGVSZXNwb25zZRImCgZyZWNpcGUYASABKAsyFi5wYW50cnkudjEuU2F2ZWRSZWNpcGUimQIKFFJlY2lwZUltcG9ydE1ldGFkYXRhEhIKCnNvdXJjZV91cmwYASABKAkSEwoLc291cmNlX3R5cGUYAiABKAkSFgoJaW1hZ2VfdXJsGAMgASgJSACIAQESFAoMaW5zdHJ1Y3Rpb25zGAQgAygJEgwKBHRhZ3MYBSADKAkSFQoIc2VydmluZ3MYBiABKAVIAYgBARIeChFwcmVwX3RpbWVfbWludXRlcxgHIAEoBUgCiAEBEh4KEWNvb2tfdGltZV9taW51dGVzGAggASgFSAOIAQFCDAoKX2ltYWdlX3VybEILCglfc2VydmluZ3NCFAoSX3ByZXBfdGltZV9taW51dGVzQhQKEl9jb29rX3RpbWVfbWludXRlcyKnAQoTSW1wb3J0UmVjaXBlUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSDQoFdGl0bGUYAiABKAkSOAoLaW5ncmVkaWVudHMYAyADKAsyIy5wYW50cnkudjEuSW1wb3J0ZWRSZWNpcGVJbmdyZWRpZW50EjEKCG1ldGFkYXRhGAQgASgLMh8ucGFudHJ5LnYxLlJlY2lwZUltcG9ydE1ldGFkYXRhInwKGEltcG9ydGVkUmVjaXBlSW5ncmVkaWVudBIMCgRuYW1lGAEgASgJEhUKCHF1YW50aXR5GAIgASgBSACIAQESEQoEdW5pdBgDIAEoCUgBiAEBEhIKCnJhd19zdHJpbmcYBCABKAlCCwoJX3F1YW50aXR5QgcKBV91bml0Ij4KFEltcG9ydFJlY2lwZVJlc3BvbnNlEiYKBnJlY2lwZRgBIAEoCzIWLnBhbnRyeS52MS5TYXZlZFJlY2lwZTKrAQoNUmVjaXBlU2VydmljZRJJCgpTYXZlUmVjaXBlEhwucGFudHJ5LnYxLlNhdmVSZWNpcGVSZXF1ZXN0Gh0ucGFudHJ5LnYxLlNhdmVSZWNpcGVSZXNwb25zZRJPCgxJbXBvcnRSZWNpcGUSHi5wYW50cnkudjEuSW1wb3J0UmVjaXBlUmVxdWVzdBofLnBhbnRyeS52MS5JbXBvcnRSZWNpcGVSZXNwb25zZUI9WjtnaXRodWIuY29tL3dtaWNoZWxpbi9QYW50cnkvaW50ZXJuYWwvZ2VuL3BhbnRyeS92MTtwYW50cnl2MWIGcHJvdG8z");
 
 /**
  * @generated from message pantry.v1.RecipeIngredient
@@ -116,6 +116,142 @@ export const SaveRecipeResponseSchema: GenMessage<SaveRecipeResponse> = /*@__PUR
   messageDesc(file_pantry_v1_recipe, 3);
 
 /**
+ * Imports retain source metadata and may legitimately have no ingredients.
+ * Manual SaveRecipe retains its existing, stricter contract.
+ *
+ * @generated from message pantry.v1.RecipeImportMetadata
+ */
+export type RecipeImportMetadata = Message<"pantry.v1.RecipeImportMetadata"> & {
+  /**
+   * @generated from field: string source_url = 1;
+   */
+  sourceUrl: string;
+
+  /**
+   * @generated from field: string source_type = 2;
+   */
+  sourceType: string;
+
+  /**
+   * @generated from field: optional string image_url = 3;
+   */
+  imageUrl?: string | undefined;
+
+  /**
+   * @generated from field: repeated string instructions = 4;
+   */
+  instructions: string[];
+
+  /**
+   * @generated from field: repeated string tags = 5;
+   */
+  tags: string[];
+
+  /**
+   * @generated from field: optional int32 servings = 6;
+   */
+  servings?: number | undefined;
+
+  /**
+   * @generated from field: optional int32 prep_time_minutes = 7;
+   */
+  prepTimeMinutes?: number | undefined;
+
+  /**
+   * @generated from field: optional int32 cook_time_minutes = 8;
+   */
+  cookTimeMinutes?: number | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.RecipeImportMetadata.
+ * Use `create(RecipeImportMetadataSchema)` to create a new message.
+ */
+export const RecipeImportMetadataSchema: GenMessage<RecipeImportMetadata> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_recipe, 4);
+
+/**
+ * @generated from message pantry.v1.ImportRecipeRequest
+ */
+export type ImportRecipeRequest = Message<"pantry.v1.ImportRecipeRequest"> & {
+  /**
+   * @generated from field: string household_id = 1;
+   */
+  householdId: string;
+
+  /**
+   * @generated from field: string title = 2;
+   */
+  title: string;
+
+  /**
+   * @generated from field: repeated pantry.v1.ImportedRecipeIngredient ingredients = 3;
+   */
+  ingredients: ImportedRecipeIngredient[];
+
+  /**
+   * @generated from field: pantry.v1.RecipeImportMetadata metadata = 4;
+   */
+  metadata?: RecipeImportMetadata | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.ImportRecipeRequest.
+ * Use `create(ImportRecipeRequestSchema)` to create a new message.
+ */
+export const ImportRecipeRequestSchema: GenMessage<ImportRecipeRequest> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_recipe, 5);
+
+/**
+ * @generated from message pantry.v1.ImportedRecipeIngredient
+ */
+export type ImportedRecipeIngredient = Message<"pantry.v1.ImportedRecipeIngredient"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: optional double quantity = 2;
+   */
+  quantity?: number | undefined;
+
+  /**
+   * @generated from field: optional string unit = 3;
+   */
+  unit?: string | undefined;
+
+  /**
+   * @generated from field: string raw_string = 4;
+   */
+  rawString: string;
+};
+
+/**
+ * Describes the message pantry.v1.ImportedRecipeIngredient.
+ * Use `create(ImportedRecipeIngredientSchema)` to create a new message.
+ */
+export const ImportedRecipeIngredientSchema: GenMessage<ImportedRecipeIngredient> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_recipe, 6);
+
+/**
+ * @generated from message pantry.v1.ImportRecipeResponse
+ */
+export type ImportRecipeResponse = Message<"pantry.v1.ImportRecipeResponse"> & {
+  /**
+   * @generated from field: pantry.v1.SavedRecipe recipe = 1;
+   */
+  recipe?: SavedRecipe | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.ImportRecipeResponse.
+ * Use `create(ImportRecipeResponseSchema)` to create a new message.
+ */
+export const ImportRecipeResponseSchema: GenMessage<ImportRecipeResponse> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_recipe, 7);
+
+/**
  * @generated from service pantry.v1.RecipeService
  */
 export const RecipeService: GenService<{
@@ -126,6 +262,14 @@ export const RecipeService: GenService<{
     methodKind: "unary";
     input: typeof SaveRecipeRequestSchema;
     output: typeof SaveRecipeResponseSchema;
+  },
+  /**
+   * @generated from rpc pantry.v1.RecipeService.ImportRecipe
+   */
+  importRecipe: {
+    methodKind: "unary";
+    input: typeof ImportRecipeRequestSchema;
+    output: typeof ImportRecipeResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_pantry_v1_recipe, 0);
