@@ -16,7 +16,9 @@ const id = imported.body.recipe.id;
 const browser = await stagingBrowser();
 try {
   await browser.login(user);
-  await browser.until("document.body.innerText.includes('Management Browser Recipe')");
+  // Tagged sections start collapsed. Search exposes the matching recipe without
+  // depending on that presentation state.
+  await browser.until("!!document.querySelector('input[placeholder=\"Search by title or ingredient…\"]')");
   await browser.fill('input[placeholder="Search by title or ingredient…"]', 'salt');
   await browser.until("document.body.innerText.includes('Management Browser Recipe') && !document.body.innerText.includes('Searching…')");
   // Search is debounced; wait for its completed RPC before changing the route.
