@@ -116,16 +116,21 @@ func (err *Error) Unwrap() error {
 }
 
 type Service struct {
-	households    HouseholdReader
-	memberships   MembershipReader
-	creator       HouseholdCreator
-	joiner        HouseholdJoiner
-	recipes       RecipeSaver
-	recipeManager RecipeManager
-	queueManager  QueueManager
+	households     HouseholdReader
+	memberships    MembershipReader
+	creator        HouseholdCreator
+	joiner         HouseholdJoiner
+	recipes        RecipeSaver
+	recipeManager  RecipeManager
+	queueManager   QueueManager
+	shoppingChecks ShoppingChecks
 }
 
 type Option func(*Service)
+
+func WithShoppingChecks(checks ShoppingChecks) Option {
+	return func(service *Service) { service.shoppingChecks = checks }
+}
 
 func WithRecipeManager(manager RecipeManager) Option {
 	return func(service *Service) { service.recipeManager = manager }

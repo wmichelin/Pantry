@@ -69,6 +69,7 @@ jobs:
             EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS=enabled
             EXPO_PUBLIC_PANTRY_API_RECIPE_MANAGEMENT=enabled
             EXPO_PUBLIC_PANTRY_API_QUEUE=enabled
+            EXPO_PUBLIC_PANTRY_API_SHOPPING_CHECKS=enabled
 
   deploy:
     name: Deploy and smoke-test staging only

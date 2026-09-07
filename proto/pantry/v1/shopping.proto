@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package pantry.v1;
+
+option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1";
+
+// Shopping checks and shopping-week clearing are distinct from queue clearing,
+// which deliberately preserves manual shopping items.
+service ShoppingService {
+  rpc SetShoppingItemChecked(SetShoppingItemCheckedRequest) returns (SetShoppingItemCheckedResponse);
+  rpc ClearShoppingChecks(ClearShoppingChecksRequest) returns (ClearShoppingChecksResponse);
+  rpc ClearShoppingWeek(ClearShoppingWeekRequest) returns (ClearShoppingWeekResponse);
+}
+
+message SetShoppingItemCheckedRequest {
+  string household_id = 1;
+  string normalized_name = 2;
+  bool standalone_manual = 3;
+  bool checked = 4;
+}
+message SetShoppingItemCheckedResponse {}
+message ClearShoppingChecksRequest {
+  string household_id = 1;
+}
+message ClearShoppingChecksResponse {}
+message ClearShoppingWeekRequest {
+  string household_id = 1;
+}
+message ClearShoppingWeekResponse {}
