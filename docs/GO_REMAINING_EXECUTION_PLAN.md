@@ -36,6 +36,13 @@ reconciles both rows. These deliberately fix duplicate-upsert and stale UI behav
 SQL mutations serialize cooperating shopping operations per household and reject a
 changed snapshot before writes; legacy writers remain an acknowledged concurrent
 migration boundary. All updates remain atomic and explicitly household-scoped.
+More precisely, the revision detects changes committed before the SQL snapshot
+recheck. Existing queue/recipe RPCs and direct table writers do not share the new
+shopping lock, so this is not serializable isolation against those operations.
+Complete row-set validation is the Go Connect contract; underlying authenticated
+SQL adapters retain same-household update powers already available through RLS.
+Snapshots cap each raw array at 10,000 and the Go list caps derived rows at 10,000;
+SaveShoppingOrder has a separate 1 MiB transport cap and fails rather than truncates.
 Go uses full Unicode lowercase and ECMAScript trimming, with shared fixtures.
 Only shopping's catalog/aisle dependencies move here; full settings/editor/scraper
 and import parsing remain separate. Commit API/SQL, then clients, then evidence/flag.

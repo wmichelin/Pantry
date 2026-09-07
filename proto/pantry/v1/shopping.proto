@@ -7,6 +7,11 @@ option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1
 // Shopping checks and shopping-week clearing are distinct from queue clearing,
 // which deliberately preserves manual shopping items.
 service ShoppingService {
+  // May seed missing shopping catalog entries and default aisles.
+  rpc GetShoppingList(GetShoppingListRequest) returns (GetShoppingListResponse);
+  rpc AddShoppingManualItem(AddShoppingManualItemRequest) returns (AddShoppingManualItemResponse);
+  rpc RemoveShoppingManualItem(RemoveShoppingManualItemRequest) returns (RemoveShoppingManualItemResponse);
+  rpc SaveShoppingOrder(SaveShoppingOrderRequest) returns (SaveShoppingOrderResponse);
   rpc SetShoppingItemChecked(SetShoppingItemCheckedRequest) returns (SetShoppingItemCheckedResponse);
   rpc ClearShoppingChecks(ClearShoppingChecksRequest) returns (ClearShoppingChecksResponse);
   rpc ClearShoppingWeek(ClearShoppingWeekRequest) returns (ClearShoppingWeekResponse);
@@ -27,3 +32,71 @@ message ClearShoppingWeekRequest {
   string household_id = 1;
 }
 message ClearShoppingWeekResponse {}
+
+message ShoppingOccurrence {
+  string recipe_title = 1;
+  optional double quantity = 2;
+  optional string unit = 3;
+}
+message ShoppingItem {
+  string list_key = 1;
+  string normalized_name = 2;
+  string display_name = 3;
+  string metadata_id = 4;
+  optional int32 sort_order = 5;
+  string category = 6;
+  repeated ShoppingOccurrence occurrences = 7;
+  bool checked = 8;
+  bool is_manual = 9;
+  string manual_item_id = 10;
+}
+message ShoppingCatalogItem {
+  string id = 1;
+  string normalized_name = 2;
+  string display_name = 3;
+  int32 sort_order = 4;
+  string category = 5;
+}
+message ShoppingAisle {
+  string key = 1;
+  string label = 2;
+  int32 sort_order = 3;
+}
+message ShoppingList {
+  string revision = 1;
+  repeated ShoppingItem items = 2;
+  repeated ShoppingCatalogItem catalog = 3;
+  repeated ShoppingAisle aisles = 4;
+}
+message GetShoppingListRequest {
+  string household_id = 1;
+}
+message GetShoppingListResponse {
+  ShoppingList list = 1;
+}
+message AddShoppingManualItemRequest {
+  string household_id = 1;
+  string name = 2;
+}
+message AddShoppingManualItemResponse {
+  ShoppingList list = 1;
+}
+message RemoveShoppingManualItemRequest {
+  string household_id = 1;
+  string manual_item_id = 2;
+}
+message RemoveShoppingManualItemResponse {
+  ShoppingList list = 1;
+}
+message ShoppingOrderRow {
+  string list_key = 1;
+  string category = 2;
+}
+message SaveShoppingOrderRequest {
+  string household_id = 1;
+  string revision = 2;
+  repeated ShoppingOrderRow rows = 3;
+}
+message SaveShoppingOrderResponse {
+  ShoppingList list = 1;
+}
