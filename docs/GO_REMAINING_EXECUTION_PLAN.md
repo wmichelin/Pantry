@@ -9,8 +9,8 @@ explicitly authorized black-box comparison. Do not deploy production or access i
 database, administration APIs, secrets, host, migrations or infrastructure. The
 original checkout's unrelated edits remain untouched; implementation continues in
 the isolated `codex/go-full-parity` worktree. Current recovery images are web
-`staging-a60c95f147f833653a52498bd0f43784cf432e63` and API
-`staging-api-f906cb91ec2c7ab3b4c6c4e09af063b532efc81d`.
+`staging-64cc4c5731a84d33277dd22a4a3c1df2f14c7ee5` and API
+`staging-api-593a0097e05f5ccb5ef4972d1da14ca64f493189`.
 
 The six-role review reconfirmed four remaining active slices. Product requires the
 existing website, Pinterest pin and Pinterest board review flows; edited titles,
@@ -93,6 +93,67 @@ available for whole-slice rollback.
 
 Production was not accessed or changed for this checkpoint. No SQL, migration,
 Edge Function, secret, infrastructure or backup state was changed.
+
+### Stage 5b verified checkpoint (2026-09-08)
+
+Status: complete. Next: Stage 5c authenticated Go scraper/extraction. Current
+known-good pair is API
+`staging-api-593a0097e05f5ccb5ef4972d1da14ca64f493189` and web
+`staging-64cc4c5731a84d33277dd22a4a3c1df2f14c7ee5`; the pre-5b API
+`staging-api-f36a6196193bce8588b141fd88be60099a735ef0` and web
+`staging-dd4cdd2db621ace357d20d56bb9daba7a1a499a1` remain available for
+whole-slice rollback.
+
+- Board contract/domain/storage/migration `7132f0d`; recoverable web client
+  `93ef243`; transaction and public-acceptance gates `593a009` and `4fa1a54`;
+  proxy hardening `02c0e90`; load isolation `d864ea9`; staging cutover
+  `8236534`; browser-harness corrections `64cc4c5`, `2ebad63` and `bda4216`.
+- Additive migration `20260908053000_staged_board_import_operations.sql` was
+  applied only to staging with an exact-file query. Its transaction gate passed
+  stored and in-batch URL deduplication, URL-less replay, tombstones, atomic
+  injected failure, grants and RLS; all gate writes rolled back. No broad schema
+  push was used.
+- [CI run 34188367648](https://github.com/wmichelin/Pantry/actions/runs/34188367648)
+  passed Go vet/race, TypeScript, 255 Bun tests, Protobuf format/lint/build/
+  breaking/generated checks, Expo export and API image build. The later
+  browser-contract-only commits retain the same application bundle; their final
+  [CI run 34189107256](https://github.com/wmichelin/Pantry/actions/runs/34189107256)
+  passed the same complete gate.
+- [API deployment 34185998617](https://github.com/wmichelin/Pantry/actions/runs/34185998617)
+  deployed and probed only the loopback staging API. Public HTTPS acceptance then
+  passed ordered unbuffered streaming, exact metadata/parser output, stored and
+  concurrent deduplication, URL-less replay, changed-manifest denial, owner/member/
+  outsider/anonymous boundaries, cancellation/resume identity, progress continuing
+  for more than 15 seconds, the 250-item cap, a request over 1 MiB, and Nginx
+  rejection over 4 MiB.
+- [Proxy convergence 34186847920](https://github.com/wmichelin/Pantry/actions/runs/34186847920)
+  changed only the exact staging board RPC route to disable buffering and set the
+  reviewed size/time budgets. An earlier attempt failed before live mutation due
+  to runner command serialization; the corrected workflow retained config backup,
+  syntax/reload checks, both-route probes and rollback ordering.
+- [Web deployment 34188372458](https://github.com/wmichelin/Pantry/actions/runs/34188372458)
+  built exact SHA `64cc4c5` using the parity branch's workflow definition and
+  enabled parser/board only on staging. Inspection of the served JavaScript bundle
+  confirmed both gates compiled on. The prior default-branch dispatch had built
+  both flags off; the browser gate detected that mismatch before any board save.
+- Real-browser acceptance passed parser and raw-save fault/retry, touch-width board
+  selection/tag editing, an interrupted binary stream after its first item,
+  reload/resume with a stable operation UUID, same-tick double-click suppression,
+  URL-less idempotency and fail-closed damaged recovery. It observed two board
+  Connect streams, zero legacy board import calls, zero direct recipe writes and
+  zero browser exceptions. Recipe-management, queue, shopping-list/check/stale-load,
+  catalog/settings and catalog-enrichment browser regressions also passed.
+
+Known boundaries: recovery parses the current submitted raw ingredients before the
+database retrieves the stored manifest, so a future parser that rejects previously
+accepted raw input could block a retry even though a changed valid parse is refused
+against the stored manifest. Also, the board advisory lock coordinates board
+writers; legacy/direct single-recipe writers do not participate. Neither boundary
+is represented as stronger isolation than the implementation provides.
+
+Production was not deployed, migrated, administered or written for this checkpoint.
+The staging workflow performed only its existing read-only production-route health
+probe. No backup or production database state was touched.
 
 For every stage: regenerate Protobuf deterministically; run focused unit/transport/
 client tests, Go vet/race, all Bun tests, TypeScript, Protobuf format/lint/build/
