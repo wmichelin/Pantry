@@ -212,6 +212,8 @@ async function verify() {
   assertComplete(replay, board);
   assert.deepEqual(itemEvents(replay).map((event) => event.recipeID), firstIDs, "Replay changed recipe identities");
   assert.equal((await recipeRows(key, owner.token, householdID)).length, countAfterFirst, "Replay duplicated recipes");
+  await importBoard(origin, owner.token, householdID, operationID, board, () => {});
+  assert.equal((await recipeRows(key, owner.token, householdID)).length, countAfterFirst, "Validated client retry changed recipes");
 
   const changed = board.map((value) => ({ ...value, raw_ingredients: [...value.raw_ingredients] }));
   changed[3].raw_ingredients = ["Changed"];
@@ -322,10 +324,9 @@ async function verify() {
   assert.equal(oversizedStatus, 413, "Oversized request was not rejected by the staging proxy body limit");
   assert.equal((await recipeRows(key, owner.token, householdID)).length, beforeOversize, "Oversized request changed recipes");
 
-  await importBoard(origin, owner.token, householdID, operationID, board, () => {});
   assert.equal((await recipeRows(key, owner.token, householdID)).length,
     countAfterFirst + 2 + interruptedBoard.length + longBoard.length,
-    "Validated client retry changed persisted recipe count");
+    "Board acceptance produced an unexpected persisted recipe count");
 
   console.log(JSON.stringify({
     orderedStreaming: true,
