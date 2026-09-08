@@ -146,11 +146,14 @@ try {
     const tag = card && [...card.querySelectorAll('[tabindex="0"]')].find(element => element.innerText.trim()==='dinner');
     if (!tag) throw new Error('Board tag missing');
     tag.click();
+  })()`);
+  await browser.evaluate(`(() => {
+    const card = [...document.querySelectorAll('[tabindex="0"]')].find(element => element.innerText.includes('Board valid') && element.innerText.includes('ingredients'));
     const add = card && [...card.querySelectorAll('[tabindex="0"]')].find(element => element.innerText.trim()==='+');
     if (!add) throw new Error('Board custom-tag control missing');
     add.click();
   })()`);
-  await browser.until("document.body.innerText.includes('Add custom tag')");
+  await browser.until("!!document.querySelector('input[placeholder=\"Add custom tag…\"]')");
   await browser.fill('input[placeholder="Add custom tag…"]', 'browser-edited');
   await browser.click('Add');
   await browser.until("document.body.innerText.includes('browser-edited')");
