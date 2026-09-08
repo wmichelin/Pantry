@@ -13,6 +13,7 @@ import (
 	"github.com/wmichelin/Pantry/internal/authn"
 	"github.com/wmichelin/Pantry/internal/config"
 	"github.com/wmichelin/Pantry/internal/pantry"
+	"github.com/wmichelin/Pantry/internal/scraper"
 	"github.com/wmichelin/Pantry/internal/supabase"
 )
 
@@ -29,7 +30,13 @@ func main() {
 		slog.Error("configure JWT verifier", "error", err)
 		os.Exit(1)
 	}
-	service := pantry.NewService(households, households, households, households, households, pantry.WithRecipeManager(households), pantry.WithQueueManager(households), pantry.WithShoppingChecks(households), pantry.WithShoppingListStore(households), pantry.WithCatalogSettings(households), pantry.WithBoardImportStore(households))
+	recipeScraper, err := scraper.New(cfg.DenyDestinations...)
+	if err != nil {
+		// Never print destination lists or resolver errors containing addresses.
+		slog.Error("configure recipe scraper destination isolation")
+		os.Exit(1)
+	}
+	service := pantry.NewService(households, households, households, households, households, pantry.WithRecipeManager(households), pantry.WithQueueManager(households), pantry.WithShoppingChecks(households), pantry.WithShoppingListStore(households), pantry.WithCatalogSettings(households), pantry.WithBoardImportStore(households), pantry.WithRecipeScraper(recipeScraper))
 
 	server := &http.Server{
 		Addr:              cfg.ListenAddr,

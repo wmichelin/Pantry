@@ -97,6 +97,8 @@ const (
 	ErrorInvalidArgument ErrorKind = iota + 1
 	ErrorNotFound
 	ErrorUnavailable
+	ErrorResourceExhausted
+	ErrorDeadlineExceeded
 )
 
 // Error carries the stable public contract while retaining the internal cause
@@ -132,6 +134,7 @@ type Service struct {
 	shoppingListStore ShoppingListStore
 	catalogSettings   CatalogSettingsStore
 	boardImports      BoardImportStore
+	recipeScraper     RecipeScraper
 }
 
 type Option func(*Service)
@@ -142,6 +145,10 @@ func WithCatalogSettings(store CatalogSettingsStore) Option {
 
 func WithBoardImportStore(store BoardImportStore) Option {
 	return func(s *Service) { s.boardImports = store }
+}
+
+func WithRecipeScraper(scraper RecipeScraper) Option {
+	return func(s *Service) { s.recipeScraper = scraper }
 }
 
 func WithShoppingListStore(store ShoppingListStore) Option {

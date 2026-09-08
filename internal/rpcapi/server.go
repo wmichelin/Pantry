@@ -19,12 +19,18 @@ const MaxImportRequestBytes = 256 << 10
 const MaxBoardImportRequestBytes = 4 << 20
 const MaxShoppingOrderRequestBytes = 1 << 20
 const MaxAisleOrderRequestBytes = 128 << 10
+const MaxScrapeRequestBytes = 8 << 10
 const BoardImportTimeout = 5 * time.Minute
+const ScrapeTimeout = 42 * time.Second
+
+// Leave time to serialize a structured Connect error after scrape work expires.
+const ScrapeResponseMargin = 3 * time.Second
 
 type Server struct {
 	pantryv1connect.UnimplementedIdentityServiceHandler
 	pantryv1connect.UnimplementedHouseholdServiceHandler
 	pantryv1connect.UnimplementedRecipeServiceHandler
+	pantryv1connect.UnimplementedRecipeScrapeServiceHandler
 	pantryv1connect.UnimplementedBoardImportServiceHandler
 	pantryv1connect.UnimplementedQueueServiceHandler
 	pantryv1connect.UnimplementedShoppingServiceHandler
@@ -45,6 +51,7 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 	mux.Handle(pantryv1connect.NewIdentityServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewHouseholdServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewRecipeServiceHandler(server, handlerOptions...))
+	mux.Handle(pantryv1connect.NewRecipeScrapeServiceHandler(server, connect.WithReadMaxBytes(MaxScrapeRequestBytes)))
 	mux.Handle(pantryv1connect.NewBoardImportServiceHandler(server, connect.WithReadMaxBytes(MaxBoardImportRequestBytes)))
 	mux.Handle(pantryv1connect.NewQueueServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewShoppingServiceHandler(server, handlerOptions...))
@@ -61,14 +68,7 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 	mux.Handle(pantryv1connect.ShoppingServiceSaveShoppingOrderProcedure, orderHandler)
 
 	bounded := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		limit := int64(MaxRequestBytes)
-		if request.URL.Path == pantryv1connect.RecipeServiceImportRecipeProcedure ||
-			request.URL.Path == pantryv1connect.RecipeServiceImportRawRecipeProcedure ||
-			request.URL.Path == pantryv1connect.RecipeServiceParseImportIngredientsProcedure {
-			limit = MaxImportRequestBytes
-		}
 		if request.URL.Path == pantryv1connect.BoardImportServiceImportBoardProcedure {
-			limit = MaxBoardImportRequestBytes
 			writer.Header().Set("Cache-Control", "no-store")
 			writer.Header().Set("X-Accel-Buffering", "no")
 			if err := http.NewResponseController(writer).SetWriteDeadline(time.Now().Add(BoardImportTimeout)); err != nil {
@@ -80,13 +80,23 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 			defer cancel()
 			request = request.WithContext(ctx)
 		}
-		if request.URL.Path == pantryv1connect.ShoppingServiceSaveShoppingOrderProcedure {
-			limit = MaxShoppingOrderRequestBytes
+		if request.URL.Path == pantryv1connect.RecipeScrapeServiceScrapeRecipeProcedure {
+			writer.Header().Set("Cache-Control", "no-store")
+			deadline := time.Now().Add(ScrapeTimeout)
+			if err := http.NewResponseController(writer).SetWriteDeadline(deadline.Add(ScrapeResponseMargin)); err != nil {
+				logger.ErrorContext(request.Context(), "set recipe scrape write deadline", "error", err)
+				http.Error(writer, "Recipe scraping is unavailable.", http.StatusInternalServerError)
+				return
+			}
+			ctx, cancel := context.WithDeadline(request.Context(), deadline)
+			defer cancel()
+			request = request.WithContext(ctx)
 		}
-		if request.URL.Path == pantryv1connect.AisleServiceSaveHouseholdAisleOrderProcedure {
-			limit = MaxAisleOrderRequestBytes
-		}
-		http.MaxBytesHandler(mux, limit).ServeHTTP(writer, request)
+		// Each registered Connect handler owns its exact decoded-message limit.
+		// A second http.MaxBytesHandler closes oversized streaming requests after
+		// Connect has written its end-stream error, corrupting that response under
+		// slower/race-instrumented clients.
+		mux.ServeHTTP(writer, request)
 	})
 	authenticated := authenticate(verifier, logger, bounded)
 	return withRequestLog(logger, authenticated)
@@ -425,6 +435,10 @@ func (server *Server) serviceError(ctx context.Context, operation string, err er
 	case pantry.ErrorUnavailable:
 		code = connect.CodeUnavailable
 		server.logger.ErrorContext(ctx, operation, "error", err)
+	case pantry.ErrorResourceExhausted:
+		code = connect.CodeResourceExhausted
+	case pantry.ErrorDeadlineExceeded:
+		code = connect.CodeDeadlineExceeded
 	}
 	return connectError(code, serviceError.Code, serviceError.Message)
 }

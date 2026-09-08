@@ -73,6 +73,7 @@ jobs:
       # explicit avoids coupling API recovery to the web build-secret inventory.
       STAGING_API_SUPABASE_URL: https://fncsyvsgolbpviidmpuc.supabase.co
       STAGING_API_SUPABASE_ANON_KEY: ${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      STAGING_API_DENY_DESTINATIONS: ${{ secrets.DROPLET_HOST }}
       GHCR_USER: ${{ github.repository_owner }}
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
     steps:
@@ -83,7 +84,7 @@ jobs:
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script_stop: true
-          envs: STAGING_API_IMAGE,STAGING_API_SUPABASE_URL,STAGING_API_SUPABASE_ANON_KEY,GHCR_USER,GHCR_PAT
+          envs: STAGING_API_IMAGE,STAGING_API_SUPABASE_URL,STAGING_API_SUPABASE_ANON_KEY,STAGING_API_DENY_DESTINATIONS,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
 
@@ -93,6 +94,10 @@ jobs:
             fi
             if ! printf '%s' "$STAGING_API_SUPABASE_URL" | grep -Eq '^https://[^/]+$'; then
               echo 'STAGING_API_SUPABASE_URL must be a HTTPS origin.' >&2
+              exit 1
+            fi
+            if [ -z "$STAGING_API_DENY_DESTINATIONS" ]; then
+              echo 'Staging API destination isolation is required.' >&2
               exit 1
             fi
 
@@ -134,6 +139,7 @@ jobs:
                     --publish "$api_port:8080" \
                     --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
                     --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \
+                    --env PANTRY_API_DENY_DESTINATIONS="$STAGING_API_DENY_DESTINATIONS" \
                     "$previous_image" >/dev/null
                   wait_for_api || echo 'Could not verify the restored staging API image.' >&2
                 fi
@@ -188,6 +194,7 @@ jobs:
               --publish "$api_port:8080" \
               --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
               --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \
+              --env PANTRY_API_DENY_DESTINATIONS="$STAGING_API_DENY_DESTINATIONS" \
               "$STAGING_API_IMAGE" >/dev/null
 
             wait_for_api
