@@ -155,6 +155,51 @@ Production was not deployed, migrated, administered or written for this checkpoi
 The staging workflow performed only its existing read-only production-route health
 probe. No backup or production database state was touched.
 
+### Stage 5c reviewed execution decision (2026-09-08)
+
+Move extraction and fetch orchestration behind a new unary
+`RecipeScrapeService.ScrapeRecipe(household_id, url)` contract; keep the verified
+raw-recipe and recoverable-board services as the only persistence paths. The
+response is a single/board oneof whose recipe shape preserves repeated-field order
+and optional image/serving/time presence. The client gets an independent
+`EXPO_PUBLIC_PANTRY_API_SCRAPER` staging flag and fails closed when enabled but
+misconfigured or when Go fails. The legacy Edge path remains only as flag-off
+rollback compatibility.
+
+The fixture oracle must cover JSON-LD precedence/graphs/type arrays, image and
+numeric-presence quirks, HowTo forms, limited entity decoding, article-selector and
+line splitting, title-only tags, pin source/placeholder behavior, ordered crawler/
+SSR/feed board discovery, exact-string deduplication, partial failures, 10-wide
+batches, 15 pages and the first 250 source scrapes. Ordered JSON traversal is
+required because JavaScript property encounter order affects first-source and
+bookmark selection; ordinary Go map iteration is not accepted as parity evidence.
+No live Pinterest dependency is used for deterministic CI.
+
+Security corrections are release gates: authenticate and prove exact household
+membership before DNS or HTTP; allow only credential-free HTTP(S) on ports 80/443;
+deny local/private/reserved/multicast/mapped addresses and Pantry, Supabase or
+shared-droplet destinations; reject mixed DNS answers; connect only to a validated
+address while retaining the original TLS/Host identity; repeat validation at dial
+time and on every redirect/discovered URL; disable environment proxies; never
+forward Pantry credentials; scope Pinterest cookies to Pinterest; and sanitize
+errors/logs. Bounds are 2 MiB per decoded body, 32 MiB cumulative bodies, five
+redirects, 500 discovered board URLs, 300 outbound attempts, 10 board workers,
+eight global outbound requests, one concurrent scrape per caller, six starts per
+caller/household/minute, a 2,048-byte URL and a 45-second whole-operation deadline.
+The scrape RPC alone receives a matching narrow write deadline; global server
+timeouts are unchanged.
+
+Sequence: (1) fixtures/pure extractor and ordered traversal; (2) injected safe
+fetcher, limiter and orchestration; (3) Protobuf/RPC/client/UI with visible retry,
+same-tick submit lock and stale-result suppression; (4) full local/CI and role
+review; (5) immutable API-only staging deploy plus authenticated fixture-host and
+controlled public-URL smoke; (6) independent staging web flag/deploy and real
+desktop/touch browser website/pin/board journeys proving binary Connect and zero
+Edge calls; (7) cross-capability regression and evidence. No SQL or infrastructure
+change is expected. On failure before cutover restore API `staging-api-593a009...`;
+after cutover restore web `staging-64cc4c5...` first, then that API, and verify the
+existing board recovery path.
+
 For every stage: regenerate Protobuf deterministically; run focused unit/transport/
 client tests, Go vet/race, all Bun tests, TypeScript, Protobuf format/lint/build/
 breaking/generated checks, Expo export and API image build; obtain role review;
