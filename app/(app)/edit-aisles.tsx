@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   TextInput,
-  Alert,
 } from "react-native";
 import {
   useLocalSearchParams,
@@ -14,7 +13,10 @@ import {
   useNavigation,
   useRouter,
 } from "expo-router";
-import { showError } from "../../lib/db";
+import { errorMessage } from "../../lib/db";
+import { activeCatalogSettingsAPI } from "../../lib/active-catalog-settings";
+import { ConfirmAction } from "../../components/ConfirmAction";
+import { useSettingsOperation } from "../../lib/use-settings-operation";
 import { SortableList } from "../../components/SortableList";
 import {
   DEFAULT_INGREDIENT_CATEGORY,
@@ -29,6 +31,10 @@ import {
 
 export default function EditAislesScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
+  return <HouseholdAisles key={householdId} householdId={householdId} />;
+}
+
+function HouseholdAisles({ householdId }: { householdId: string }) {
   const navigation = useNavigation();
   const router = useRouter();
 
@@ -39,6 +45,11 @@ export default function EditAislesScreen() {
   const [saving, setSaving] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [adding, setAdding] = useState(false);
+  const [revision, setRevision] = useState("");
+  const [notice, setNotice] = useState("");
+  const [removing, setRemoving] = useState<IngredientCategory | null>(null);
+  const operation = useSettingsOperation();
+  const { pending, epoch, busy } = operation;
 
   useEffect(() => {
     navigation.setOptions({
@@ -84,17 +95,21 @@ export default function EditAislesScreen() {
     });
   }, [householdId, navigation, router]);
 
-  const load = useCallback(async () => {
-    if (!householdId) return;
+  const load = useCallback(async (duringMutation = false) => {
+    if (!householdId || (pending.current && !duringMutation)) return;
+    const version = ++epoch.current;
     try {
-      const aisles = await listHouseholdAisles(householdId);
-      setAisleCategories(aisles);
+      const api = await activeCatalogSettingsAPI();
+      const view = api ? await api.aisles(householdId) : { aisles: await listHouseholdAisles(householdId), revision: "" };
+      if (version !== epoch.current) return;
+      setAisleCategories(view.aisles);
+      setRevision(view.revision);
     } catch (err) {
-      showError("Couldn't load aisle order", err);
+      if (version === epoch.current) setNotice(`Couldn't load aisle order: ${errorMessage(err)}`);
     } finally {
-      setLoading(false);
+      if (version === epoch.current) setLoading(false);
     }
-  }, [householdId]);
+  }, [householdId, pending, epoch]);
 
   useFocusEffect(
     useCallback(() => {
@@ -103,62 +118,78 @@ export default function EditAislesScreen() {
   );
 
   const saveAisleOrder = async (ordered: IngredientCategory[]) => {
-    if (!householdId) return;
+    if (!householdId || !operation.begin()) return;
+    setNotice("");
     setSaving(true);
     const previous = aisleCategories;
     setAisleCategories(ordered);
     try {
-      await saveHouseholdAisleOrder(householdId, ordered);
-      const refreshed = await listHouseholdAisles(householdId);
-      setAisleCategories(refreshed);
+      const api = await activeCatalogSettingsAPI();
+      if (api) {
+        const view = await api.orderAisles(householdId, revision, ordered.map(a => a.id));
+        setAisleCategories(view.aisles);
+        setRevision(view.revision);
+      } else {
+        await saveHouseholdAisleOrder(householdId, ordered);
+        await load(true);
+      }
     } catch (err) {
       setAisleCategories(previous);
-      showError("Couldn't save aisle order", err);
+      setNotice(`Couldn't save aisle order: ${errorMessage(err)}`);
+      await load(true);
     } finally {
       setSaving(false);
+      operation.end();
     }
   };
 
   const addAisle = async () => {
-    if (!householdId || !newLabel.trim() || adding) return;
+    if (!householdId || !newLabel.trim() || !operation.begin()) return;
+    setNotice("");
     setAdding(true);
     try {
-      await createHouseholdAisle(householdId, newLabel);
+      const api = await activeCatalogSettingsAPI();
+      if (api) {
+        const view = await api.addAisle(householdId, newLabel);
+        setAisleCategories(view.aisles);
+        setRevision(view.revision);
+      } else {
+        await createHouseholdAisle(householdId, newLabel);
+        await load(true);
+      }
       setNewLabel("");
-      setAisleCategories(await listHouseholdAisles(householdId));
     } catch (err) {
-      showError("Couldn't add aisle", err);
+      setNotice(`Couldn't add aisle: ${errorMessage(err)}`);
     } finally {
       setAdding(false);
+      operation.end();
     }
   };
 
   const confirmDelete = (aisle: IngredientCategory) => {
-    if (aisle.id === DEFAULT_INGREDIENT_CATEGORY) return;
-    Alert.alert(
-      "Delete aisle?",
-      `Ingredients in "${aisle.label}" will move to Other.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => void deleteAisle(aisle.id),
-        },
-      ]
-    );
+    if (aisle.id === DEFAULT_INGREDIENT_CATEGORY || pending.current) return;
+    setNotice("");
+    setRemoving(aisle);
   };
 
   const deleteAisle = async (key: string) => {
-    if (!householdId) return;
-    const previous = aisleCategories;
-    setAisleCategories((prev) => prev.filter((a) => a.id !== key));
+    if (!householdId || !operation.begin()) return;
+    setNotice("");
     try {
-      await deleteHouseholdAisle(householdId, key);
-      setAisleCategories(await listHouseholdAisles(householdId));
+      const api = await activeCatalogSettingsAPI();
+      if (api) {
+        const view = await api.removeAisle(householdId, key);
+        setAisleCategories(view.aisles);
+        setRevision(view.revision);
+      } else {
+        await deleteHouseholdAisle(householdId, key);
+        await load(true);
+      }
+      setRemoving(null);
     } catch (err) {
-      setAisleCategories(previous);
-      showError("Couldn't delete aisle", err);
+      setNotice(`Couldn't delete aisle: ${errorMessage(err)}`);
+    } finally {
+      operation.end();
     }
   };
 
@@ -181,6 +212,7 @@ export default function EditAislesScreen() {
       <Text style={styles.hint}>
         Drag to match your store walk path. Delete moves ingredients to Other.
       </Text>
+      {notice ? <Text accessibilityRole="alert" style={{ color: "#b42318", marginBottom: 12 }}>{notice}</Text> : null}
 
       <View style={styles.addRow}>
         <TextInput
@@ -191,12 +223,12 @@ export default function EditAislesScreen() {
           onSubmitEditing={() => void addAisle()}
           returnKeyType="done"
           autoCorrect={false}
-          editable={!adding}
+          editable={!busy}
         />
         <Pressable
-          style={[styles.addButton, (!newLabel.trim() || adding) && styles.disabled]}
+          style={[styles.addButton, (!newLabel.trim() || busy) && styles.disabled]}
           onPress={() => void addAisle()}
-          disabled={!newLabel.trim() || adding}
+          disabled={!newLabel.trim() || busy}
         >
           {adding ? (
             <ActivityIndicator color="#fff" size="small" />
@@ -209,6 +241,7 @@ export default function EditAislesScreen() {
       <SortableList
         items={aisleCategories}
         keyExtractor={(item) => item.id}
+        isDraggable={(item) => !busy && item.id !== DEFAULT_INGREDIENT_CATEGORY}
         onReorder={(next) => {
           void saveAisleOrder(next);
         }}
@@ -227,6 +260,8 @@ export default function EditAislesScreen() {
                 <Pressable
                   style={styles.deleteBtn}
                   onPress={() => confirmDelete(item)}
+                  disabled={busy}
+                  {...({ dataSet: { noDrag: "true" } } as object)}
                   accessibilityRole="button"
                   accessibilityLabel={`Delete ${item.label}`}
                 >
@@ -239,6 +274,7 @@ export default function EditAislesScreen() {
           );
         }}
       />
+      <ConfirmAction visible={!!removing} title="Delete aisle?" message={`Ingredients in "${removing?.label ?? ""}" will move to Other.${notice ? `\n\n${notice}` : ""}`} confirmLabel="Delete" busy={busy} onCancel={() => setRemoving(null)} onConfirm={() => { if (removing) void deleteAisle(removing.id); }} />
     </View>
   );
 }

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { activeCatalogSettingsAPI } from "./active-catalog-settings";
 import {
   DEFAULT_INGREDIENT_CATEGORY,
   INGREDIENT_CATEGORIES,
@@ -22,6 +23,8 @@ function toCategory(row: { key: string; label: string; sort_order: number }): In
 export async function listHouseholdAisles(
   householdId: string
 ): Promise<IngredientCategory[]> {
+  const api = await activeCatalogSettingsAPI();
+  if (api) return (await api.aisles(householdId)).aisles;
   await ensureHouseholdAislesSeeded(householdId);
 
   const { data, error } = await supabase

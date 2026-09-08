@@ -20,6 +20,7 @@ import {
   type CatalogIngredient,
 } from "../../lib/ingredient-catalog";
 import { saveRecipe, stagingRecipeAPIOrigin } from "../../lib/pantry-api";
+import { SavedNotice, catalogSavedWarning } from "../../components/SavedNotice";
 
 type Ingredient = { name: string; quantity: string; unit: string };
 
@@ -33,6 +34,7 @@ export default function CreateRecipeScreen() {
   ]);
   const [catalog, setCatalog] = useState<CatalogIngredient[]>([]);
   const [loading, setLoading] = useState(false);
+  const [savedNotice, setSavedNotice] = useState("");
 
   useEffect(() => {
     if (!householdId) return;
@@ -57,6 +59,7 @@ export default function CreateRecipeScreen() {
   };
 
   const handleSave = async () => {
+    if (loading || savedNotice) return;
     if (!title.trim()) {
       Alert.alert("Missing title", "Give your recipe a name.");
       return;
@@ -71,8 +74,9 @@ export default function CreateRecipeScreen() {
     setLoading(true);
 
     const apiURL = stagingRecipeAPIOrigin();
-    if (apiURL && session?.access_token) {
+    if (apiURL) {
       try {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
         await saveRecipe(
           apiURL,
           session.access_token,
@@ -88,11 +92,14 @@ export default function CreateRecipeScreen() {
             };
           })
         );
+        let catalogFailed = false;
         for (const ingredient of validIngredients) {
-          await ensureCatalogIngredient(householdId, ingredient.name);
+          try { await ensureCatalogIngredient(householdId, ingredient.name); }
+          catch { catalogFailed = true; }
         }
         setLoading(false);
-        router.back();
+        if (catalogFailed) setSavedNotice(catalogSavedWarning);
+        else router.back();
       } catch (error) {
         setLoading(false);
         Alert.alert("Error", error instanceof Error ? error.message : "Could not save recipe.");
@@ -139,16 +146,18 @@ export default function CreateRecipeScreen() {
     }
 
     // Grow the household catalog (separate from recipes) without failing the save.
+    let catalogFailed = false;
     try {
       for (const i of validIngredients) {
         await ensureCatalogIngredient(householdId!, i.name);
       }
-    } catch (err) {
-      console.warn("Catalog upsert after recipe save failed", err);
+    } catch {
+      catalogFailed = true;
     }
 
     setLoading(false);
-    router.back();
+    if (catalogFailed) setSavedNotice(catalogSavedWarning);
+    else router.back();
   };
 
   return (
@@ -157,6 +166,7 @@ export default function CreateRecipeScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      <SavedNotice message={savedNotice} onContinue={() => router.back()} />
       <Text style={styles.label}>Recipe Title</Text>
       <TextInput
         style={styles.input}

@@ -11,7 +11,9 @@ import {
 import { useLocalSearchParams, useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { supabase } from "../../lib/supabase";
-import { showError } from "../../lib/db";
+import { errorMessage } from "../../lib/db";
+import { activeCatalogSettingsAPI } from "../../lib/active-catalog-settings";
+import { useSettingsOperation } from "../../lib/use-settings-operation";
 
 type Member = { id: string; display_name: string; role: string };
 type Household = {
@@ -23,6 +25,10 @@ type Store = { id: string; name: string; sort_order: number };
 
 export default function HouseholdEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  return <HouseholdSettings key={id} id={id} />;
+}
+
+function HouseholdSettings({ id }: { id: string }) {
   const { signOut } = useAuth();
   const navigation = useNavigation();
   const router = useRouter();
@@ -32,6 +38,9 @@ export default function HouseholdEditScreen() {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [storeInput, setStoreInput] = useState("");
+  const [notice, setNotice] = useState("");
+  const operation = useSettingsOperation();
+  const { pending, epoch, busy } = operation;
 
   useEffect(() => {
     navigation.setOptions({
@@ -55,8 +64,18 @@ export default function HouseholdEditScreen() {
   }, [id, navigation, router]);
 
   const loadData = useCallback(async () => {
-    if (!id) return;
+    if (!id || pending.current) return;
+    const version = ++epoch.current;
     try {
+      const api = await activeCatalogSettingsAPI();
+      if (api) {
+        const view = await api.settings(id);
+        if (version !== epoch.current) return;
+        setHousehold(view.household);
+        setMembers(view.members);
+        setStores(view.stores);
+        return;
+      }
       const [hRes, mRes, sRes] = await Promise.all([
         supabase
           .from("households")
@@ -67,15 +86,18 @@ export default function HouseholdEditScreen() {
         supabase.from("stores").select("id, name, sort_order").eq("household_id", id).order("sort_order"),
       ]);
       if (hRes.error) throw hRes.error;
+      if (mRes.error) throw mRes.error;
+      if (sRes.error) throw sRes.error;
+      if (version !== epoch.current) return;
       setHousehold(hRes.data);
       if (mRes.data) setMembers(mRes.data);
       if (sRes.data) setStores(sRes.data);
     } catch (err) {
-      showError("Couldn't load household", err);
+      if (version === epoch.current) setNotice(`Couldn't load household: ${errorMessage(err)}`);
     } finally {
-      setLoading(false);
+      if (version === epoch.current) setLoading(false);
     }
-  }, [id]);
+  }, [id, pending, epoch]);
 
   useFocusEffect(
     useCallback(() => {
@@ -85,28 +107,52 @@ export default function HouseholdEditScreen() {
 
   const addStore = async () => {
     const name = storeInput.trim();
-    if (!name || !id) return;
+    if (!name || !id || !operation.begin()) return;
+    setNotice("");
+    try {
+      const api = await activeCatalogSettingsAPI();
+      if (api) {
+        const view = await api.addStore(id, name);
+        setHousehold(view.household);
+        setMembers(view.members);
+        setStores(view.stores);
+      } else {
     const sort_order = stores.length * 10;
     const { data, error } = await supabase
       .from("stores")
       .insert({ household_id: id, name, sort_order })
       .select("id, name, sort_order")
       .single();
-    if (error) {
-      showError("Couldn't add store", error);
-      return;
-    }
+    if (error) throw error;
     if (data) setStores((prev) => [...prev, data]);
+      }
     setStoreInput("");
+    } catch (err) {
+      setNotice(`Couldn't add store: ${errorMessage(err)}`);
+    } finally {
+      operation.end();
+    }
   };
 
   const deleteStore = async (storeId: string) => {
-    const previous = stores;
-    setStores((prev) => prev.filter((s) => s.id !== storeId));
-    const { error } = await supabase.from("stores").delete().eq("id", storeId);
-    if (error) {
-      setStores(previous);
-      showError("Couldn't delete store", error);
+    if (!id || !operation.begin()) return;
+    setNotice("");
+    try {
+      const api = await activeCatalogSettingsAPI();
+      if (api) {
+        const view = await api.removeStore(id, storeId);
+        setHousehold(view.household);
+        setMembers(view.members);
+        setStores(view.stores);
+      } else {
+        const { error } = await supabase.from("stores").delete().eq("id", storeId).eq("household_id", id);
+        if (error) throw error;
+        setStores(prev => prev.filter(s => s.id !== storeId));
+      }
+    } catch (err) {
+      setNotice(`Couldn't delete store: ${errorMessage(err)}`);
+    } finally {
+      operation.end();
     }
   };
 
@@ -124,6 +170,7 @@ export default function HouseholdEditScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {notice ? <Text accessibilityRole="alert" style={{ color: "#b42318", marginBottom: 12 }}>{notice}</Text> : null}
       <View style={styles.inviteBox}>
         <Text style={styles.inviteLabel}>Invite code</Text>
         <Text style={styles.inviteCode}>{household?.invite_code}</Text>
@@ -144,7 +191,7 @@ export default function HouseholdEditScreen() {
       {stores.map((s) => (
         <View key={s.id} style={styles.storeRow}>
           <Text style={styles.storeName}>{s.name}</Text>
-          <Pressable onPress={() => deleteStore(s.id)}>
+          <Pressable onPress={() => deleteStore(s.id)} disabled={busy} accessibilityRole="button" accessibilityLabel={`Remove store ${s.name}`}>
             <Text style={styles.storeDelete}>×</Text>
           </Pressable>
         </View>
@@ -158,9 +205,10 @@ export default function HouseholdEditScreen() {
           returnKeyType="done"
           onSubmitEditing={addStore}
           autoCapitalize="words"
+          editable={!busy}
         />
-        <Pressable style={styles.storeAddButton} onPress={addStore}>
-          <Text style={styles.storeAddButtonText}>Add</Text>
+        <Pressable style={[styles.storeAddButton, busy && { opacity: 0.5 }]} onPress={addStore} disabled={busy || !storeInput.trim()}>
+          <Text style={styles.storeAddButtonText}>{busy ? "Saving…" : "Add"}</Text>
         </Pressable>
       </View>
 

@@ -19,6 +19,7 @@ import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
 import { importRecipe, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
 import { importedRecipeInput, saveImportedRecipe } from "../../lib/recipe-import";
+import { SavedNotice, catalogSavedWarning } from "../../components/SavedNotice";
 
 export default function ReviewRecipeScreen() {
   const { householdId, recipeJson } = useLocalSearchParams<{
@@ -32,10 +33,14 @@ export default function ReviewRecipeScreen() {
   const [title, setTitle] = useState(scraped.title);
   const [selectedTags, setSelectedTags] = useState<string[]>(scraped.suggested_tags);
   const [saving, setSaving] = useState(false);
+  const [savedNotice, setSavedNotice] = useState("");
+  const finish = () => router.replace({ pathname: "/(app)/household", params: { id: householdId } });
 
   const parsedIngredients = parseIngredients(scraped.raw_ingredients);
 
   const handleSave = async () => {
+    if (saving || savedNotice) return;
+    let catalogFailed = false;
     if (!title.trim()) {
       Alert.alert("Missing title", "Give this recipe a name.");
       return;
@@ -49,9 +54,10 @@ export default function ReviewRecipeScreen() {
         await saveImportedRecipe(importedRecipeInput(householdId!, scraped, title.trim(), selectedTags), {
           save: (input) => importRecipe(apiURL, session.access_token, input),
           ensureCatalog: (name) => ensureCatalogIngredient(householdId!, name),
-          catalogWarning: () => console.warn("Catalog enrichment after import failed"),
+          catalogWarning: () => { catalogFailed = true; },
         });
-        router.replace({ pathname: "/(app)/household", params: { id: householdId } });
+        if (catalogFailed) setSavedNotice(catalogSavedWarning);
+        else finish();
       } catch (error) {
         Alert.alert("Couldn't save recipe", error instanceof Error ? error.message : "Could not import recipe.");
       } finally {
@@ -119,21 +125,20 @@ export default function ReviewRecipeScreen() {
       for (const ing of parsedIngredients) {
         try {
           await ensureCatalogIngredient(householdId!, ing.name);
-        } catch (err) {
-          console.warn("Catalog upsert after import failed", err);
+        } catch {
+          catalogFailed = true;
         }
       }
     }
 
     setSaving(false);
-    router.replace({
-      pathname: "/(app)/household",
-      params: { id: householdId },
-    });
+    if (catalogFailed) setSavedNotice(catalogSavedWarning);
+    else finish();
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <SavedNotice message={savedNotice} onContinue={finish} />
       {scraped.image_url && (
         <Image source={{ uri: scraped.image_url }} style={styles.image} />
       )}
