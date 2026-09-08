@@ -1,5 +1,79 @@
 # Remaining Go port execution plan
 
+## Active continuation: complete staging business-workflow parity
+
+Authorization and boundary (2026-09-08): continue through feature parity, commit
+incrementally, push only staging branches/images and verify every stage. Production
+may be exercised only through its public UI with a disposable account for the
+explicitly authorized black-box comparison. Do not deploy production or access its
+database, administration APIs, secrets, host, migrations or infrastructure. The
+original checkout's unrelated edits remain untouched; implementation continues in
+the isolated `codex/go-full-parity` worktree. Current recovery images are web
+`staging-a60c95f147f833653a52498bd0f43784cf432e63` and API
+`staging-api-f906cb91ec2c7ab3b4c6c4e09af063b532efc81d`.
+
+The six-role review reconfirmed four remaining active slices. Product requires the
+existing website, Pinterest pin and Pinterest board review flows; edited titles,
+tags and selection; ordered progress; partial-success summaries; and the complete
+onboarding-to-shopping journey. Architecture requires authenticated household
+membership before any fetch, injected network dependencies, bounded work, exact
+scoped duplicate checks and recoverable board imports. Unit/staff review requires
+the characterized JavaScript array-parser quirks, deterministic scraper fixtures,
+null/zero/order preservation and stable idempotency for URL-less items. DevOps/QA
+require independent staging flags, API-first cutovers, immutable rollback images,
+binary-Connect evidence, visible web errors and both desktop and touch-width gates.
+
+Security is an intentional correction, not an unsafe byte-for-byte port. The old
+unauthenticated Edge Function accepts arbitrary outbound URLs. The Go scraper will
+require a valid Pantry caller and household membership; allow only HTTP(S); reject
+credentials, unsafe ports and local/private/link-local/metadata addresses at DNS
+resolution and dial time; revalidate redirects and every discovered URL; disable
+environment proxies; keep Pinterest cookies host-scoped; bound redirects, bodies,
+requests, pages, URLs, concurrency and total duration; and log only safe outcome
+metadata. Pantry, Supabase and shared-droplet destinations are denied even when a
+public alias resolves. Tests use injected resolvers/transports and local fixtures;
+they do not probe production or metadata services.
+
+Board import recovery uses a narrow additive staging migration. A private ledger is
+keyed by household, caller-supplied operation UUID and stable selected-item index.
+The server preflights membership and every non-empty source URL before the first
+write. Each item then uses a short invoker/RLS-scoped transaction: take a
+household/item advisory lock, return an existing completed ledger result on retry,
+check the exact non-empty URL in that household, save one complete recipe, and
+record its result atomically. A failed transaction records no completion, so the
+same item can be retried. URL-less items are safe because operation/index identity,
+not URL, supplies idempotency. No network call occurs while database locks are held.
+Only authenticated execution on the exposed invoker functions is granted; private
+helpers and ledger tables are not exposed. Required indexes cover household/source
+lookups and ledger keys. A server-streaming Connect method returns ordered
+preflight/item/progress/complete events; retrying the same operation recovers after
+a disconnect rather than replaying committed writes.
+
+### Continuation checkpoints
+
+| Stage | Deliverable | Release and parity gate |
+| --- | --- | --- |
+| 5a | Go import-array parser and raw-ingredient contracts | Golden legacy/Go fixtures cover compound splitting/filtering/case/raw text, malformed fractions, Unicode, null/zero and order. Both preview and persistence use the same Go result; API deploy precedes the independently flagged staging web cutover. |
+| 5b | Recoverable Go board-import orchestration | Migration/grant/RLS and injected-rollback gates; stored and in-batch exact-URL dedup; URL-less idempotency; edited fields/selection; zero writes on preflight failure; per-item atomicity, partial success, retry-after-failure and lost-response recovery; visible ordered progress. |
+| 5c | Authenticated Go scraper/extraction | Saved website/pin/board fixture oracle plus malformed/limit/error cases; resolver/redirect/rebinding/port/body/time/concurrency/rate gates; API-first deploy and authenticated live public-URL smoke; staging web flag only after binary Connect evidence. |
+| 6 | Dashboard read and comprehensive parity audit | Dashboard uses Go with no active direct business-table read. Disposable public-UI accounts compare production legacy and staging for onboarding, website/pin/board import, review/edit/save, recipes/tags/delete, queue, shopping, checks, ordering, catalog and settings. Staging additionally exercises recoverable failures. All active staging business calls are binary Connect; Supabase Auth remains direct by design. |
+
+For every stage: regenerate Protobuf deterministically; run focused unit/transport/
+client tests, Go vet/race, all Bun tests, TypeScript, Protobuf format/lint/build/
+breaking/generated checks, Expo export and API image build; obtain role review;
+commit and push; deploy the exact API SHA; run authenticated owner/member/outsider
+acceptance; enable/deploy only the independent staging web flag; verify real desktop
+and touch-width browser behavior and persisted state; then update evidence and the
+known-good rollback pair. If a staging change cannot be fixed forward safely,
+restore the recorded web/API images, verify health and report the incident. Never
+weaken an assertion to make a gate pass.
+
+Completion means every active staging business workflow listed above is owned by
+Go and Protobuf/Connect, with direct Supabase use limited to Auth and disabled
+fallback/operational paths that are explicitly inventoried. It does not mean a
+production Go deployment, removal of compatibility code, or unperformed native
+iOS/Android validation. Those remain separately stated rather than implied.
+
 ## Status update
 
 Status: verified Phase 4 (catalog/settings; full Go port remains incomplete)
