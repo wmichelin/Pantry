@@ -1,0 +1,145 @@
+syntax = "proto3";
+package pantry.v1;
+
+option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1";
+
+service CatalogService {
+  rpc GetCatalog(GetCatalogRequest) returns (GetCatalogResponse);
+  rpc EnsureCatalogIngredient(EnsureCatalogIngredientRequest) returns (EnsureCatalogIngredientResponse);
+  rpc SeedCatalogFromRecipes(SeedCatalogFromRecipesRequest) returns (SeedCatalogFromRecipesResponse);
+  rpc UpdateCatalogIngredient(UpdateCatalogIngredientRequest) returns (UpdateCatalogIngredientResponse);
+  rpc RemoveCatalogIngredient(RemoveCatalogIngredientRequest) returns (RemoveCatalogIngredientResponse);
+}
+service AisleService {
+  // Seeds defaults only for an empty household aisle set.
+  rpc GetHouseholdAisles(GetHouseholdAislesRequest) returns (GetHouseholdAislesResponse);
+  rpc CreateHouseholdAisle(CreateHouseholdAisleRequest) returns (CreateHouseholdAisleResponse);
+  rpc RemoveHouseholdAisle(RemoveHouseholdAisleRequest) returns (RemoveHouseholdAisleResponse);
+  rpc SaveHouseholdAisleOrder(SaveHouseholdAisleOrderRequest) returns (SaveHouseholdAisleOrderResponse);
+}
+service HouseholdSettingsService {
+  rpc GetHouseholdSettings(GetHouseholdSettingsRequest) returns (GetHouseholdSettingsResponse);
+  rpc AddHouseholdStore(AddHouseholdStoreRequest) returns (AddHouseholdStoreResponse);
+  rpc RemoveHouseholdStore(RemoveHouseholdStoreRequest) returns (RemoveHouseholdStoreResponse);
+}
+message CatalogIngredient {
+  string id = 1;
+  string normalized_name = 2;
+  string display_name = 3;
+  int32 sort_order = 4;
+  string category = 5;
+}
+message GetCatalogRequest {
+  string household_id = 1;
+}
+message GetCatalogResponse {
+  repeated CatalogIngredient items = 1;
+}
+message EnsureCatalogIngredientRequest {
+  string household_id = 1;
+  string raw_name = 2;
+  optional string display_name = 3;
+  optional int32 sort_order = 4;
+  optional string category = 5;
+}
+message EnsureCatalogIngredientResponse {
+  // Absent for blank/section-header input, matching the legacy helper.
+  CatalogIngredient item = 1;
+}
+message SeedCatalogFromRecipesRequest {
+  string household_id = 1;
+}
+message SeedCatalogFromRecipesResponse {
+  int32 added = 1;
+}
+message UpdateCatalogIngredientRequest {
+  string household_id = 1;
+  string ingredient_id = 2;
+  string display_name = 3;
+  string category = 4;
+}
+message UpdateCatalogIngredientResponse {
+  CatalogIngredient item = 1;
+}
+message RemoveCatalogIngredientRequest {
+  string household_id = 1;
+  string ingredient_id = 2;
+}
+message RemoveCatalogIngredientResponse {}
+message HouseholdAisle {
+  string key = 1;
+  string label = 2;
+  int32 sort_order = 3;
+}
+message HouseholdAisleView {
+  string revision = 1;
+  repeated HouseholdAisle aisles = 2;
+}
+message GetHouseholdAislesRequest {
+  string household_id = 1;
+}
+message GetHouseholdAislesResponse {
+  HouseholdAisleView view = 1;
+}
+message CreateHouseholdAisleRequest {
+  string household_id = 1;
+  string label = 2;
+}
+message CreateHouseholdAisleResponse {
+  HouseholdAisleView view = 1;
+}
+message RemoveHouseholdAisleRequest {
+  string household_id = 1;
+  string key = 2;
+}
+message RemoveHouseholdAisleResponse {
+  HouseholdAisleView view = 1;
+}
+message SaveHouseholdAisleOrderRequest {
+  string household_id = 1;
+  string revision = 2;
+  repeated string keys = 3;
+}
+message SaveHouseholdAisleOrderResponse {
+  HouseholdAisleView view = 1;
+}
+message SettingsHousehold {
+  string id = 1;
+  string name = 2;
+  string invite_code = 3;
+}
+message SettingsMember {
+  string id = 1;
+  string display_name = 2;
+  string role = 3;
+}
+message SettingsStore {
+  string id = 1;
+  string name = 2;
+  int32 sort_order = 3;
+}
+message HouseholdSettings {
+  SettingsHousehold household = 1;
+  repeated SettingsMember members = 2;
+  repeated SettingsStore stores = 3;
+}
+message GetHouseholdSettingsRequest {
+  string household_id = 1;
+}
+message GetHouseholdSettingsResponse {
+  HouseholdSettings settings = 1;
+}
+message AddHouseholdStoreRequest {
+  string household_id = 1;
+  string name = 2;
+}
+message AddHouseholdStoreResponse {
+  HouseholdSettings settings = 1;
+}
+message RemoveHouseholdStoreRequest {
+  string household_id = 1;
+  string store_id = 2;
+}
+message RemoveHouseholdStoreResponse {
+  HouseholdSettings settings = 1;
+}

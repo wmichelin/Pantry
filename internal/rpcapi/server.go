@@ -17,6 +17,7 @@ import (
 const MaxRequestBytes = 16 << 10
 const MaxImportRequestBytes = 256 << 10
 const MaxShoppingOrderRequestBytes = 1 << 20
+const MaxAisleOrderRequestBytes = 128 << 10
 
 type Server struct {
 	pantryv1connect.UnimplementedIdentityServiceHandler
@@ -24,6 +25,9 @@ type Server struct {
 	pantryv1connect.UnimplementedRecipeServiceHandler
 	pantryv1connect.UnimplementedQueueServiceHandler
 	pantryv1connect.UnimplementedShoppingServiceHandler
+	pantryv1connect.UnimplementedCatalogServiceHandler
+	pantryv1connect.UnimplementedAisleServiceHandler
+	pantryv1connect.UnimplementedHouseholdSettingsServiceHandler
 
 	service *pantry.Service
 	logger  *slog.Logger
@@ -40,6 +44,11 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 	mux.Handle(pantryv1connect.NewRecipeServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewQueueServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewShoppingServiceHandler(server, handlerOptions...))
+	mux.Handle(pantryv1connect.NewCatalogServiceHandler(server, handlerOptions...))
+	mux.Handle(pantryv1connect.NewAisleServiceHandler(server, handlerOptions...))
+	mux.Handle(pantryv1connect.NewHouseholdSettingsServiceHandler(server, handlerOptions...))
+	_, aisleOrderHandler := pantryv1connect.NewAisleServiceHandler(server, connect.WithReadMaxBytes(MaxAisleOrderRequestBytes))
+	mux.Handle(pantryv1connect.AisleServiceSaveHouseholdAisleOrderProcedure, aisleOrderHandler)
 	_, importHandler := pantryv1connect.NewRecipeServiceHandler(server, connect.WithReadMaxBytes(MaxImportRequestBytes))
 	mux.Handle(pantryv1connect.RecipeServiceImportRecipeProcedure, importHandler)
 	_, orderHandler := pantryv1connect.NewShoppingServiceHandler(server, connect.WithReadMaxBytes(MaxShoppingOrderRequestBytes))
@@ -52,6 +61,9 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 		}
 		if request.URL.Path == pantryv1connect.ShoppingServiceSaveShoppingOrderProcedure {
 			limit = MaxShoppingOrderRequestBytes
+		}
+		if request.URL.Path == pantryv1connect.AisleServiceSaveHouseholdAisleOrderProcedure {
+			limit = MaxAisleOrderRequestBytes
 		}
 		http.MaxBytesHandler(mux, limit).ServeHTTP(writer, request)
 	})
