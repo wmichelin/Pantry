@@ -64,7 +64,7 @@ async function verify(){
  for(const [method,extra] of methods){assert.equal((await rpc(null,method,{...input,...extra})).status,401);assert.notEqual((await rpc(outsider.token,method,{...input,...extra})).status,200);}
  assert.deepEqual(await get(),before);
  // >1,000 source rows and >1,000 catalog rows must not inherit PostgREST truncation.
- const {recipe:bulk}=await call(owner,'RecipeService/SaveRecipe',{...input,title:'Catalog bulk seed fixture',ingredients:[]});
+ const [bulk]=await rest(key,owner.token,'recipes','POST',{household_id:h,created_by:owner.id,title:'Catalog bulk seed fixture'});
  await rest(key,owner.token,'recipe_ingredients','POST',Array.from({length:1001},(_,i)=>({recipe_id:bulk.id,name:`bulk item ${i}`})));
  try {
   assert.equal((await call(member,'CatalogService/SeedCatalogFromRecipes',input)).added,1001);
