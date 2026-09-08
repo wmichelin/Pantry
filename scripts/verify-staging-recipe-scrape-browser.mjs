@@ -59,7 +59,7 @@ try {
   const websiteRecipes = await scrape(websiteURL, '/review-recipe', 'url', true);
   await browser.call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   const pinRecipes = await scrape(pinURL, '/review-recipe', 'pinterest_pin');
-  const boardRecipes = await scrape(boardURL, '/review-board', 'pinterest_pin');
+  const boardRecipes = await scrape(boardURL, '/review-board', 'url');
   assert.deepEqual(browser.errors, []);
   console.log(JSON.stringify({
     websiteRecipes,
