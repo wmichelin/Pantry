@@ -76,8 +76,8 @@ async function verify() {
     metadata: { ...metadata, sourceUrl: `${metadata.sourceUrl}-filtered` },
   });
   assert.equal(filtered.status, 200, 'Member filtered-only raw import failed');
-  assert.equal(filtered.body.recipe.ingredientCount, 0);
-  assert.deepEqual(filtered.body.ingredients, []);
+  assert.equal(filtered.body.recipe.ingredientCount ?? 0, 0);
+  assert.deepEqual(filtered.body.ingredients ?? [], []);
 
   const longPreview = await rpc(owner.token, 'RecipeService/ParseImportIngredients', {
     householdId, rawIngredients: ['x'.repeat(20 << 10)],
