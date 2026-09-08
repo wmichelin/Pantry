@@ -42,6 +42,8 @@ try {
   await browser.navigate('/review-board?' + new URLSearchParams({ householdId: household, recipesJson: JSON.stringify(board) }));
   await browser.until("document.body.innerText.includes('Save 5 recipes')");
   await browser.click('Save 5 recipes');
+  await browser.until("document.body.innerText.includes('Not saved:')");
+  await browser.click('Continue to recipes');
   await browser.until("location.pathname==='/household'");
   const persisted = await rest(key, user.token, `recipes?select=title&household_id=eq.${household}`);
   assert.deepEqual(persisted.map(r => r.title).sort(), ['Board after failure', 'Board valid', 'Edited imported recipe']);

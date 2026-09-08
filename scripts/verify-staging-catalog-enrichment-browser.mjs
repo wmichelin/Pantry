@@ -28,7 +28,9 @@ try {
   await b.login(member);
   b.responses.length = 0;
   // Successful manual save reads autocomplete from Go and enriches through Go.
-  await b.navigate("/create-recipe?householdId=" + h);
+  await b.navigate("/household?id=" + h);
+  await b.until(text("+ Add"));
+  await b.click("+ Add");
   await b.until("!!document.querySelector('input[placeholder=Ingredient]')");
   await b.fill(
     'input[placeholder="e.g. Sheet Pan Chicken Fajitas"]',
@@ -39,7 +41,8 @@ try {
   await b.until("location.pathname!='/create-recipe'");
   assert((await recipes()).some((r) => r.title === "Manual success"));
   // Enrichment errors occur after the recipe commit and must not invite a resave.
-  await b.navigate("/create-recipe?householdId=" + h);
+  await b.until(text("+ Add"));
+  await b.click("+ Add");
   await b.until("!!document.querySelector('input[placeholder=Ingredient]')");
   await b.fill(
     'input[placeholder="e.g. Sheet Pan Chicken Fajitas"]',
@@ -87,6 +90,18 @@ try {
       );
     }
   // All failed enrichments can be repaired without duplicating recipes.
+  const beforeSeed =
+    (await call(owner, "CatalogService/GetCatalog", { householdId: h }))
+      .items ?? [];
+  for (const name of [
+    "manual flour",
+    "single success flour",
+    "board success flour",
+  ])
+    assert(
+      beforeSeed.some((i) => i.normalizedName === name),
+      "Successful enrichment missing: " + name,
+    );
   const count = (await recipes()).length;
   const result = await call(member, "CatalogService/SeedCatalogFromRecipes", {
     householdId: h,
