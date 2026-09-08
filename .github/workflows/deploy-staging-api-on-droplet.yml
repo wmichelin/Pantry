@@ -121,6 +121,15 @@ jobs:
               return 1
             }
 
+            verify_api_limits() {
+              actual_limits="$(docker inspect --format '{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}} {{.HostConfig.NanoCpus}} {{.HostConfig.PidsLimit}}' "$api_container")"
+              expected_limits='268435456 268435456 1000000000 128'
+              if [ "$actual_limits" != "$expected_limits" ]; then
+                echo "Staging API resource limits are incorrect: $actual_limits" >&2
+                return 1
+              fi
+            }
+
             restore_previous_api() {
               exit_code="$?"
               trap - EXIT
@@ -146,6 +155,7 @@ jobs:
                     --env PANTRY_API_DENY_DESTINATIONS="$STAGING_API_DENY_DESTINATIONS" \
                     "$previous_image" >/dev/null
                   wait_for_api || echo 'Could not verify the restored staging API image.' >&2
+                  verify_api_limits || echo 'Could not verify resource limits on the restored staging API image.' >&2
                 fi
               fi
               exit "$exit_code"
@@ -206,6 +216,7 @@ jobs:
               "$STAGING_API_IMAGE" >/dev/null
 
             wait_for_api
+            verify_api_limits
             docker ps --filter "name=^/${api_container}$" --format '{{.Names}} {{.Status}} {{.Ports}} {{.Image}}'
             trap - EXIT
         env:

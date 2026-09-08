@@ -27,7 +27,7 @@ run_suite() (
   fi
 
   profile_dir="$(mktemp -d /tmp/pantry-staging-browser.XXXXXX)"
-  "$CHROMIUM_BIN" \
+  setsid "$CHROMIUM_BIN" \
     --headless \
     --no-sandbox \
     --disable-gpu \
@@ -39,12 +39,17 @@ run_suite() (
   chromium_pid=$!
 
   cleanup() {
-    if kill -0 "$chromium_pid" 2>/dev/null; then
-      kill "$chromium_pid" 2>/dev/null || true
-      wait "$chromium_pid" 2>/dev/null || true
-    fi
+    kill -TERM -- "-$chromium_pid" 2>/dev/null || true
+    wait "$chromium_pid" 2>/dev/null || true
     case "$profile_dir" in
-      /tmp/pantry-staging-browser.*) rm -rf -- "$profile_dir" ;;
+      /tmp/pantry-staging-browser.*)
+        for _ in {1..20}; do
+          rm -rf -- "$profile_dir" 2>/dev/null || true
+          [[ ! -e "$profile_dir" ]] && break
+          sleep 0.1
+        done
+        [[ ! -e "$profile_dir" ]] || echo "Could not remove browser profile: $profile_dir" >&2
+        ;;
       *) echo "Refusing to remove unexpected browser profile: $profile_dir" >&2 ;;
     esac
   }
