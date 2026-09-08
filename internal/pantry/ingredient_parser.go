@@ -6,7 +6,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Single-ingredient compatibility parser. Array expansion/filtering is a separate
@@ -100,7 +102,7 @@ var (
 	ingredientCan         = ingredientRE(`(?i)^cans?$`)
 	ingredientSection     = ingredientRE(`:$`)
 	ingredientServingLine = ingredientRE(`(?i)^for serving\b`)
-	ingredientCompound    = ingredientRE(`(?i)^([a-zA-Z][^,]*?)\s+(?:and|or)\s+([a-zA-Z].*)$`)
+	ingredientCompound    = ingredientRE(`(?i)^([a-zA-Z][^,]*?)\s+(?:and|or)\s+([a-zA-Z][^\r\n\x{2028}\x{2029}]*)$`)
 	ingredientQuantities  = []ingredientPattern{
 		ingredientRE(`^(\d+/\d+)\s*[-–]\s*(\d+/\d+)\s+`),
 		ingredientRE(`^(\d+/\d+)\s*[-–]\s*(\d+)\s+`),
@@ -128,59 +130,11 @@ func ParseIngredients(raws []string) []ParsedIngredient {
 		}
 		for _, expanded := range expandCompoundIngredient(raw) {
 			ingredient := ParseIngredient(expanded)
-			ingredient.Name = javascriptLower(ingredient.Name)
+			ingredient.Name = cases.Lower(language.Und).String(ingredient.Name)
 			parsed = append(parsed, ingredient)
 		}
 	}
 	return parsed
-}
-
-// JavaScript's String#toLowerCase uses Unicode default case conversion, which
-// has two observable differences from Go's simple strings.ToLower for our
-// fixtures: dotted capital I expands and Greek sigma is context-sensitive.
-func javascriptLower(value string) string {
-	runes := []rune(value)
-	var result strings.Builder
-	for index, current := range runes {
-		switch current {
-		case '\u0130':
-			result.WriteString("i\u0307")
-		case '\u03A3':
-			if hasCasedRuneBefore(runes, index) && !hasCasedRuneAfter(runes, index) {
-				result.WriteRune('\u03C2')
-			} else {
-				result.WriteRune('\u03C3')
-			}
-		default:
-			result.WriteRune(unicode.ToLower(current))
-		}
-	}
-	return result.String()
-}
-
-func hasCasedRuneBefore(runes []rune, index int) bool {
-	for index--; index >= 0; index-- {
-		if isCaseIgnorable(runes[index]) {
-			continue
-		}
-		return unicode.IsUpper(runes[index]) || unicode.IsLower(runes[index]) || unicode.IsTitle(runes[index])
-	}
-	return false
-}
-
-func hasCasedRuneAfter(runes []rune, index int) bool {
-	for index++; index < len(runes); index++ {
-		if isCaseIgnorable(runes[index]) {
-			continue
-		}
-		return unicode.IsUpper(runes[index]) || unicode.IsLower(runes[index]) || unicode.IsTitle(runes[index])
-	}
-	return false
-}
-
-func isCaseIgnorable(value rune) bool {
-	return unicode.In(value, unicode.Mn, unicode.Me, unicode.Cf, unicode.Lm, unicode.Sk) ||
-		value == '\'' || value == '\u2019'
 }
 
 func expandCompoundIngredient(raw string) []string {

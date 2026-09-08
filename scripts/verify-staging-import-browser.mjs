@@ -10,12 +10,47 @@ const household = created.body.household.id;
 const browser = await stagingBrowser();
 try {
   await browser.login(user);
+  const previewFailureScript = await browser.call('Page.addScriptToEvaluateOnNewDocument', { source: `
+    (() => {
+      const original = window.fetch;
+      let failed = false;
+      window.fetch = async (...args) => {
+        if (!failed && String(args[0]).endsWith('/ParseImportIngredients')) {
+          failed = true;
+          window.__parserFailureInjected = true;
+          return new Response('{}', { status: 503, headers: { 'Content-Type': 'application/json' } });
+        }
+        return original(...args);
+      };
+    })();
+  ` });
   const single = { title: 'Imported browser recipe', source_url: 'https://example.invalid/single', source_type: 'url',
     instructions: ['First', 'Second'], suggested_tags: ['dinner'], servings: 0, cook_time_minutes: 9,
     raw_ingredients: ['salt', '0 cups water'] };
   await browser.navigate('/review-recipe?' + new URLSearchParams({ householdId: household, recipeJson: JSON.stringify(single) }));
-  await browser.until("document.body.innerText.includes('Save to Household')");
+  await browser.until("window.__parserFailureInjected && document.body.innerText.includes('Try again')");
+  assert(!browser.responses.some(r => r.path.endsWith('/ImportRawRecipe') || r.path.endsWith('/ImportRecipe')),
+    'A failed preview attempted persistence');
+  await browser.click('Try again');
+  await browser.until("document.body.innerText.includes('Ingredients (2)') && !document.body.innerText.includes('Try again')");
+  await browser.call('Page.removeScriptToEvaluateOnNewDocument', { identifier: previewFailureScript.identifier });
   await browser.fill('input', 'Edited imported recipe');
+  await browser.evaluate(`(() => {
+    const original = window.fetch;
+    let failed = false;
+    window.fetch = async (...args) => {
+      if (!failed && String(args[0]).endsWith('/ImportRawRecipe')) {
+        failed = true;
+        window.__rawSaveFailureInjected = true;
+        return new Response('{}', { status: 503, headers: { 'Content-Type': 'application/json' } });
+      }
+      return original(...args);
+    };
+  })()`);
+  await browser.click('Save to Household');
+  await browser.until("window.__rawSaveFailureInjected && document.body.innerText.includes('Pantry could not import')");
+  assert.equal(await browser.evaluate("document.querySelector('input').value"), 'Edited imported recipe', 'Raw-save failure lost edited title');
+  assert(!browser.responses.some(r => r.path.endsWith('/ImportRecipe')), 'Raw-save failure fell back to the legacy import RPC');
   await browser.click('Save to Household');
   await browser.until("location.pathname==='/household'");
   const [saved] = await rest(key, user.token, `recipes?select=title,source_url,source_type,image_url,instructions,tags,servings,prep_time_minutes,cook_time_minutes,recipe_ingredients(name,quantity,unit,raw_string)&household_id=eq.${household}`);
@@ -47,11 +82,14 @@ try {
   await browser.until("location.pathname==='/household'");
   const persisted = await rest(key, user.token, `recipes?select=title&household_id=eq.${household}`);
   assert.deepEqual(persisted.map(r => r.title).sort(), ['Board after failure', 'Board valid', 'Edited imported recipe']);
-  const calls = browser.responses.filter(r => r.path === '/api/rpc/pantry.v1.RecipeService/ImportRecipe');
+  const calls = browser.responses.filter(r => r.path === '/api/rpc/pantry.v1.RecipeService/ImportRawRecipe');
   assert.equal(calls.length, 3);
   assert(calls.every(r => r.status === 200 && r.contentType === 'application/proto'));
+  assert(browser.responses.some(r => r.path.endsWith('/ParseImportIngredients') && r.status === 200 && r.contentType === 'application/proto'));
+  assert(!browser.responses.some(r => r.path.endsWith('/ImportRecipe')), 'Legacy parsed import RPC remains active');
   assert(!browser.responses.some(r => r.method === 'POST' && ['/rest/v1/recipes', '/rest/v1/recipe_ingredients'].includes(r.path)), 'Direct recipe writes remain');
   assert.deepEqual(browser.errors, []);
   console.log(JSON.stringify({ singleImportMetadata: true, mobileBoardImport: true, storedAndBatchDedup: true,
-    continuesAfterFailure: true, binaryConnectSaves: calls.length, directRecipeWrites: false, uncaughtExceptions: 0 }));
+    continuesAfterFailure: true, previewFailureRetry: true, visibleRawSaveFailure: true,
+    binaryRawConnectSaves: calls.length, legacyImportCalls: 0, directRecipeWrites: false, uncaughtExceptions: 0 }));
 } finally { await browser.close(); }

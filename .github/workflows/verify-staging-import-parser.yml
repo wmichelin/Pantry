@@ -1,0 +1,22 @@
+name: Verify staging Go import parser
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-staging-import-parser
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify household-scoped preview and raw persistence on staging
+        run: node scripts/verify-staging-import-parser.mjs

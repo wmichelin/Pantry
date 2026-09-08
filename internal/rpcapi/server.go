@@ -51,12 +51,16 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 	mux.Handle(pantryv1connect.AisleServiceSaveHouseholdAisleOrderProcedure, aisleOrderHandler)
 	_, importHandler := pantryv1connect.NewRecipeServiceHandler(server, connect.WithReadMaxBytes(MaxImportRequestBytes))
 	mux.Handle(pantryv1connect.RecipeServiceImportRecipeProcedure, importHandler)
+	mux.Handle(pantryv1connect.RecipeServiceImportRawRecipeProcedure, importHandler)
+	mux.Handle(pantryv1connect.RecipeServiceParseImportIngredientsProcedure, importHandler)
 	_, orderHandler := pantryv1connect.NewShoppingServiceHandler(server, connect.WithReadMaxBytes(MaxShoppingOrderRequestBytes))
 	mux.Handle(pantryv1connect.ShoppingServiceSaveShoppingOrderProcedure, orderHandler)
 
 	bounded := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		limit := int64(MaxRequestBytes)
-		if request.URL.Path == pantryv1connect.RecipeServiceImportRecipeProcedure {
+		if request.URL.Path == pantryv1connect.RecipeServiceImportRecipeProcedure ||
+			request.URL.Path == pantryv1connect.RecipeServiceImportRawRecipeProcedure ||
+			request.URL.Path == pantryv1connect.RecipeServiceParseImportIngredientsProcedure {
 			limit = MaxImportRequestBytes
 		}
 		if request.URL.Path == pantryv1connect.ShoppingServiceSaveShoppingOrderProcedure {
@@ -192,35 +196,76 @@ func (server *Server) ImportRecipe(ctx context.Context, request *connect.Request
 			PrepTimeMinutes: metadata.PrepTimeMinutes, CookTimeMinutes: metadata.CookTimeMinutes,
 		}
 	}
-	if request.Msg.ParseRawIngredients {
-		parsed, err := server.service.ParseImportIngredients(ctx, caller, request.Msg.HouseholdId, request.Msg.RawIngredients)
-		if err != nil {
-			return nil, server.serviceError(ctx, "parse imported ingredients", err)
+	for _, ingredient := range request.Msg.Ingredients {
+		if ingredient == nil {
+			recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{})
+			continue
 		}
-		recipe.Ingredients = make([]pantry.RecipeIngredient, len(parsed))
-		for index, ingredient := range parsed {
-			recipe.Ingredients[index] = pantry.RecipeIngredient{
-				Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
-			}
-		}
-	} else {
-		for _, ingredient := range request.Msg.Ingredients {
-			if ingredient == nil {
-				recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{})
-				continue
-			}
-			recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{
-				Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
-			})
-		}
+		recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{
+			Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
+		})
 	}
 	saved, err := server.service.ImportRecipe(ctx, caller, recipe)
 	if err != nil {
 		return nil, server.serviceError(ctx, "import recipe", err)
 	}
-	return connect.NewResponse(&pantryv1.ImportRecipeResponse{Recipe: &pantryv1.SavedRecipe{
-		Id: saved.ID, Title: saved.Title, IngredientCount: int32(saved.IngredientCount),
-	}}), nil
+	return importedRecipeResponse(saved, recipe.Ingredients), nil
+}
+
+func (server *Server) ImportRawRecipe(ctx context.Context, request *connect.Request[pantryv1.ImportRawRecipeRequest]) (*connect.Response[pantryv1.ImportRawRecipeResponse], error) {
+	caller, ok := authn.CallerFromContext(ctx)
+	if !ok {
+		return nil, connectError(connect.CodeUnauthenticated, "unauthenticated", "A valid Pantry session is required.")
+	}
+	parsed, err := server.service.ParseImportIngredients(ctx, caller, request.Msg.HouseholdId, request.Msg.RawIngredients)
+	if err != nil {
+		return nil, server.serviceError(ctx, "parse imported ingredients", err)
+	}
+	recipe := pantry.RecipeSave{
+		HouseholdID: request.Msg.HouseholdId,
+		Title:       request.Msg.Title,
+		Ingredients: make([]pantry.RecipeIngredient, len(parsed)),
+	}
+	if metadata := request.Msg.Metadata; metadata != nil {
+		recipe.Metadata = &pantry.RecipeImportMetadata{
+			SourceURL: metadata.SourceUrl, SourceType: metadata.SourceType,
+			ImageURL: metadata.ImageUrl, Instructions: append([]string{}, metadata.Instructions...),
+			Tags: append([]string{}, metadata.Tags...), Servings: metadata.Servings,
+			PrepTimeMinutes: metadata.PrepTimeMinutes, CookTimeMinutes: metadata.CookTimeMinutes,
+		}
+	}
+	for index, ingredient := range parsed {
+		recipe.Ingredients[index] = pantry.RecipeIngredient{
+			Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
+		}
+	}
+	saved, err := server.service.ImportRecipe(ctx, caller, recipe)
+	if err != nil {
+		return nil, server.serviceError(ctx, "import raw recipe", err)
+	}
+	response := &pantryv1.ImportRawRecipeResponse{
+		Recipe:      &pantryv1.SavedRecipe{Id: saved.ID, Title: saved.Title, IngredientCount: int32(saved.IngredientCount)},
+		Ingredients: importedIngredientsToProto(recipe.Ingredients),
+	}
+	return connect.NewResponse(response), nil
+}
+
+func importedRecipeResponse(saved *pantry.SavedRecipe, ingredients []pantry.RecipeIngredient) *connect.Response[pantryv1.ImportRecipeResponse] {
+	response := &pantryv1.ImportRecipeResponse{
+		Recipe:      &pantryv1.SavedRecipe{Id: saved.ID, Title: saved.Title, IngredientCount: int32(saved.IngredientCount)},
+		Ingredients: importedIngredientsToProto(ingredients),
+	}
+	return connect.NewResponse(response)
+}
+
+func importedIngredientsToProto(ingredients []pantry.RecipeIngredient) []*pantryv1.ImportedRecipeIngredient {
+	response := make([]*pantryv1.ImportedRecipeIngredient, len(ingredients))
+	for index, ingredient := range ingredients {
+		response[index] = &pantryv1.ImportedRecipeIngredient{
+			Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
+		}
+	}
+	return response
 }
 
 func (server *Server) ParseImportIngredients(ctx context.Context, request *connect.Request[pantryv1.ParseImportIngredientsRequest]) (*connect.Response[pantryv1.ParseImportIngredientsResponse], error) {

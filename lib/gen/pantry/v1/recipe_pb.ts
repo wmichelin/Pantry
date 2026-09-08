@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file pantry/v1/recipe.proto.
  */
 export const file_pantry_v1_recipe: GenFile = /*@__PURE__*/
-  fileDesc("ChZwYW50cnkvdjEvcmVjaXBlLnByb3RvEglwYW50cnkudjEiZgoQUmVjaXBlSW5ncmVkaWVudBIMCgRuYW1lGAEgASgJEhUKCHF1YW50aXR5GAIgASgBSACIAQESDAoEdW5pdBgDIAEoCRISCgpyYXdfc3RyaW5nGAQgASgJQgsKCV9xdWFudGl0eSJqChFTYXZlUmVjaXBlUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSDQoFdGl0bGUYAiABKAkSMAoLaW5ncmVkaWVudHMYAyADKAsyGy5wYW50cnkudjEuUmVjaXBlSW5ncmVkaWVudCJCCgtTYXZlZFJlY2lwZRIKCgJpZBgBIAEoCRINCgV0aXRsZRgCIAEoCRIYChBpbmdyZWRpZW50X2NvdW50GAMgASgFIjwKElNhdmVSZWNpcGVSZXNwb25zZRImCgZyZWNpcGUYASABKAsyFi5wYW50cnkudjEuU2F2ZWRSZWNpcGUimQIKFFJlY2lwZUltcG9ydE1ldGFkYXRhEhIKCnNvdXJjZV91cmwYASABKAkSEwoLc291cmNlX3R5cGUYAiABKAkSFgoJaW1hZ2VfdXJsGAMgASgJSACIAQESFAoMaW5zdHJ1Y3Rpb25zGAQgAygJEgwKBHRhZ3MYBSADKAkSFQoIc2VydmluZ3MYBiABKAVIAYgBARIeChFwcmVwX3RpbWVfbWludXRlcxgHIAEoBUgCiAEBEh4KEWNvb2tfdGltZV9taW51dGVzGAggASgFSAOIAQFCDAoKX2ltYWdlX3VybEILCglfc2VydmluZ3NCFAoSX3ByZXBfdGltZV9taW51dGVzQhQKEl9jb29rX3RpbWVfbWludXRlcyLfAQoTSW1wb3J0UmVjaXBlUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSDQoFdGl0bGUYAiABKAkSOAoLaW5ncmVkaWVudHMYAyADKAsyIy5wYW50cnkudjEuSW1wb3J0ZWRSZWNpcGVJbmdyZWRpZW50EjEKCG1ldGFkYXRhGAQgASgLMh8ucGFudHJ5LnYxLlJlY2lwZUltcG9ydE1ldGFkYXRhEhcKD3Jhd19pbmdyZWRpZW50cxgFIAMoCRIdChVwYXJzZV9yYXdfaW5ncmVkaWVudHMYBiABKAgifAoYSW1wb3J0ZWRSZWNpcGVJbmdyZWRpZW50EgwKBG5hbWUYASABKAkSFQoIcXVhbnRpdHkYAiABKAFIAIgBARIRCgR1bml0GAMgASgJSAGIAQESEgoKcmF3X3N0cmluZxgEIAEoCUILCglfcXVhbnRpdHlCBwoFX3VuaXQiTgodUGFyc2VJbXBvcnRJbmdyZWRpZW50c1JlcXVlc3QSFAoMaG91c2Vob2xkX2lkGAEgASgJEhcKD3Jhd19pbmdyZWRpZW50cxgCIAMoCSJaCh5QYXJzZUltcG9ydEluZ3JlZGllbnRzUmVzcG9uc2USOAoLaW5ncmVkaWVudHMYASADKAsyIy5wYW50cnkudjEuSW1wb3J0ZWRSZWNpcGVJbmdyZWRpZW50Ij4KFEltcG9ydFJlY2lwZVJlc3BvbnNlEiYKBnJlY2lwZRgBIAEoCzIWLnBhbnRyeS52MS5TYXZlZFJlY2lwZSIgCg5SZWNpcGVUZXh0TGlzdBIOCgZ2YWx1ZXMYASADKAkiewoNUmVjaXBlU3VtbWFyeRIKCgJpZBgBIAEoCRINCgV0aXRsZRgCIAEoCRInCgR0YWdzGAMgASgLMhkucGFudHJ5LnYxLlJlY2lwZVRleHRMaXN0EhcKCnNvdXJjZV91cmwYBCABKAlIAIgBAUINCgtfc291cmNlX3VybCKgAwoMUmVjaXBlRGV0YWlsEgoKAmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEhQKDGhvdXNlaG9sZF9pZBgDIAEoCRISCgpjcmVhdGVkX2F0GAQgASgJEhMKC3NvdXJjZV90eXBlGAUgASgJEhcKCnNvdXJjZV91cmwYBiABKAlIAIgBARIWCglpbWFnZV91cmwYByABKAlIAYgBARIVCghzZXJ2aW5ncxgIIAEoBUgCiAEBEh4KEXByZXBfdGltZV9taW51dGVzGAkgASgFSAOIAQESHgoRY29va190aW1lX21pbnV0ZXMYCiABKAVIBIgBARIvCgxpbnN0cnVjdGlvbnMYCyABKAsyGS5wYW50cnkudjEuUmVjaXBlVGV4dExpc3QSJwoEdGFncxgMIAEoCzIZLnBhbnRyeS52MS5SZWNpcGVUZXh0TGlzdEINCgtfc291cmNlX3VybEIMCgpfaW1hZ2VfdXJsQgsKCV9zZXJ2aW5nc0IUChJfcHJlcF90aW1lX21pbnV0ZXNCFAoSX2Nvb2tfdGltZV9taW51dGVzInIKFlN0b3JlZFJlY2lwZUluZ3JlZGllbnQSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIVCghxdWFudGl0eRgDIAEoAUgAiAEBEhEKBHVuaXQYBCABKAlIAYgBAUILCglfcXVhbnRpdHlCBwoFX3VuaXQiKgoSTGlzdFJlY2lwZXNSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCSJAChNMaXN0UmVjaXBlc1Jlc3BvbnNlEikKB3JlY2lwZXMYASADKAsyGC5wYW50cnkudjEuUmVjaXBlU3VtbWFyeSIlChBHZXRSZWNpcGVSZXF1ZXN0EhEKCXJlY2lwZV9pZBgBIAEoCSJ0ChFHZXRSZWNpcGVSZXNwb25zZRInCgZyZWNpcGUYASABKAsyFy5wYW50cnkudjEuUmVjaXBlRGV0YWlsEjYKC2luZ3JlZGllbnRzGAIgAygLMiEucGFudHJ5LnYxLlN0b3JlZFJlY2lwZUluZ3JlZGllbnQiRQoeU2VhcmNoUmVjaXBlSW5ncmVkaWVudHNSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCRINCgVxdWVyeRgCIAEoCSI1Ch9TZWFyY2hSZWNpcGVJbmdyZWRpZW50c1Jlc3BvbnNlEhIKCnJlY2lwZV9pZHMYASADKAkiOgoXVXBkYXRlUmVjaXBlVGFnc1JlcXVlc3QSEQoJcmVjaXBlX2lkGAEgASgJEgwKBHRhZ3MYAiADKAkiGgoYVXBkYXRlUmVjaXBlVGFnc1Jlc3BvbnNlIigKE0RlbGV0ZVJlY2lwZVJlcXVlc3QSEQoJcmVjaXBlX2lkGAEgASgJIhYKFERlbGV0ZVJlY2lwZVJlc3BvbnNlMtAFCg1SZWNpcGVTZXJ2aWNlEkkKClNhdmVSZWNpcGUSHC5wYW50cnkudjEuU2F2ZVJlY2lwZVJlcXVlc3QaHS5wYW50cnkudjEuU2F2ZVJlY2lwZVJlc3BvbnNlEm0KFlBhcnNlSW1wb3J0SW5ncmVkaWVudHMSKC5wYW50cnkudjEuUGFyc2VJbXBvcnRJbmdyZWRpZW50c1JlcXVlc3QaKS5wYW50cnkudjEuUGFyc2VJbXBvcnRJbmdyZWRpZW50c1Jlc3BvbnNlEk8KDEltcG9ydFJlY2lwZRIeLnBhbnRyeS52MS5JbXBvcnRSZWNpcGVSZXF1ZXN0Gh8ucGFudHJ5LnYxLkltcG9ydFJlY2lwZVJlc3BvbnNlEkwKC0xpc3RSZWNpcGVzEh0ucGFudHJ5LnYxLkxpc3RSZWNpcGVzUmVxdWVzdBoeLnBhbnRyeS52MS5MaXN0UmVjaXBlc1Jlc3BvbnNlEkYKCUdldFJlY2lwZRIbLnBhbnRyeS52MS5HZXRSZWNpcGVSZXF1ZXN0GhwucGFudHJ5LnYxLkdldFJlY2lwZVJlc3BvbnNlEnAKF1NlYXJjaFJlY2lwZUluZ3JlZGllbnRzEikucGFudHJ5LnYxLlNlYXJjaFJlY2lwZUluZ3JlZGllbnRzUmVxdWVzdBoqLnBhbnRyeS52MS5TZWFyY2hSZWNpcGVJbmdyZWRpZW50c1Jlc3BvbnNlElsKEFVwZGF0ZVJlY2lwZVRhZ3MSIi5wYW50cnkudjEuVXBkYXRlUmVjaXBlVGFnc1JlcXVlc3QaIy5wYW50cnkudjEuVXBkYXRlUmVjaXBlVGFnc1Jlc3BvbnNlEk8KDERlbGV0ZVJlY2lwZRIeLnBhbnRyeS52MS5EZWxldGVSZWNpcGVSZXF1ZXN0Gh8ucGFudHJ5LnYxLkRlbGV0ZVJlY2lwZVJlc3BvbnNlQj1aO2dpdGh1Yi5jb20vd21pY2hlbGluL1BhbnRyeS9pbnRlcm5hbC9nZW4vcGFudHJ5L3YxO3BhbnRyeXYxYgZwcm90bzM");
+  fileDesc("ChZwYW50cnkvdjEvcmVjaXBlLnByb3RvEglwYW50cnkudjEiZgoQUmVjaXBlSW5ncmVkaWVudBIMCgRuYW1lGAEgASgJEhUKCHF1YW50aXR5GAIgASgBSACIAQESDAoEdW5pdBgDIAEoCRISCgpyYXdfc3RyaW5nGAQgASgJQgsKCV9xdWFudGl0eSJqChFTYXZlUmVjaXBlUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSDQoFdGl0bGUYAiABKAkSMAoLaW5ncmVkaWVudHMYAyADKAsyGy5wYW50cnkudjEuUmVjaXBlSW5ncmVkaWVudCJCCgtTYXZlZFJlY2lwZRIKCgJpZBgBIAEoCRINCgV0aXRsZRgCIAEoCRIYChBpbmdyZWRpZW50X2NvdW50GAMgASgFIjwKElNhdmVSZWNpcGVSZXNwb25zZRImCgZyZWNpcGUYASABKAsyFi5wYW50cnkudjEuU2F2ZWRSZWNpcGUimQIKFFJlY2lwZUltcG9ydE1ldGFkYXRhEhIKCnNvdXJjZV91cmwYASABKAkSEwoLc291cmNlX3R5cGUYAiABKAkSFgoJaW1hZ2VfdXJsGAMgASgJSACIAQESFAoMaW5zdHJ1Y3Rpb25zGAQgAygJEgwKBHRhZ3MYBSADKAkSFQoIc2VydmluZ3MYBiABKAVIAYgBARIeChFwcmVwX3RpbWVfbWludXRlcxgHIAEoBUgCiAEBEh4KEWNvb2tfdGltZV9taW51dGVzGAggASgFSAOIAQFCDAoKX2ltYWdlX3VybEILCglfc2VydmluZ3NCFAoSX3ByZXBfdGltZV9taW51dGVzQhQKEl9jb29rX3RpbWVfbWludXRlcyKnAQoTSW1wb3J0UmVjaXBlUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSDQoFdGl0bGUYAiABKAkSOAoLaW5ncmVkaWVudHMYAyADKAsyIy5wYW50cnkudjEuSW1wb3J0ZWRSZWNpcGVJbmdyZWRpZW50EjEKCG1ldGFkYXRhGAQgASgLMh8ucGFudHJ5LnYxLlJlY2lwZUltcG9ydE1ldGFkYXRhInwKGEltcG9ydGVkUmVjaXBlSW5ncmVkaWVudBIMCgRuYW1lGAEgASgJEhUKCHF1YW50aXR5GAIgASgBSACIAQESEQoEdW5pdBgDIAEoCUgBiAEBEhIKCnJhd19zdHJpbmcYBCABKAlCCwoJX3F1YW50aXR5QgcKBV91bml0Ik4KHVBhcnNlSW1wb3J0SW5ncmVkaWVudHNSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCRIXCg9yYXdfaW5ncmVkaWVudHMYAiADKAkiWgoeUGFyc2VJbXBvcnRJbmdyZWRpZW50c1Jlc3BvbnNlEjgKC2luZ3JlZGllbnRzGAEgAygLMiMucGFudHJ5LnYxLkltcG9ydGVkUmVjaXBlSW5ncmVkaWVudCKJAQoWSW1wb3J0UmF3UmVjaXBlUmVxdWVzdBIUCgxob3VzZWhvbGRfaWQYASABKAkSDQoFdGl0bGUYAiABKAkSFwoPcmF3X2luZ3JlZGllbnRzGAMgAygJEjEKCG1ldGFkYXRhGAQgASgLMh8ucGFudHJ5LnYxLlJlY2lwZUltcG9ydE1ldGFkYXRhInsKF0ltcG9ydFJhd1JlY2lwZVJlc3BvbnNlEiYKBnJlY2lwZRgBIAEoCzIWLnBhbnRyeS52MS5TYXZlZFJlY2lwZRI4CgtpbmdyZWRpZW50cxgCIAMoCzIjLnBhbnRyeS52MS5JbXBvcnRlZFJlY2lwZUluZ3JlZGllbnQieAoUSW1wb3J0UmVjaXBlUmVzcG9uc2USJgoGcmVjaXBlGAEgASgLMhYucGFudHJ5LnYxLlNhdmVkUmVjaXBlEjgKC2luZ3JlZGllbnRzGAIgAygLMiMucGFudHJ5LnYxLkltcG9ydGVkUmVjaXBlSW5ncmVkaWVudCIgCg5SZWNpcGVUZXh0TGlzdBIOCgZ2YWx1ZXMYASADKAkiewoNUmVjaXBlU3VtbWFyeRIKCgJpZBgBIAEoCRINCgV0aXRsZRgCIAEoCRInCgR0YWdzGAMgASgLMhkucGFudHJ5LnYxLlJlY2lwZVRleHRMaXN0EhcKCnNvdXJjZV91cmwYBCABKAlIAIgBAUINCgtfc291cmNlX3VybCKgAwoMUmVjaXBlRGV0YWlsEgoKAmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEhQKDGhvdXNlaG9sZF9pZBgDIAEoCRISCgpjcmVhdGVkX2F0GAQgASgJEhMKC3NvdXJjZV90eXBlGAUgASgJEhcKCnNvdXJjZV91cmwYBiABKAlIAIgBARIWCglpbWFnZV91cmwYByABKAlIAYgBARIVCghzZXJ2aW5ncxgIIAEoBUgCiAEBEh4KEXByZXBfdGltZV9taW51dGVzGAkgASgFSAOIAQESHgoRY29va190aW1lX21pbnV0ZXMYCiABKAVIBIgBARIvCgxpbnN0cnVjdGlvbnMYCyABKAsyGS5wYW50cnkudjEuUmVjaXBlVGV4dExpc3QSJwoEdGFncxgMIAEoCzIZLnBhbnRyeS52MS5SZWNpcGVUZXh0TGlzdEINCgtfc291cmNlX3VybEIMCgpfaW1hZ2VfdXJsQgsKCV9zZXJ2aW5nc0IUChJfcHJlcF90aW1lX21pbnV0ZXNCFAoSX2Nvb2tfdGltZV9taW51dGVzInIKFlN0b3JlZFJlY2lwZUluZ3JlZGllbnQSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIVCghxdWFudGl0eRgDIAEoAUgAiAEBEhEKBHVuaXQYBCABKAlIAYgBAUILCglfcXVhbnRpdHlCBwoFX3VuaXQiKgoSTGlzdFJlY2lwZXNSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCSJAChNMaXN0UmVjaXBlc1Jlc3BvbnNlEikKB3JlY2lwZXMYASADKAsyGC5wYW50cnkudjEuUmVjaXBlU3VtbWFyeSIlChBHZXRSZWNpcGVSZXF1ZXN0EhEKCXJlY2lwZV9pZBgBIAEoCSJ0ChFHZXRSZWNpcGVSZXNwb25zZRInCgZyZWNpcGUYASABKAsyFy5wYW50cnkudjEuUmVjaXBlRGV0YWlsEjYKC2luZ3JlZGllbnRzGAIgAygLMiEucGFudHJ5LnYxLlN0b3JlZFJlY2lwZUluZ3JlZGllbnQiRQoeU2VhcmNoUmVjaXBlSW5ncmVkaWVudHNSZXF1ZXN0EhQKDGhvdXNlaG9sZF9pZBgBIAEoCRINCgVxdWVyeRgCIAEoCSI1Ch9TZWFyY2hSZWNpcGVJbmdyZWRpZW50c1Jlc3BvbnNlEhIKCnJlY2lwZV9pZHMYASADKAkiOgoXVXBkYXRlUmVjaXBlVGFnc1JlcXVlc3QSEQoJcmVjaXBlX2lkGAEgASgJEgwKBHRhZ3MYAiADKAkiGgoYVXBkYXRlUmVjaXBlVGFnc1Jlc3BvbnNlIigKE0RlbGV0ZVJlY2lwZVJlcXVlc3QSEQoJcmVjaXBlX2lkGAEgASgJIhYKFERlbGV0ZVJlY2lwZVJlc3BvbnNlMqoGCg1SZWNpcGVTZXJ2aWNlEkkKClNhdmVSZWNpcGUSHC5wYW50cnkudjEuU2F2ZVJlY2lwZVJlcXVlc3QaHS5wYW50cnkudjEuU2F2ZVJlY2lwZVJlc3BvbnNlEm0KFlBhcnNlSW1wb3J0SW5ncmVkaWVudHMSKC5wYW50cnkudjEuUGFyc2VJbXBvcnRJbmdyZWRpZW50c1JlcXVlc3QaKS5wYW50cnkudjEuUGFyc2VJbXBvcnRJbmdyZWRpZW50c1Jlc3BvbnNlEk8KDEltcG9ydFJlY2lwZRIeLnBhbnRyeS52MS5JbXBvcnRSZWNpcGVSZXF1ZXN0Gh8ucGFudHJ5LnYxLkltcG9ydFJlY2lwZVJlc3BvbnNlElgKD0ltcG9ydFJhd1JlY2lwZRIhLnBhbnRyeS52MS5JbXBvcnRSYXdSZWNpcGVSZXF1ZXN0GiIucGFudHJ5LnYxLkltcG9ydFJhd1JlY2lwZVJlc3BvbnNlEkwKC0xpc3RSZWNpcGVzEh0ucGFudHJ5LnYxLkxpc3RSZWNpcGVzUmVxdWVzdBoeLnBhbnRyeS52MS5MaXN0UmVjaXBlc1Jlc3BvbnNlEkYKCUdldFJlY2lwZRIbLnBhbnRyeS52MS5HZXRSZWNpcGVSZXF1ZXN0GhwucGFudHJ5LnYxLkdldFJlY2lwZVJlc3BvbnNlEnAKF1NlYXJjaFJlY2lwZUluZ3JlZGllbnRzEikucGFudHJ5LnYxLlNlYXJjaFJlY2lwZUluZ3JlZGllbnRzUmVxdWVzdBoqLnBhbnRyeS52MS5TZWFyY2hSZWNpcGVJbmdyZWRpZW50c1Jlc3BvbnNlElsKEFVwZGF0ZVJlY2lwZVRhZ3MSIi5wYW50cnkudjEuVXBkYXRlUmVjaXBlVGFnc1JlcXVlc3QaIy5wYW50cnkudjEuVXBkYXRlUmVjaXBlVGFnc1Jlc3BvbnNlEk8KDERlbGV0ZVJlY2lwZRIeLnBhbnRyeS52MS5EZWxldGVSZWNpcGVSZXF1ZXN0Gh8ucGFudHJ5LnYxLkRlbGV0ZVJlY2lwZVJlc3BvbnNlQj1aO2dpdGh1Yi5jb20vd21pY2hlbGluL1BhbnRyeS9pbnRlcm5hbC9nZW4vcGFudHJ5L3YxO3BhbnRyeXYxYgZwcm90bzM");
 
 /**
  * @generated from message pantry.v1.RecipeIngredient
@@ -193,16 +193,6 @@ export type ImportRecipeRequest = Message<"pantry.v1.ImportRecipeRequest"> & {
    * @generated from field: pantry.v1.RecipeImportMetadata metadata = 4;
    */
   metadata?: RecipeImportMetadata | undefined;
-
-  /**
-   * @generated from field: repeated string raw_ingredients = 5;
-   */
-  rawIngredients: string[];
-
-  /**
-   * @generated from field: bool parse_raw_ingredients = 6;
-   */
-  parseRawIngredients: boolean;
 };
 
 /**
@@ -284,6 +274,60 @@ export const ParseImportIngredientsResponseSchema: GenMessage<ParseImportIngredi
   messageDesc(file_pantry_v1_recipe, 8);
 
 /**
+ * @generated from message pantry.v1.ImportRawRecipeRequest
+ */
+export type ImportRawRecipeRequest = Message<"pantry.v1.ImportRawRecipeRequest"> & {
+  /**
+   * @generated from field: string household_id = 1;
+   */
+  householdId: string;
+
+  /**
+   * @generated from field: string title = 2;
+   */
+  title: string;
+
+  /**
+   * @generated from field: repeated string raw_ingredients = 3;
+   */
+  rawIngredients: string[];
+
+  /**
+   * @generated from field: pantry.v1.RecipeImportMetadata metadata = 4;
+   */
+  metadata?: RecipeImportMetadata | undefined;
+};
+
+/**
+ * Describes the message pantry.v1.ImportRawRecipeRequest.
+ * Use `create(ImportRawRecipeRequestSchema)` to create a new message.
+ */
+export const ImportRawRecipeRequestSchema: GenMessage<ImportRawRecipeRequest> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_recipe, 9);
+
+/**
+ * @generated from message pantry.v1.ImportRawRecipeResponse
+ */
+export type ImportRawRecipeResponse = Message<"pantry.v1.ImportRawRecipeResponse"> & {
+  /**
+   * @generated from field: pantry.v1.SavedRecipe recipe = 1;
+   */
+  recipe?: SavedRecipe | undefined;
+
+  /**
+   * @generated from field: repeated pantry.v1.ImportedRecipeIngredient ingredients = 2;
+   */
+  ingredients: ImportedRecipeIngredient[];
+};
+
+/**
+ * Describes the message pantry.v1.ImportRawRecipeResponse.
+ * Use `create(ImportRawRecipeResponseSchema)` to create a new message.
+ */
+export const ImportRawRecipeResponseSchema: GenMessage<ImportRawRecipeResponse> = /*@__PURE__*/
+  messageDesc(file_pantry_v1_recipe, 10);
+
+/**
  * @generated from message pantry.v1.ImportRecipeResponse
  */
 export type ImportRecipeResponse = Message<"pantry.v1.ImportRecipeResponse"> & {
@@ -291,6 +335,11 @@ export type ImportRecipeResponse = Message<"pantry.v1.ImportRecipeResponse"> & {
    * @generated from field: pantry.v1.SavedRecipe recipe = 1;
    */
   recipe?: SavedRecipe | undefined;
+
+  /**
+   * @generated from field: repeated pantry.v1.ImportedRecipeIngredient ingredients = 2;
+   */
+  ingredients: ImportedRecipeIngredient[];
 };
 
 /**
@@ -298,7 +347,7 @@ export type ImportRecipeResponse = Message<"pantry.v1.ImportRecipeResponse"> & {
  * Use `create(ImportRecipeResponseSchema)` to create a new message.
  */
 export const ImportRecipeResponseSchema: GenMessage<ImportRecipeResponse> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 9);
+  messageDesc(file_pantry_v1_recipe, 11);
 
 /**
  * Wrapper preserves database null versus an empty JSON array.
@@ -317,7 +366,7 @@ export type RecipeTextList = Message<"pantry.v1.RecipeTextList"> & {
  * Use `create(RecipeTextListSchema)` to create a new message.
  */
 export const RecipeTextListSchema: GenMessage<RecipeTextList> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 10);
+  messageDesc(file_pantry_v1_recipe, 12);
 
 /**
  * @generated from message pantry.v1.RecipeSummary
@@ -349,7 +398,7 @@ export type RecipeSummary = Message<"pantry.v1.RecipeSummary"> & {
  * Use `create(RecipeSummarySchema)` to create a new message.
  */
 export const RecipeSummarySchema: GenMessage<RecipeSummary> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 11);
+  messageDesc(file_pantry_v1_recipe, 13);
 
 /**
  * @generated from message pantry.v1.RecipeDetail
@@ -421,7 +470,7 @@ export type RecipeDetail = Message<"pantry.v1.RecipeDetail"> & {
  * Use `create(RecipeDetailSchema)` to create a new message.
  */
 export const RecipeDetailSchema: GenMessage<RecipeDetail> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 12);
+  messageDesc(file_pantry_v1_recipe, 14);
 
 /**
  * @generated from message pantry.v1.StoredRecipeIngredient
@@ -453,7 +502,7 @@ export type StoredRecipeIngredient = Message<"pantry.v1.StoredRecipeIngredient">
  * Use `create(StoredRecipeIngredientSchema)` to create a new message.
  */
 export const StoredRecipeIngredientSchema: GenMessage<StoredRecipeIngredient> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 13);
+  messageDesc(file_pantry_v1_recipe, 15);
 
 /**
  * @generated from message pantry.v1.ListRecipesRequest
@@ -470,7 +519,7 @@ export type ListRecipesRequest = Message<"pantry.v1.ListRecipesRequest"> & {
  * Use `create(ListRecipesRequestSchema)` to create a new message.
  */
 export const ListRecipesRequestSchema: GenMessage<ListRecipesRequest> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 14);
+  messageDesc(file_pantry_v1_recipe, 16);
 
 /**
  * @generated from message pantry.v1.ListRecipesResponse
@@ -487,7 +536,7 @@ export type ListRecipesResponse = Message<"pantry.v1.ListRecipesResponse"> & {
  * Use `create(ListRecipesResponseSchema)` to create a new message.
  */
 export const ListRecipesResponseSchema: GenMessage<ListRecipesResponse> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 15);
+  messageDesc(file_pantry_v1_recipe, 17);
 
 /**
  * @generated from message pantry.v1.GetRecipeRequest
@@ -504,7 +553,7 @@ export type GetRecipeRequest = Message<"pantry.v1.GetRecipeRequest"> & {
  * Use `create(GetRecipeRequestSchema)` to create a new message.
  */
 export const GetRecipeRequestSchema: GenMessage<GetRecipeRequest> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 16);
+  messageDesc(file_pantry_v1_recipe, 18);
 
 /**
  * @generated from message pantry.v1.GetRecipeResponse
@@ -526,7 +575,7 @@ export type GetRecipeResponse = Message<"pantry.v1.GetRecipeResponse"> & {
  * Use `create(GetRecipeResponseSchema)` to create a new message.
  */
 export const GetRecipeResponseSchema: GenMessage<GetRecipeResponse> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 17);
+  messageDesc(file_pantry_v1_recipe, 19);
 
 /**
  * @generated from message pantry.v1.SearchRecipeIngredientsRequest
@@ -548,7 +597,7 @@ export type SearchRecipeIngredientsRequest = Message<"pantry.v1.SearchRecipeIngr
  * Use `create(SearchRecipeIngredientsRequestSchema)` to create a new message.
  */
 export const SearchRecipeIngredientsRequestSchema: GenMessage<SearchRecipeIngredientsRequest> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 18);
+  messageDesc(file_pantry_v1_recipe, 20);
 
 /**
  * @generated from message pantry.v1.SearchRecipeIngredientsResponse
@@ -565,7 +614,7 @@ export type SearchRecipeIngredientsResponse = Message<"pantry.v1.SearchRecipeIng
  * Use `create(SearchRecipeIngredientsResponseSchema)` to create a new message.
  */
 export const SearchRecipeIngredientsResponseSchema: GenMessage<SearchRecipeIngredientsResponse> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 19);
+  messageDesc(file_pantry_v1_recipe, 21);
 
 /**
  * @generated from message pantry.v1.UpdateRecipeTagsRequest
@@ -587,7 +636,7 @@ export type UpdateRecipeTagsRequest = Message<"pantry.v1.UpdateRecipeTagsRequest
  * Use `create(UpdateRecipeTagsRequestSchema)` to create a new message.
  */
 export const UpdateRecipeTagsRequestSchema: GenMessage<UpdateRecipeTagsRequest> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 20);
+  messageDesc(file_pantry_v1_recipe, 22);
 
 /**
  * @generated from message pantry.v1.UpdateRecipeTagsResponse
@@ -600,7 +649,7 @@ export type UpdateRecipeTagsResponse = Message<"pantry.v1.UpdateRecipeTagsRespon
  * Use `create(UpdateRecipeTagsResponseSchema)` to create a new message.
  */
 export const UpdateRecipeTagsResponseSchema: GenMessage<UpdateRecipeTagsResponse> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 21);
+  messageDesc(file_pantry_v1_recipe, 23);
 
 /**
  * @generated from message pantry.v1.DeleteRecipeRequest
@@ -617,7 +666,7 @@ export type DeleteRecipeRequest = Message<"pantry.v1.DeleteRecipeRequest"> & {
  * Use `create(DeleteRecipeRequestSchema)` to create a new message.
  */
 export const DeleteRecipeRequestSchema: GenMessage<DeleteRecipeRequest> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 22);
+  messageDesc(file_pantry_v1_recipe, 24);
 
 /**
  * @generated from message pantry.v1.DeleteRecipeResponse
@@ -630,7 +679,7 @@ export type DeleteRecipeResponse = Message<"pantry.v1.DeleteRecipeResponse"> & {
  * Use `create(DeleteRecipeResponseSchema)` to create a new message.
  */
 export const DeleteRecipeResponseSchema: GenMessage<DeleteRecipeResponse> = /*@__PURE__*/
-  messageDesc(file_pantry_v1_recipe, 23);
+  messageDesc(file_pantry_v1_recipe, 25);
 
 /**
  * @generated from service pantry.v1.RecipeService
@@ -659,6 +708,14 @@ export const RecipeService: GenService<{
     methodKind: "unary";
     input: typeof ImportRecipeRequestSchema;
     output: typeof ImportRecipeResponseSchema;
+  },
+  /**
+   * @generated from rpc pantry.v1.RecipeService.ImportRawRecipe
+   */
+  importRawRecipe: {
+    methodKind: "unary";
+    input: typeof ImportRawRecipeRequestSchema;
+    output: typeof ImportRawRecipeResponseSchema;
   },
   /**
    * @generated from rpc pantry.v1.RecipeService.ListRecipes

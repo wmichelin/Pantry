@@ -18,6 +18,10 @@ type MembershipReader interface {
 	FindMembership(context.Context, string, string) (*Membership, error)
 }
 
+type HouseholdMembershipChecker interface {
+	HasHouseholdMembership(context.Context, string, string, string) (bool, error)
+}
+
 type HouseholdCreator interface {
 	CreateHousehold(context.Context, string, string, string) (*CreatedHousehold, error)
 }
@@ -118,6 +122,7 @@ func (err *Error) Unwrap() error {
 type Service struct {
 	households        HouseholdReader
 	memberships       MembershipReader
+	membershipChecker HouseholdMembershipChecker
 	creator           HouseholdCreator
 	joiner            HouseholdJoiner
 	recipes           RecipeSaver
@@ -157,6 +162,9 @@ func NewService(households HouseholdReader, memberships MembershipReader, creato
 		creator:     creator,
 		joiner:      joiner,
 		recipes:     recipes,
+	}
+	if checker, ok := memberships.(HouseholdMembershipChecker); ok {
+		service.membershipChecker = checker
 	}
 	for _, option := range options {
 		option(service)
@@ -236,11 +244,14 @@ func (service *Service) ParseImportIngredients(ctx context.Context, caller authn
 	if strings.TrimSpace(householdID) == "" {
 		return nil, invalid("A household is required.")
 	}
-	membership, err := service.memberships.FindMembership(ctx, caller.Principal.Subject, caller.AccessToken)
+	if service.membershipChecker == nil {
+		return nil, unavailable("Pantry could not verify your household right now.", errors.New("household membership checker not configured"))
+	}
+	found, err := service.membershipChecker.HasHouseholdMembership(ctx, caller.Principal.Subject, householdID, caller.AccessToken)
 	if err != nil {
 		return nil, unavailable("Pantry could not verify your household right now.", err)
 	}
-	if membership == nil || membership.HouseholdID != householdID {
+	if !found {
 		return nil, &Error{Kind: ErrorNotFound, Code: "household_not_found", Message: "Household not found."}
 	}
 	return ParseIngredients(raws), nil

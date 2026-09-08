@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { ImportRecipeRequestSchema, ImportRecipeResponseSchema } from "../gen/pantry/v1/recipe_pb";
-import { importRecipe, stagingRecipeImportAPIOrigin, type RecipeImport } from "../pantry-api";
+import { ImportRawRecipeRequestSchema, ImportRawRecipeResponseSchema, ImportRecipeRequestSchema, ImportRecipeResponseSchema, ParseImportIngredientsRequestSchema, ParseImportIngredientsResponseSchema } from "../gen/pantry/v1/recipe_pb";
+import { importRecipe, parseImportIngredients, stagingImportParserAPIOrigin, stagingRecipeImportAPIOrigin, type RecipeImport } from "../pantry-api";
 import { importedRecipeInput, saveImportedBoard, saveImportedRecipe } from "../recipe-import";
 
 const fixture = (): RecipeImport => importedRecipeInput("h", {
@@ -12,6 +12,21 @@ const fixture = (): RecipeImport => importedRecipeInput("h", {
 
 describe("recipe import transport", () => {
   it("stays off until explicitly enabled", () => expect(stagingRecipeImportAPIOrigin()).toBeNull());
+  it("keeps the parser off by default and fails closed when enabled without a valid import API", () => {
+    expect(stagingImportParserAPIOrigin()).toBeNull();
+    for (const config of [
+      { EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS: "", EXPO_PUBLIC_PANTRY_API_URL: "https://example.com" },
+      { EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS: "enabled", EXPO_PUBLIC_PANTRY_API_URL: "" },
+      { EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS: "enabled", EXPO_PUBLIC_PANTRY_API_URL: "http://example.com" },
+    ]) {
+      const child = Bun.spawnSync([
+        process.execPath,
+        "-e",
+        "import {stagingImportParserAPIOrigin as origin} from './lib/pantry-api.ts'; try { origin(); process.exit(1); } catch { process.exit(0); }",
+      ], { env: { ...process.env, EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER: "enabled", ...config } });
+      expect(child.exitCode).toBe(0);
+    }
+  });
   it("preserves metadata, edited title/tags, order and null/zero through binary Connect", async () => {
     const input = fixture();
     let decoded: ReturnType<typeof fromBinary<typeof ImportRecipeRequestSchema>> | undefined;
@@ -20,7 +35,7 @@ describe("recipe import transport", () => {
       expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-token");
       expect(new Headers(init?.headers).get("Content-Type")).toBe("application/proto");
       decoded = fromBinary(ImportRecipeRequestSchema, new Uint8Array(await new Response(init?.body).arrayBuffer()));
-      return new Response(toBinary(ImportRecipeResponseSchema, create(ImportRecipeResponseSchema, {
+      return new Response(toBinary(ImportRawRecipeResponseSchema, create(ImportRawRecipeResponseSchema, {
         recipe: { id: "r", title: "Edited", ingredientCount: 2 },
       })), { headers: { "Content-Type": "application/proto" } });
     });
@@ -41,7 +56,39 @@ describe("recipe import transport", () => {
   it("returns a safe error for proxy failures", async () => {
     await expect(importRecipe("https://example.com", "token", fixture(), async () => new Response("private proxy details", { status: 502 }))).rejects.toThrow("Pantry could not import");
   });
+  it("uses the household-scoped Go parser for preview and raw persistence", async () => {
+    const parsed = [{ name: "salt", rawString: "Salt" }, { name: "water", quantity: 0, unit: "cups", rawString: "0 cups Water" }];
+    const preview = await parseImportIngredients("https://example.com", "token", "h", ["Salt", "0 cups Water"], async (url, init) => {
+      expect(String(url)).toEndWith("/ParseImportIngredients");
+      const request = fromBinary(ParseImportIngredientsRequestSchema, new Uint8Array(await new Response(init?.body).arrayBuffer()));
+      expect(request).toMatchObject({ householdId: "h", rawIngredients: ["Salt", "0 cups Water"] });
+      return new Response(toBinary(ParseImportIngredientsResponseSchema, create(ParseImportIngredientsResponseSchema, { ingredients: parsed })), { headers: { "Content-Type": "application/proto" } });
+    });
+    expect(preview).toEqual([
+      { name: "salt", quantity: null, unit: null, raw_string: "Salt" },
+      { name: "water", quantity: 0, unit: "cups", raw_string: "0 cups Water" },
+    ]);
+
+    const input = importedRecipeInput("h", { ...fixtureSource(), raw_ingredients: ["Salt", "0 cups Water"] }, "Edited", ["chosen"], true);
+    let request: ReturnType<typeof fromBinary<typeof ImportRawRecipeRequestSchema>> | undefined;
+    const saved = await importRecipe("https://example.com", "token", input, async (url, init) => {
+      expect(String(url)).toEndWith("/ImportRawRecipe");
+      request = fromBinary(ImportRawRecipeRequestSchema, new Uint8Array(await new Response(init?.body).arrayBuffer()));
+      return new Response(toBinary(ImportRecipeResponseSchema, create(ImportRecipeResponseSchema, {
+        recipe: { id: "r", title: "Edited", ingredientCount: 2 }, ingredients: parsed,
+      })), { headers: { "Content-Type": "application/proto" } });
+    });
+    expect(request).toMatchObject({ rawIngredients: ["Salt", "0 cups Water"] });
+    expect(saved.ingredients).toEqual(preview);
+  });
 });
+
+function fixtureSource() {
+  return {
+    title: "Original", source_url: "https://example.com/r", source_type: "pinterest_pin" as const,
+    image_url: "", instructions: ["Step"], suggested_tags: ["unused"], raw_ingredients: ["salt"],
+  };
+}
 
 describe("import orchestration", () => {
   it("keeps a saved recipe successful when catalog enrichment fails", async () => {
@@ -51,6 +98,24 @@ describe("import orchestration", () => {
       ensureCatalog: async () => { throw new Error("offline"); }, catalogWarning: () => { warned++; },
     })).resolves.toMatchObject({ id: "r" });
     expect(warned).toBe(2);
+  });
+  it("enriches from authoritative Go-parsed ingredients for raw imports", async () => {
+    const names: string[] = [];
+    const input = importedRecipeInput("h", { ...fixtureSource(), raw_ingredients: ["Salt and Pepper"] }, "Edited", [], true);
+    const saved = await saveImportedRecipe(input, {
+      save: async () => ({
+        id: "r", title: "Edited", ingredient_count: 2,
+        ingredients: [
+          { name: "salt", quantity: null, unit: null, raw_string: "Salt" },
+          { name: "pepper", quantity: null, unit: null, raw_string: "Pepper" },
+        ],
+      }),
+      ensureCatalog: async (name) => { names.push(name); },
+      catalogWarning: () => {},
+    });
+    expect(input.ingredients).toEqual([]);
+    expect(names).toEqual(["salt", "pepper"]);
+    expect(saved.ingredient_count).toBe(2);
   });
   it("preserves empty ingredients for single imports", () => {
     const input = importedRecipeInput("h", { title: "Empty", source_url: "", source_type: "url", instructions: [], raw_ingredients: [], suggested_tags: [] }, "Empty", []);

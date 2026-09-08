@@ -46,10 +46,13 @@
     ]
   },
   {
-    "raw": ["İ AND SUGAR", "ΟΣ and SALT"],
+    "raw": ["İ AND SUGAR", "ΟΣ and SALT", "Α.Σ", "salt and pepper\rcumin", "salt and pepper cumin"],
     "parsed": [
       {"quantity": null, "unit": null, "name": "i̇ and sugar", "raw_string": "İ AND SUGAR"},
-      {"quantity": null, "unit": null, "name": "ος and salt", "raw_string": "ΟΣ and SALT"}
+      {"quantity": null, "unit": null, "name": "ος and salt", "raw_string": "ΟΣ and SALT"},
+      {"quantity": null, "unit": null, "name": "α.ς", "raw_string": "Α.Σ"},
+      {"quantity": null, "unit": null, "name": "salt and pepper\rcumin", "raw_string": "salt and pepper\rcumin"},
+      {"quantity": null, "unit": null, "name": "salt and pepper cumin", "raw_string": "salt and pepper cumin"}
     ]
   }
 ]

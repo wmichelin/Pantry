@@ -23,7 +23,8 @@ export type Household = {
 export type CreatedHousehold = { id: string; name: string; invite_code: string };
 export type JoinedHousehold = { id: string; name: string; already_member: boolean };
 export type RecipeSaveIngredient = { name: string; quantity: number | null; unit: string; raw_string: string };
-export type SavedRecipe = { id: string; title: string; ingredient_count: number };
+export type ParsedImportIngredient = Omit<RecipeSaveIngredient, "unit"> & { unit: string | null };
+export type SavedRecipe = { id: string; title: string; ingredient_count: number; ingredients?: ParsedImportIngredient[] };
 export type RecipeImportMetadata = {
   source_url: string;
   source_type: "url" | "pinterest_pin";
@@ -34,7 +35,14 @@ export type RecipeImportMetadata = {
   prep_time_minutes?: number;
   cook_time_minutes?: number;
 };
-export type RecipeImport = { household_id: string; title: string; ingredients: (Omit<RecipeSaveIngredient, "unit"> & { unit: string | null })[]; metadata: RecipeImportMetadata };
+export type RecipeImport = {
+  household_id: string;
+  title: string;
+  ingredients: ParsedImportIngredient[];
+  metadata: RecipeImportMetadata;
+  raw_ingredients?: string[];
+  parse_raw_ingredients?: boolean;
+};
 export type PantryAPITransport = "rest" | "connect";
 
 type APIProblem = { message?: unknown };
@@ -45,6 +53,7 @@ const configuredTransport: PantryAPITransport =
   process.env.EXPO_PUBLIC_PANTRY_API_TRANSPORT?.trim() === "connect" ? "connect" : "rest";
 const recipeAPIWritesEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES?.trim() === "enabled";
 const recipeAPIImportsEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS?.trim() === "enabled";
+const importParserEnabled = process.env.EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER?.trim() === "enabled";
 const defaultFetch: Fetch = (input, init) => globalThis.fetch(input, init);
 
 // Both settings are intentionally opt-in so production remains on its
@@ -73,6 +82,15 @@ export function stagingRecipeImportAPIOrigin(): string | null {
   return recipeAPIImportsEnabled ? stagingAPIOrigin() : null;
 }
 
+export function stagingImportParserAPIOrigin(): string | null {
+  if (!importParserEnabled) return null;
+  const origin = stagingAPIOrigin();
+  if (!recipeAPIImportsEnabled || !origin) {
+    throw new Error("Pantry import parser is enabled but its recipe import API is unavailable.");
+  }
+  return origin;
+}
+
 // New capabilities use Connect; legacy REST endpoints remain unchanged.
 export async function importRecipe(apiURL: string, accessToken: string, input: RecipeImport, fetcher: Fetch = defaultFetch): Promise<SavedRecipe> {
   for (const value of [input.metadata.servings, input.metadata.prep_time_minutes, input.metadata.cook_time_minutes]) {
@@ -81,6 +99,10 @@ export async function importRecipe(apiURL: string, accessToken: string, input: R
     }
   }
   return createConnectClient(apiURL, accessToken, fetcher).importRecipe(input);
+}
+
+export async function parseImportIngredients(apiURL: string, accessToken: string, householdID: string, raws: string[], fetcher: Fetch = defaultFetch): Promise<ParsedImportIngredient[]> {
+  return createConnectClient(apiURL, accessToken, fetcher).parseImportIngredients(householdID, raws);
 }
 
 export function createPantryAPIClient(
@@ -133,24 +155,49 @@ function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch
     async importRecipe(input: RecipeImport): Promise<SavedRecipe> {
       try {
         const metadata = input.metadata;
-        const recipe = (await recipes.importRecipe({
-          householdId: input.household_id, title: input.title,
-          ingredients: input.ingredients.map((ingredient) => ({
-            name: ingredient.name, quantity: ingredient.quantity ?? undefined,
-            unit: ingredient.unit ?? undefined, rawString: ingredient.raw_string,
-          })),
-          metadata: {
-            sourceUrl: metadata.source_url, sourceType: metadata.source_type,
-            imageUrl: metadata.image_url, instructions: metadata.instructions,
-            tags: metadata.tags, servings: metadata.servings,
-            prepTimeMinutes: metadata.prep_time_minutes, cookTimeMinutes: metadata.cook_time_minutes,
-          },
-        })).recipe;
+        const wireMetadata = {
+          sourceUrl: metadata.source_url, sourceType: metadata.source_type,
+          imageUrl: metadata.image_url, instructions: metadata.instructions,
+          tags: metadata.tags, servings: metadata.servings,
+          prepTimeMinutes: metadata.prep_time_minutes, cookTimeMinutes: metadata.cook_time_minutes,
+        };
+        const response = input.parse_raw_ingredients
+          ? await recipes.importRawRecipe({
+            householdId: input.household_id,
+            title: input.title,
+            rawIngredients: input.raw_ingredients ?? [],
+            metadata: wireMetadata,
+          })
+          : await recipes.importRecipe({
+            householdId: input.household_id,
+            title: input.title,
+            ingredients: input.ingredients.map((ingredient) => ({
+              name: ingredient.name, quantity: ingredient.quantity ?? undefined,
+              unit: ingredient.unit ?? undefined, rawString: ingredient.raw_string,
+            })),
+            metadata: wireMetadata,
+          });
+        const recipe = response.recipe;
         if (!recipe) throw new Error("Pantry returned an invalid recipe response.");
-        return { id: recipe.id, title: recipe.title, ingredient_count: recipe.ingredientCount };
+        return {
+          id: recipe.id,
+          title: recipe.title,
+          ingredient_count: recipe.ingredientCount,
+          ...(response.ingredients.length > 0
+            ? { ingredients: response.ingredients.map(importIngredientFromProto) }
+            : {}),
+        };
       } catch (error) {
         if (isInvalidResponse(error, "recipe")) throw error;
         throw safeConnectError(error, "Pantry could not import the recipe right now.");
+      }
+    },
+    async parseImportIngredients(householdID: string, raws: string[]): Promise<ParsedImportIngredient[]> {
+      try {
+        const response = await recipes.parseImportIngredients({ householdId: householdID, rawIngredients: raws });
+        return response.ingredients.map(importIngredientFromProto);
+      } catch (error) {
+        throw safeConnectError(error, "Pantry could not parse the recipe ingredients right now.");
       }
     },
     async whoAmI(): Promise<string> {
@@ -232,6 +279,15 @@ function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch
         throw safeConnectError(error, "Pantry could not save the recipe right now.");
       }
     },
+  };
+}
+
+function importIngredientFromProto(ingredient: { name: string; quantity?: number; unit?: string; rawString: string }): ParsedImportIngredient {
+  return {
+    name: ingredient.name,
+    quantity: ingredient.quantity ?? null,
+    unit: ingredient.unit ?? null,
+    raw_string: ingredient.rawString,
   };
 }
 

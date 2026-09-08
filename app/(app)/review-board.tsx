@@ -18,7 +18,7 @@ import { parseIngredients } from "../../lib/parse-ingredient";
 import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
-import { importRecipe, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
+import { importRecipe, stagingImportParserAPIOrigin, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
 import { importedRecipeInput, saveImportedBoard } from "../../lib/recipe-import";
 import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../lib/recipe-api";
 import { SavedNotice, catalogSavedWarning } from "../../components/SavedNotice";
@@ -77,8 +77,9 @@ export default function ReviewBoardScreen() {
     if (apiURL) {
       try {
         if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        const parseInGo = stagingImportParserAPIOrigin() !== null;
         const inputs = recipes.flatMap((recipe, index) => selected.has(index)
-          ? [importedRecipeInput(householdId!, recipe, recipe.title, tagSelections[index] ?? recipe.suggested_tags)] : []);
+          ? [importedRecipeInput(householdId!, recipe, recipe.title, tagSelections[index] ?? recipe.suggested_tags, parseInGo)] : []);
         const result = await saveImportedBoard(inputs, {
           save: (input) => importRecipe(apiURL, session.access_token, input),
           ensureCatalog: (name) => ensureCatalogIngredient(householdId!, name),

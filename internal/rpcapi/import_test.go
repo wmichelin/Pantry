@@ -102,7 +102,7 @@ func TestImportRecipePreservesMetadataAndBounds(t *testing.T) {
 func TestParseImportIngredientsAndRawPersistenceUseSameHouseholdScopedParser(t *testing.T) {
 	backend := &backendStub{
 		membership: &pantry.Membership{HouseholdID: "household-1"},
-		saved:      &pantry.SavedRecipe{ID: "recipe-1", Title: "Imported", IngredientCount: 2},
+		saved:      &pantry.SavedRecipe{ID: "recipe-1", Title: "Imported", IngredientCount: 3},
 	}
 	server := newServer(t, backend)
 	client := pantryv1connect.NewRecipeServiceClient(http.DefaultClient, server.URL+api.RPCPrefix)
@@ -117,13 +117,13 @@ func TestParseImportIngredientsAndRawPersistenceUseSameHouseholdScopedParser(t *
 		t.Fatalf("preview ingredients = %d, want 3", len(preview.Msg.Ingredients))
 	}
 
-	request := connect.NewRequest(&pantryv1.ImportRecipeRequest{
-		HouseholdId: "household-1", Title: "Imported", RawIngredients: raws, ParseRawIngredients: true,
-		Ingredients: []*pantryv1.ImportedRecipeIngredient{{Name: "client value must be ignored"}},
-		Metadata:    &pantryv1.RecipeImportMetadata{SourceUrl: "https://example.com", SourceType: "url"},
+	request := connect.NewRequest(&pantryv1.ImportRawRecipeRequest{
+		HouseholdId: "household-1", Title: "Imported", RawIngredients: raws,
+		Metadata: &pantryv1.RecipeImportMetadata{SourceUrl: "https://example.com", SourceType: "url"},
 	})
 	request.Header().Set("Authorization", "Bearer verified-user-token")
-	if _, err := client.ImportRecipe(context.Background(), request); err != nil {
+	response, err := client.ImportRawRecipe(context.Background(), request)
+	if err != nil {
 		t.Fatal(err)
 	}
 	stored := backend.recipes[0].Ingredients
@@ -136,10 +136,76 @@ func TestParseImportIngredientsAndRawPersistenceUseSameHouseholdScopedParser(t *
 			t.Fatalf("ingredient %d mismatch (-preview +stored):\n%s", index, diff)
 		}
 	}
+	if response.Msg.Recipe == nil || response.Msg.Recipe.IngredientCount != int32(len(response.Msg.Ingredients)) {
+		t.Fatalf("raw import count/ingredients mismatch: %#v", response.Msg)
+	}
 
 	foreign := connect.NewRequest(&pantryv1.ParseImportIngredientsRequest{HouseholdId: "household-2", RawIngredients: raws})
 	foreign.Header().Set("Authorization", "Bearer verified-user-token")
 	if _, err := client.ParseImportIngredients(context.Background(), foreign); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("foreign household code = %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+	}
+	foreignImport := connect.NewRequest(&pantryv1.ImportRawRecipeRequest{HouseholdId: "household-2", Title: "No", RawIngredients: raws, Metadata: request.Msg.Metadata})
+	foreignImport.Header().Set("Authorization", "Bearer verified-user-token")
+	if _, err := client.ImportRawRecipe(context.Background(), foreignImport); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("foreign raw import code = %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+	}
+	if len(backend.recipes) != 1 {
+		t.Fatalf("foreign raw import reached persistence: %d calls", len(backend.recipes))
+	}
+}
+
+func TestImportParserMembershipFailureAndPayloadBounds(t *testing.T) {
+	failedMembership := &backendStub{
+		membership: &pantry.Membership{HouseholdID: "household-1"},
+		saved:      &pantry.SavedRecipe{ID: "recipe", Title: "Recipe"},
+		err:        errors.New("private membership failure"),
+	}
+	failedServer := newServer(t, failedMembership)
+	failedClient := pantryv1connect.NewRecipeServiceClient(http.DefaultClient, failedServer.URL+api.RPCPrefix)
+	failedRequest := connect.NewRequest(&pantryv1.ParseImportIngredientsRequest{HouseholdId: "household-1", RawIngredients: []string{"salt"}})
+	failedRequest.Header().Set("Authorization", "Bearer verified-user-token")
+	if _, err := failedClient.ParseImportIngredients(context.Background(), failedRequest); connect.CodeOf(err) != connect.CodeUnavailable || strings.Contains(err.Error(), "private membership") {
+		t.Fatalf("membership failure = %v", err)
+	}
+	if len(failedMembership.recipes) != 0 {
+		t.Fatal("membership failure reached persistence")
+	}
+
+	longRaw := strings.Repeat("x", 20<<10)
+	backend := &backendStub{membership: &pantry.Membership{HouseholdID: "household-1"}, saved: &pantry.SavedRecipe{ID: "recipe", Title: "Recipe", IngredientCount: 1}}
+	server := newServer(t, backend)
+	client := pantryv1connect.NewRecipeServiceClient(http.DefaultClient, server.URL+api.RPCPrefix)
+	preview := connect.NewRequest(&pantryv1.ParseImportIngredientsRequest{HouseholdId: "household-1", RawIngredients: []string{longRaw}})
+	preview.Header().Set("Authorization", "Bearer verified-user-token")
+	if response, err := client.ParseImportIngredients(context.Background(), preview); err != nil || len(response.Msg.Ingredients) != 1 || response.Msg.Ingredients[0].RawString != longRaw {
+		t.Fatalf("long preview = %#v, %v", response, err)
+	}
+	rawImport := connect.NewRequest(&pantryv1.ImportRawRecipeRequest{
+		HouseholdId: "household-1", Title: "Recipe", RawIngredients: []string{longRaw},
+		Metadata: &pantryv1.RecipeImportMetadata{SourceUrl: "https://example.com", SourceType: "url"},
+	})
+	rawImport.Header().Set("Authorization", "Bearer verified-user-token")
+	if _, err := client.ImportRawRecipe(context.Background(), rawImport); err != nil {
+		t.Fatalf("long raw import: %v", err)
+	}
+	backend.saved.IngredientCount = 0
+	filtered := connect.NewRequest(&pantryv1.ImportRawRecipeRequest{
+		HouseholdId: "household-1", Title: "Filtered", RawIngredients: []string{"For Sauce:", "for serving garnish"},
+		Metadata: &pantryv1.RecipeImportMetadata{SourceUrl: "https://example.com/filtered", SourceType: "url"},
+	})
+	filtered.Header().Set("Authorization", "Bearer verified-user-token")
+	filteredResponse, err := client.ImportRawRecipe(context.Background(), filtered)
+	if err != nil || filteredResponse.Msg.Recipe == nil || filteredResponse.Msg.Recipe.IngredientCount != 0 || len(filteredResponse.Msg.Ingredients) != 0 {
+		t.Fatalf("filtered raw import = %#v, %v", filteredResponse, err)
+	}
+
+	oversized := connect.NewRequest(&pantryv1.ParseImportIngredientsRequest{HouseholdId: "household-1", RawIngredients: []string{strings.Repeat("x", 300<<10)}})
+	oversized.Header().Set("Authorization", "Bearer verified-user-token")
+	if _, err := client.ParseImportIngredients(context.Background(), oversized); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("oversized preview code = %v, want %v", connect.CodeOf(err), connect.CodeResourceExhausted)
+	}
+	if len(backend.recipes) != 2 {
+		t.Fatalf("oversized preview reached persistence: %d calls", len(backend.recipes))
 	}
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import { parseIngredients } from "../../lib/parse-ingredient";
 import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
-import { importRecipe, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
+import { importRecipe, parseImportIngredients, stagingImportParserAPIOrigin, stagingRecipeImportAPIOrigin, type ParsedImportIngredient } from "../../lib/pantry-api";
 import { importedRecipeInput, saveImportedRecipe } from "../../lib/recipe-import";
 import { SavedNotice, catalogSavedWarning } from "../../components/SavedNotice";
 
@@ -29,29 +29,59 @@ export default function ReviewRecipeScreen() {
   const { user, session } = useAuth();
   const router = useRouter();
 
-  const scraped: ScrapedRecipe = JSON.parse(recipeJson);
+  const scraped: ScrapedRecipe = useMemo(() => JSON.parse(recipeJson), [recipeJson]);
   const [title, setTitle] = useState(scraped.title);
   const [selectedTags, setSelectedTags] = useState<string[]>(scraped.suggested_tags);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const parserURL = stagingImportParserAPIOrigin();
+  const legacyParsedIngredients = useMemo(() => parseIngredients(scraped.raw_ingredients), [scraped]);
+  const [parsedIngredients, setParsedIngredients] = useState<ParsedImportIngredient[]>(
+    parserURL ? [] : legacyParsedIngredients
+  );
+  const [parsing, setParsing] = useState(parserURL !== null);
+  const [parseError, setParseError] = useState("");
+  const [parseAttempt, setParseAttempt] = useState(0);
   const finish = () => router.replace({ pathname: "/(app)/household", params: { id: householdId } });
 
-  const parsedIngredients = parseIngredients(scraped.raw_ingredients);
+  useEffect(() => {
+    if (!parserURL) {
+      setParsedIngredients(legacyParsedIngredients);
+      setParsing(false);
+      setParseError("");
+      return;
+    }
+    let active = true;
+    setParsing(true);
+    setParseError("");
+    if (!session?.access_token) {
+      setParsing(false);
+      setParseError("A valid Pantry session is required.");
+      return;
+    }
+    parseImportIngredients(parserURL, session.access_token, householdId!, scraped.raw_ingredients)
+      .then((ingredients) => { if (active) setParsedIngredients(ingredients); })
+      .catch((error) => { if (active) setParseError(error instanceof Error ? error.message : "Could not parse ingredients."); })
+      .finally(() => { if (active) setParsing(false); });
+    return () => { active = false; };
+  }, [householdId, legacyParsedIngredients, parseAttempt, parserURL, scraped.raw_ingredients, session?.access_token]);
 
   const handleSave = async () => {
-    if (saving || savedNotice) return;
+    if (saving || parsing || parseError || savedNotice) return;
     let catalogFailed = false;
     if (!title.trim()) {
       Alert.alert("Missing title", "Give this recipe a name.");
       return;
     }
     setSaving(true);
+    setSaveError("");
 
     const apiURL = stagingRecipeImportAPIOrigin();
     if (apiURL) {
       try {
         if (!session?.access_token) throw new Error("A valid Pantry session is required.");
-        await saveImportedRecipe(importedRecipeInput(householdId!, scraped, title.trim(), selectedTags), {
+        await saveImportedRecipe(importedRecipeInput(householdId!, scraped, title.trim(), selectedTags, parserURL !== null), {
           save: (input) => importRecipe(apiURL, session.access_token, input),
           ensureCatalog: (name) => ensureCatalogIngredient(householdId!, name),
           catalogWarning: () => { catalogFailed = true; },
@@ -59,7 +89,7 @@ export default function ReviewRecipeScreen() {
         if (catalogFailed) setSavedNotice(catalogSavedWarning);
         else finish();
       } catch (error) {
-        Alert.alert("Couldn't save recipe", error instanceof Error ? error.message : "Could not import recipe.");
+        setSaveError(error instanceof Error ? error.message : "Could not import recipe.");
       } finally {
         setSaving(false);
       }
@@ -139,6 +169,7 @@ export default function ReviewRecipeScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <SavedNotice message={savedNotice} onContinue={finish} />
+      {!!saveError && <Text style={styles.error}>{saveError}</Text>}
       {scraped.image_url && (
         <Image source={{ uri: scraped.image_url }} style={styles.image} />
       )}
@@ -174,7 +205,16 @@ export default function ReviewRecipeScreen() {
       <Text style={styles.label}>
         Ingredients ({parsedIngredients.length})
       </Text>
-      {parsedIngredients.length === 0 ? (
+      {parsing ? (
+        <ActivityIndicator color="#2f95dc" />
+      ) : parseError ? (
+        <View>
+          <Text style={styles.error}>{parseError}</Text>
+          <Pressable onPress={() => setParseAttempt((attempt) => attempt + 1)}>
+            <Text style={styles.retry}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : parsedIngredients.length === 0 ? (
         <Text style={styles.empty}>No ingredients found.</Text>
       ) : (
         parsedIngredients.map((ing, i) => (
@@ -187,9 +227,9 @@ export default function ReviewRecipeScreen() {
 
       <View style={styles.actions}>
         <Pressable
-          style={[styles.saveButton, saving && styles.buttonDisabled]}
+          style={[styles.saveButton, (saving || parsing || !!parseError) && styles.buttonDisabled]}
           onPress={handleSave}
-          disabled={saving}
+          disabled={saving || parsing || !!parseError}
         >
           {saving ? (
             <ActivityIndicator color="#fff" />
@@ -233,6 +273,8 @@ const styles = StyleSheet.create({
   },
   meta: { fontSize: 14, color: "#555" },
   empty: { color: "#999", fontSize: 14 },
+  error: { color: "#b42318", fontSize: 14, marginBottom: 8 },
+  retry: { color: "#2f95dc", fontSize: 14, fontWeight: "600" },
   ingredientRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
   bullet: { color: "#2f95dc", fontSize: 16, marginTop: 1 },
   ingredientText: { flex: 1, fontSize: 15 },

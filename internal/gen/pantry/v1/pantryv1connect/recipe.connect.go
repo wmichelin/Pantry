@@ -42,6 +42,9 @@ const (
 	// RecipeServiceImportRecipeProcedure is the fully-qualified name of the RecipeService's
 	// ImportRecipe RPC.
 	RecipeServiceImportRecipeProcedure = "/pantry.v1.RecipeService/ImportRecipe"
+	// RecipeServiceImportRawRecipeProcedure is the fully-qualified name of the RecipeService's
+	// ImportRawRecipe RPC.
+	RecipeServiceImportRawRecipeProcedure = "/pantry.v1.RecipeService/ImportRawRecipe"
 	// RecipeServiceListRecipesProcedure is the fully-qualified name of the RecipeService's ListRecipes
 	// RPC.
 	RecipeServiceListRecipesProcedure = "/pantry.v1.RecipeService/ListRecipes"
@@ -63,6 +66,7 @@ type RecipeServiceClient interface {
 	SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error)
 	ParseImportIngredients(context.Context, *connect.Request[v1.ParseImportIngredientsRequest]) (*connect.Response[v1.ParseImportIngredientsResponse], error)
 	ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error)
+	ImportRawRecipe(context.Context, *connect.Request[v1.ImportRawRecipeRequest]) (*connect.Response[v1.ImportRawRecipeResponse], error)
 	ListRecipes(context.Context, *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error)
 	GetRecipe(context.Context, *connect.Request[v1.GetRecipeRequest]) (*connect.Response[v1.GetRecipeResponse], error)
 	SearchRecipeIngredients(context.Context, *connect.Request[v1.SearchRecipeIngredientsRequest]) (*connect.Response[v1.SearchRecipeIngredientsResponse], error)
@@ -97,6 +101,12 @@ func NewRecipeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RecipeServiceImportRecipeProcedure,
 			connect.WithSchema(recipeServiceMethods.ByName("ImportRecipe")),
+			connect.WithClientOptions(opts...),
+		),
+		importRawRecipe: connect.NewClient[v1.ImportRawRecipeRequest, v1.ImportRawRecipeResponse](
+			httpClient,
+			baseURL+RecipeServiceImportRawRecipeProcedure,
+			connect.WithSchema(recipeServiceMethods.ByName("ImportRawRecipe")),
 			connect.WithClientOptions(opts...),
 		),
 		listRecipes: connect.NewClient[v1.ListRecipesRequest, v1.ListRecipesResponse](
@@ -137,6 +147,7 @@ type recipeServiceClient struct {
 	saveRecipe              *connect.Client[v1.SaveRecipeRequest, v1.SaveRecipeResponse]
 	parseImportIngredients  *connect.Client[v1.ParseImportIngredientsRequest, v1.ParseImportIngredientsResponse]
 	importRecipe            *connect.Client[v1.ImportRecipeRequest, v1.ImportRecipeResponse]
+	importRawRecipe         *connect.Client[v1.ImportRawRecipeRequest, v1.ImportRawRecipeResponse]
 	listRecipes             *connect.Client[v1.ListRecipesRequest, v1.ListRecipesResponse]
 	getRecipe               *connect.Client[v1.GetRecipeRequest, v1.GetRecipeResponse]
 	searchRecipeIngredients *connect.Client[v1.SearchRecipeIngredientsRequest, v1.SearchRecipeIngredientsResponse]
@@ -157,6 +168,11 @@ func (c *recipeServiceClient) ParseImportIngredients(ctx context.Context, req *c
 // ImportRecipe calls pantry.v1.RecipeService.ImportRecipe.
 func (c *recipeServiceClient) ImportRecipe(ctx context.Context, req *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error) {
 	return c.importRecipe.CallUnary(ctx, req)
+}
+
+// ImportRawRecipe calls pantry.v1.RecipeService.ImportRawRecipe.
+func (c *recipeServiceClient) ImportRawRecipe(ctx context.Context, req *connect.Request[v1.ImportRawRecipeRequest]) (*connect.Response[v1.ImportRawRecipeResponse], error) {
+	return c.importRawRecipe.CallUnary(ctx, req)
 }
 
 // ListRecipes calls pantry.v1.RecipeService.ListRecipes.
@@ -189,6 +205,7 @@ type RecipeServiceHandler interface {
 	SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error)
 	ParseImportIngredients(context.Context, *connect.Request[v1.ParseImportIngredientsRequest]) (*connect.Response[v1.ParseImportIngredientsResponse], error)
 	ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error)
+	ImportRawRecipe(context.Context, *connect.Request[v1.ImportRawRecipeRequest]) (*connect.Response[v1.ImportRawRecipeResponse], error)
 	ListRecipes(context.Context, *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error)
 	GetRecipe(context.Context, *connect.Request[v1.GetRecipeRequest]) (*connect.Response[v1.GetRecipeResponse], error)
 	SearchRecipeIngredients(context.Context, *connect.Request[v1.SearchRecipeIngredientsRequest]) (*connect.Response[v1.SearchRecipeIngredientsResponse], error)
@@ -219,6 +236,12 @@ func NewRecipeServiceHandler(svc RecipeServiceHandler, opts ...connect.HandlerOp
 		RecipeServiceImportRecipeProcedure,
 		svc.ImportRecipe,
 		connect.WithSchema(recipeServiceMethods.ByName("ImportRecipe")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recipeServiceImportRawRecipeHandler := connect.NewUnaryHandler(
+		RecipeServiceImportRawRecipeProcedure,
+		svc.ImportRawRecipe,
+		connect.WithSchema(recipeServiceMethods.ByName("ImportRawRecipe")),
 		connect.WithHandlerOptions(opts...),
 	)
 	recipeServiceListRecipesHandler := connect.NewUnaryHandler(
@@ -259,6 +282,8 @@ func NewRecipeServiceHandler(svc RecipeServiceHandler, opts ...connect.HandlerOp
 			recipeServiceParseImportIngredientsHandler.ServeHTTP(w, r)
 		case RecipeServiceImportRecipeProcedure:
 			recipeServiceImportRecipeHandler.ServeHTTP(w, r)
+		case RecipeServiceImportRawRecipeProcedure:
+			recipeServiceImportRawRecipeHandler.ServeHTTP(w, r)
 		case RecipeServiceListRecipesProcedure:
 			recipeServiceListRecipesHandler.ServeHTTP(w, r)
 		case RecipeServiceGetRecipeProcedure:
@@ -288,6 +313,10 @@ func (UnimplementedRecipeServiceHandler) ParseImportIngredients(context.Context,
 
 func (UnimplementedRecipeServiceHandler) ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.ImportRecipe is not implemented"))
+}
+
+func (UnimplementedRecipeServiceHandler) ImportRawRecipe(context.Context, *connect.Request[v1.ImportRawRecipeRequest]) (*connect.Response[v1.ImportRawRecipeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.ImportRawRecipe is not implemented"))
 }
 
 func (UnimplementedRecipeServiceHandler) ListRecipes(context.Context, *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error) {

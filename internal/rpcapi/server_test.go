@@ -55,6 +55,12 @@ func (stub *backendStub) FindMembership(_ context.Context, userID, token string)
 	return stub.membership, stub.err
 }
 
+func (stub *backendStub) HasHouseholdMembership(_ context.Context, userID, householdID, token string) (bool, error) {
+	stub.userID = userID
+	stub.tokens = append(stub.tokens, token)
+	return stub.membership != nil && stub.membership.HouseholdID == householdID, stub.err
+}
+
 func (stub *backendStub) CreateHousehold(_ context.Context, token, _, _ string) (*pantry.CreatedHousehold, error) {
 	stub.tokens = append(stub.tokens, token)
 	return stub.created, stub.err
