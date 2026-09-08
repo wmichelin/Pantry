@@ -6,6 +6,8 @@ import { BoardImportEventKind, BoardImportItemStatus, BoardImportService } from 
 import { HouseholdService } from "./gen/pantry/v1/household_pb";
 import { IdentityService } from "./gen/pantry/v1/identity_pb";
 import { RecipeService } from "./gen/pantry/v1/recipe_pb";
+import { RecipeScrapeService, type ScrapedRecipe as WireScrapedRecipe } from "./gen/pantry/v1/scrape_pb";
+import type { ScrapedRecipe, ScrapeResponse } from "./scrape-types";
 
 export type HouseholdMembership = {
   household_id: string;
@@ -63,6 +65,7 @@ const recipeAPIWritesEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES?
 const recipeAPIImportsEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS?.trim() === "enabled";
 const importParserEnabled = process.env.EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER?.trim() === "enabled";
 const boardImportEnabled = process.env.EXPO_PUBLIC_PANTRY_API_BOARD_IMPORT?.trim() === "enabled";
+const recipeScrapeEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_SCRAPE?.trim() === "enabled";
 const defaultFetch: Fetch = (input, init) => globalThis.fetch(input, init);
 
 // Both settings are intentionally opt-in so production remains on its
@@ -105,6 +108,17 @@ export function stagingBoardImportAPIOrigin(): string | null {
   const origin = stagingImportParserAPIOrigin();
   if (!origin) throw new Error("Pantry board import is enabled but its Go import parser is unavailable.");
   return origin;
+}
+
+export function stagingRecipeScrapeAPIOrigin(): string | null {
+  if (!recipeScrapeEnabled) return null;
+  const origin = stagingAPIOrigin();
+  if (!origin) throw new Error("Pantry recipe scraping is enabled but its API is unavailable.");
+  return origin;
+}
+
+export async function scrapeRecipe(apiURL: string, accessToken: string, householdID: string, url: string, fetcher: Fetch = defaultFetch): Promise<ScrapeResponse> {
+  return createConnectClient(apiURL, accessToken, fetcher).scrapeRecipe(householdID, url);
 }
 
 // New capabilities use Connect; legacy REST endpoints remain unchanged.
@@ -209,8 +223,20 @@ function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch
   const households = createClient(HouseholdService, transport);
   const recipes = createClient(RecipeService, transport);
   const boardImports = createClient(BoardImportService, transport);
+  const scrapes = createClient(RecipeScrapeService, transport);
 
   return {
+    async scrapeRecipe(householdID: string, url: string): Promise<ScrapeResponse> {
+      try {
+        const result = (await scrapes.scrapeRecipe({ householdId: householdID, url })).result;
+        if (result.case === "recipe") return { type: "single", recipe: scrapedRecipeFromProto(result.value) };
+        if (result.case === "board") return { type: "board", recipes: result.value.recipes.map(scrapedRecipeFromProto), total_found: result.value.totalFound };
+        throw new Error("Pantry returned an invalid scrape response.");
+      } catch (error) {
+        if (error instanceof Error && error.message === "Pantry returned an invalid scrape response.") throw error;
+        throw safeConnectError(error, "Pantry could not scrape that recipe right now.");
+      }
+    },
     async importRecipe(input: RecipeImport): Promise<SavedRecipe> {
       try {
         const metadata = input.metadata;
@@ -418,6 +444,21 @@ function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch
         throw safeConnectError(error, "Pantry could not save the recipe right now.");
       }
     },
+  };
+}
+
+function scrapedRecipeFromProto(recipe: WireScrapedRecipe): ScrapedRecipe {
+  if (recipe.sourceType !== "url" && recipe.sourceType !== "pinterest_pin") {
+    throw new Error("Pantry returned an invalid scrape response.");
+  }
+  return {
+    title: recipe.title, source_url: recipe.sourceUrl, source_type: recipe.sourceType,
+    ...(recipe.imageUrl !== undefined ? { image_url: recipe.imageUrl } : {}),
+    ...(recipe.servings !== undefined ? { servings: recipe.servings } : {}),
+    ...(recipe.prepTimeMinutes !== undefined ? { prep_time_minutes: recipe.prepTimeMinutes } : {}),
+    ...(recipe.cookTimeMinutes !== undefined ? { cook_time_minutes: recipe.cookTimeMinutes } : {}),
+    instructions: [...recipe.instructions], raw_ingredients: [...recipe.rawIngredients],
+    suggested_tags: [...recipe.suggestedTags],
   };
 }
 

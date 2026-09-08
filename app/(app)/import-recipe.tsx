@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth-context";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
+import { scrapeRecipe, stagingRecipeScrapeAPIOrigin } from "../../lib/pantry-api";
 
 export default function ImportRecipeScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
@@ -34,10 +35,22 @@ export default function ImportRecipeScreen() {
     }
     setLoading(true);
 
-    const { data, error } = await supabase.functions.invoke("scrape-recipe", {
-      body: { url: trimmed },
-      headers: { Authorization: `Bearer ${session!.access_token}` },
-    });
+    let data: any;
+    let error: { message?: string } | null = null;
+    try {
+      const apiURL = stagingRecipeScrapeAPIOrigin();
+      if (apiURL) {
+        data = await scrapeRecipe(apiURL, session!.access_token, householdId, trimmed);
+      } else {
+        const legacy = await supabase.functions.invoke("scrape-recipe", {
+          body: { url: trimmed }, headers: { Authorization: `Bearer ${session!.access_token}` },
+        });
+        data = legacy.data;
+        error = legacy.error;
+      }
+    } catch (caught) {
+      error = { message: caught instanceof Error ? caught.message : "Could not scrape that URL." };
+    }
 
     setLoading(false);
 
