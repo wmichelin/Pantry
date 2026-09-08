@@ -17,7 +17,8 @@ try {
       let failed = false;
       window.fetch = async (...args) => {
         const requestUrl = args[0] instanceof Request ? args[0].url : String(args[0]);
-        if (!failed && requestUrl.endsWith('/ParseImportIngredients')) {
+        const requestPath = new URL(requestUrl, location.href).pathname;
+        if (!failed && requestPath.endsWith('/ParseImportIngredients')) {
           failed = true;
           window.__parserFailureInjected = true;
           return new Response('{}', { status: 503, headers: { 'Content-Type': 'application/json' } });
@@ -31,7 +32,8 @@ try {
     raw_ingredients: ['salt', '0 cups water'] };
   await browser.navigate('/review-recipe?' + new URLSearchParams({ householdId: household, recipeJson: JSON.stringify(single) }));
   await browser.until("window.__parserFailureInjected || document.body.innerText.includes('Ingredients (2)') || document.body.innerText.includes('Try again')");
-  assert.equal(await browser.evaluate("!!window.__parserFailureInjected"), true, 'Preview interceptor was not installed before the request');
+  assert.equal(await browser.evaluate("!!window.__parserFailureInjected"), true,
+    `Preview interceptor was not installed before the request: ${JSON.stringify(browser.responses)}`);
   await browser.until("document.body.innerText.includes('Try again')");
   assert(!browser.responses.some(r => r.path.endsWith('/ImportRawRecipe') || r.path.endsWith('/ImportRecipe')),
     'A failed preview attempted persistence');
@@ -44,7 +46,8 @@ try {
     let failed = false;
     window.fetch = async (...args) => {
       const requestUrl = args[0] instanceof Request ? args[0].url : String(args[0]);
-      if (!failed && requestUrl.endsWith('/ImportRawRecipe')) {
+      const requestPath = new URL(requestUrl, location.href).pathname;
+      if (!failed && requestPath.endsWith('/ImportRawRecipe')) {
         failed = true;
         window.__rawSaveFailureInjected = true;
         return new Response('{}', { status: 503, headers: { 'Content-Type': 'application/json' } });
@@ -86,7 +89,8 @@ try {
       const original = window.fetch;
       window.fetch = async (...args) => {
         const requestUrl = args[0] instanceof Request ? args[0].url : String(args[0]);
-        if (!requestUrl.endsWith('/pantry.v1.BoardImportService/ImportBoard') || sessionStorage.getItem(${JSON.stringify(interruptionKey)})) {
+        const requestPath = new URL(requestUrl, location.href).pathname;
+        if (!requestPath.endsWith('/pantry.v1.BoardImportService/ImportBoard') || sessionStorage.getItem(${JSON.stringify(interruptionKey)})) {
           return original(...args);
         }
         const response = await original(...args);
