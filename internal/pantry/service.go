@@ -18,6 +18,10 @@ type MembershipReader interface {
 	FindMembership(context.Context, string, string) (*Membership, error)
 }
 
+type HouseholdMembershipChecker interface {
+	HasHouseholdMembership(context.Context, string, string, string) (bool, error)
+}
+
 type HouseholdCreator interface {
 	CreateHousehold(context.Context, string, string, string) (*CreatedHousehold, error)
 }
@@ -93,6 +97,8 @@ const (
 	ErrorInvalidArgument ErrorKind = iota + 1
 	ErrorNotFound
 	ErrorUnavailable
+	ErrorResourceExhausted
+	ErrorDeadlineExceeded
 )
 
 // Error carries the stable public contract while retaining the internal cause
@@ -118,6 +124,7 @@ func (err *Error) Unwrap() error {
 type Service struct {
 	households        HouseholdReader
 	memberships       MembershipReader
+	membershipChecker HouseholdMembershipChecker
 	creator           HouseholdCreator
 	joiner            HouseholdJoiner
 	recipes           RecipeSaver
@@ -126,12 +133,23 @@ type Service struct {
 	shoppingChecks    ShoppingChecks
 	shoppingListStore ShoppingListStore
 	catalogSettings   CatalogSettingsStore
+	boardImports      BoardImportStore
+	recipeScraper     RecipeScraper
+	scrapeAdmissions  chan struct{}
 }
 
 type Option func(*Service)
 
 func WithCatalogSettings(store CatalogSettingsStore) Option {
 	return func(s *Service) { s.catalogSettings = store }
+}
+
+func WithBoardImportStore(store BoardImportStore) Option {
+	return func(s *Service) { s.boardImports = store }
+}
+
+func WithRecipeScraper(scraper RecipeScraper) Option {
+	return func(s *Service) { s.recipeScraper = scraper }
 }
 
 func WithShoppingListStore(store ShoppingListStore) Option {
@@ -152,11 +170,15 @@ func WithQueueManager(manager QueueManager) Option {
 
 func NewService(households HouseholdReader, memberships MembershipReader, creator HouseholdCreator, joiner HouseholdJoiner, recipes RecipeSaver, options ...Option) *Service {
 	service := &Service{
-		households:  households,
-		memberships: memberships,
-		creator:     creator,
-		joiner:      joiner,
-		recipes:     recipes,
+		households:       households,
+		memberships:      memberships,
+		creator:          creator,
+		joiner:           joiner,
+		recipes:          recipes,
+		scrapeAdmissions: make(chan struct{}, maxScrapeAdmissions),
+	}
+	if checker, ok := memberships.(HouseholdMembershipChecker); ok {
+		service.membershipChecker = checker
 	}
 	for _, option := range options {
 		option(service)
@@ -223,23 +245,42 @@ func (service *Service) SaveRecipe(ctx context.Context, caller authn.Caller, rec
 }
 
 func (service *Service) ImportRecipe(ctx context.Context, caller authn.Caller, recipe RecipeSave) (*SavedRecipe, error) {
-	if strings.TrimSpace(recipe.HouseholdID) == "" || strings.TrimSpace(recipe.Title) == "" || recipe.Metadata == nil {
-		return nil, invalid("A household, title, and import metadata are required.")
-	}
-	if recipe.Metadata.SourceType != "url" && recipe.Metadata.SourceType != "pinterest_pin" {
-		return nil, invalid("An imported recipe must have a URL or Pinterest source type.")
+	if err := validateImportedRecipe(recipe); err != nil {
+		return nil, err
 	}
 	return service.persistRecipe(ctx, caller, recipe)
 }
 
+func validateImportedRecipe(recipe RecipeSave) error {
+	if strings.TrimSpace(recipe.HouseholdID) == "" || strings.TrimSpace(recipe.Title) == "" || recipe.Metadata == nil {
+		return invalid("A household, title, and import metadata are required.")
+	}
+	if recipe.Metadata.SourceType != "url" && recipe.Metadata.SourceType != "pinterest_pin" {
+		return invalid("An imported recipe must have a URL or Pinterest source type.")
+	}
+	return validateRecipeIngredients(recipe.Ingredients)
+}
+
+func (service *Service) ParseImportIngredients(ctx context.Context, caller authn.Caller, householdID string, raws []string) ([]ParsedIngredient, error) {
+	if strings.TrimSpace(householdID) == "" {
+		return nil, invalid("A household is required.")
+	}
+	if service.membershipChecker == nil {
+		return nil, unavailable("Pantry could not verify your household right now.", errors.New("household membership checker not configured"))
+	}
+	found, err := service.membershipChecker.HasHouseholdMembership(ctx, caller.Principal.Subject, householdID, caller.AccessToken)
+	if err != nil {
+		return nil, unavailable("Pantry could not verify your household right now.", err)
+	}
+	if !found {
+		return nil, &Error{Kind: ErrorNotFound, Code: "household_not_found", Message: "Household not found."}
+	}
+	return ParseIngredients(raws), nil
+}
+
 func (service *Service) persistRecipe(ctx context.Context, caller authn.Caller, recipe RecipeSave) (*SavedRecipe, error) {
-	for _, ingredient := range recipe.Ingredients {
-		if strings.TrimSpace(ingredient.Name) == "" {
-			return nil, invalid("Every recipe ingredient needs a name.")
-		}
-		if ingredient.Quantity != nil && (math.IsNaN(*ingredient.Quantity) || math.IsInf(*ingredient.Quantity, 0)) {
-			return nil, invalid("Ingredient quantities must be finite numbers.")
-		}
+	if err := validateRecipeIngredients(recipe.Ingredients); err != nil {
+		return nil, err
 	}
 	saved, err := service.recipes.SaveRecipe(ctx, caller.AccessToken, recipe)
 	if err != nil {
@@ -249,6 +290,18 @@ func (service *Service) persistRecipe(ctx context.Context, caller authn.Caller, 
 		return nil, unavailable("Pantry could not save the recipe right now.", errors.New("recipe saver returned an empty response"))
 	}
 	return saved, nil
+}
+
+func validateRecipeIngredients(ingredients []RecipeIngredient) error {
+	for _, ingredient := range ingredients {
+		if strings.TrimSpace(ingredient.Name) == "" {
+			return invalid("Every recipe ingredient needs a name.")
+		}
+		if ingredient.Quantity != nil && (math.IsNaN(*ingredient.Quantity) || math.IsInf(*ingredient.Quantity, 0)) {
+			return invalid("Ingredient quantities must be finite numbers.")
+		}
+	}
+	return nil
 }
 
 func invalid(message string) *Error {

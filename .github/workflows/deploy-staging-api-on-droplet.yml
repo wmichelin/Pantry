@@ -1,7 +1,7 @@
 name: Deploy Go API foundation to staging
 
-# This delivers only the loopback-bound Go foundation. It does not change Nginx,
-# expose /api, alter the Expo client, or contact a database.
+# This delivers only the loopback-bound staging Go business API. It does not
+# change Nginx, alter the Expo client, run migrations, or target production.
 on:
   workflow_dispatch:
     inputs:
@@ -53,7 +53,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Build and push staging API foundation
+      - name: Build and push staging Go API
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -73,17 +73,18 @@ jobs:
       # explicit avoids coupling API recovery to the web build-secret inventory.
       STAGING_API_SUPABASE_URL: https://fncsyvsgolbpviidmpuc.supabase.co
       STAGING_API_SUPABASE_ANON_KEY: ${{ secrets.STAGING_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      STAGING_API_DENY_DESTINATIONS: ${{ secrets.DROPLET_HOST }}
       GHCR_USER: ${{ github.repository_owner }}
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
     steps:
-      - name: Replace only the loopback API foundation
+      - name: Replace only the loopback staging Go API
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script_stop: true
-          envs: STAGING_API_IMAGE,STAGING_API_SUPABASE_URL,STAGING_API_SUPABASE_ANON_KEY,GHCR_USER,GHCR_PAT
+          envs: STAGING_API_IMAGE,STAGING_API_SUPABASE_URL,STAGING_API_SUPABASE_ANON_KEY,STAGING_API_DENY_DESTINATIONS,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
 
@@ -93,6 +94,10 @@ jobs:
             fi
             if ! printf '%s' "$STAGING_API_SUPABASE_URL" | grep -Eq '^https://[^/]+$'; then
               echo 'STAGING_API_SUPABASE_URL must be a HTTPS origin.' >&2
+              exit 1
+            fi
+            if [ -z "$STAGING_API_DENY_DESTINATIONS" ]; then
+              echo 'Staging API destination isolation is required.' >&2
               exit 1
             fi
 
@@ -116,6 +121,15 @@ jobs:
               return 1
             }
 
+            verify_api_limits() {
+              actual_limits="$(docker inspect --format '{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}} {{.HostConfig.NanoCpus}} {{.HostConfig.PidsLimit}}' "$api_container")"
+              expected_limits='268435456 268435456 1000000000 128'
+              if [ "$actual_limits" != "$expected_limits" ]; then
+                echo "Staging API resource limits are incorrect: $actual_limits" >&2
+                return 1
+              fi
+            }
+
             restore_previous_api() {
               exit_code="$?"
               trap - EXIT
@@ -131,11 +145,17 @@ jobs:
                     --read-only \
                     --cap-drop ALL \
                     --security-opt no-new-privileges \
+                    --memory 256m \
+                    --memory-swap 256m \
+                    --cpus 1 \
+                    --pids-limit 128 \
                     --publish "$api_port:8080" \
                     --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
                     --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \
+                    --env PANTRY_API_DENY_DESTINATIONS="$STAGING_API_DENY_DESTINATIONS" \
                     "$previous_image" >/dev/null
                   wait_for_api || echo 'Could not verify the restored staging API image.' >&2
+                  verify_api_limits || echo 'Could not verify resource limits on the restored staging API image.' >&2
                 fi
               fi
               exit "$exit_code"
@@ -185,12 +205,18 @@ jobs:
               --read-only \
               --cap-drop ALL \
               --security-opt no-new-privileges \
+              --memory 256m \
+              --memory-swap 256m \
+              --cpus 1 \
+              --pids-limit 128 \
               --publish "$api_port:8080" \
               --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
               --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \
+              --env PANTRY_API_DENY_DESTINATIONS="$STAGING_API_DENY_DESTINATIONS" \
               "$STAGING_API_IMAGE" >/dev/null
 
             wait_for_api
+            verify_api_limits
             docker ps --filter "name=^/${api_container}$" --format '{{.Names}} {{.Status}} {{.Ports}} {{.Image}}'
             trap - EXIT
         env:

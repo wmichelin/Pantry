@@ -47,47 +47,55 @@ Before a material staging change, record the current image as the last known-goo
 rollback target. If a staging deployment cannot be repaired forward, restore that
 image and verify both staging routes before reporting the incident.
 
-### Go API foundation (staging only)
+### Go business API (staging only)
 
-The Go port begins as a separate `pantry-api-staging` container bound only to
+The staging Go API runs as `pantry-api-staging`, bound only to
 `127.0.0.1:18083`. Use **Actions → Deploy Go API foundation to staging → Run
 workflow** to publish an immutable
 `ghcr.io/wmichelin/pantry:staging-api-<full-commit-sha>` image and probe its
-loopback `/healthz` and `/readyz` endpoints.
+loopback `/healthz` and `/readyz` endpoints. The historical workflow name is
+retained so existing operational links continue to work.
 
-The foundational deployment deliberately does not change the Expo client, add
-database credentials, run migrations, or make a production change. The
-container receives the public Supabase origin and publishable/anon API key at
-runtime—never a service credential—and verifies user JWTs using the Supabase
-JWKS endpoint.
+The API container receives the public staging Supabase origin and publishable
+key—never a service credential—and verifies caller JWTs with Supabase JWKS. It
+uses a read-only container filesystem with all Linux capabilities dropped, and is
+constrained to 256 MiB memory with no additional swap, one CPU, and 128 PIDs.
+Deployment verifies those limits after startup. `PANTRY_API_DENY_DESTINATIONS`
+is required so the scraper refuses the shared droplet destination in addition to
+its DNS/IP/port protections.
 
-After the staging RLS/database feasibility gate passes, run **Publish staging on
-approved domain** once to proxy the staging-only `/api/` path to this loopback
-container. It preserves the caller's `Authorization` header and checks that an
-anonymous membership request receives `401`; it adds no service credential.
-The API serves the legacy JSON endpoints under `/api/v1/` and generated Connect
-unary RPCs under `/api/rpc/pantry.v1.*`. Both transports authenticate before
-decoding the request and call the same application service. `/healthz` and
-`/readyz` remain small JSON endpoints.
+The approved staging Nginx vhost proxies `/api/` to the loopback container and
+preserves `Authorization`. The API exposes generated Connect unary RPCs and the
+server-streaming board-import RPC under `/api/rpc/pantry.v1.*`; compatibility
+JSON endpoints remain under `/api/v1/`. Both transports authenticate before
+request decoding and call the same application services.
 
-The staging web workflow builds `EXPO_PUBLIC_PANTRY_API_URL` only for the
-approved staging domain and sets `EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect`.
-Removing the transport build argument reverts the staging client to the legacy
-REST facade without changing the API or database. Production receives neither
-staging build value and stays on its current Supabase client path.
+The staging web image sets `EXPO_PUBLIC_PANTRY_API_URL` to the approved staging
+origin and `EXPO_PUBLIC_PANTRY_API_TRANSPORT=connect`. Each completed capability
+also has an independent `enabled` build gate:
 
-Recipe writes are independently gated by
-`EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES=enabled`. Do not set it until the staging
-project has the committed `create_recipe_with_ingredients` migration and
-**Verify staging household membership parity** passes with
-`verify_recipe=true`. With the flag absent, staging recipe creation retains its
-existing direct-Supabase behavior while household calls use Connect.
+- `EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES`
+- `EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS`
+- `EXPO_PUBLIC_PANTRY_API_RECIPE_MANAGEMENT`
+- `EXPO_PUBLIC_PANTRY_API_QUEUE`
+- `EXPO_PUBLIC_PANTRY_API_SHOPPING_CHECKS`
+- `EXPO_PUBLIC_PANTRY_API_SHOPPING_LIST`
+- `EXPO_PUBLIC_PANTRY_API_CATALOG_SETTINGS`
+- `EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER`
+- `EXPO_PUBLIC_PANTRY_API_BOARD_IMPORT`
+- `EXPO_PUBLIC_PANTRY_API_RECIPE_SCRAPE`
 
-The workflow accepts a strict immutable API rollback tag and restores the prior
-API image if replacement or health probes fail. If no prior API image exists, it
-removes the failed new API container; the existing staging web service remains
-untouched. For a two-container rollback, restore the web image first so it stops
-issuing Connect calls, then restore the API image.
+Production receives none of these staging values. Direct-table and Edge
+Function branches are retained in source for production and immutable-image
+rollback compatibility; they are not active staging business paths.
+
+The API workflow accepts only an immutable staging API SHA tag and restores the
+previous API image if replacement, health, readiness, listener, or resource-limit
+validation fails. A functional two-container rollback must restore the web image
+first so it stops issuing calls that an older API may not support, then restore
+the API image. Removing only the transport flag is not a complete rollback:
+restore a previously verified immutable web/API pair and rerun the public and
+capability-specific acceptance gates.
 
 ## Production
 

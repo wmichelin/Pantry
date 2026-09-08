@@ -6,7 +6,9 @@ option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1
 
 service RecipeService {
   rpc SaveRecipe(SaveRecipeRequest) returns (SaveRecipeResponse);
+  rpc ParseImportIngredients(ParseImportIngredientsRequest) returns (ParseImportIngredientsResponse);
   rpc ImportRecipe(ImportRecipeRequest) returns (ImportRecipeResponse);
+  rpc ImportRawRecipe(ImportRawRecipeRequest) returns (ImportRawRecipeResponse);
   rpc ListRecipes(ListRecipesRequest) returns (ListRecipesResponse);
   rpc GetRecipe(GetRecipeRequest) returns (GetRecipeResponse);
   rpc SearchRecipeIngredients(SearchRecipeIngredientsRequest) returns (SearchRecipeIngredientsResponse);
@@ -64,8 +66,30 @@ message ImportedRecipeIngredient {
   string raw_string = 4;
 }
 
+message ParseImportIngredientsRequest {
+  string household_id = 1;
+  repeated string raw_ingredients = 2;
+}
+
+message ParseImportIngredientsResponse {
+  repeated ImportedRecipeIngredient ingredients = 1;
+}
+
+message ImportRawRecipeRequest {
+  string household_id = 1;
+  string title = 2;
+  repeated string raw_ingredients = 3;
+  RecipeImportMetadata metadata = 4;
+}
+
+message ImportRawRecipeResponse {
+  SavedRecipe recipe = 1;
+  repeated ImportedRecipeIngredient ingredients = 2;
+}
+
 message ImportRecipeResponse {
   SavedRecipe recipe = 1;
+  repeated ImportedRecipeIngredient ingredients = 2;
 }
 
 // Wrapper preserves database null versus an empty JSON array.

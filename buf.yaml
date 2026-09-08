@@ -5,6 +5,10 @@ lint:
   use:
     - STANDARD
     - UNARY_RPC
+  # Ordered, recoverable board-import progress is the one intentional stream.
+  ignore_only:
+    RPC_NO_SERVER_STREAMING:
+      - proto/pantry/v1/board_import.proto
 breaking:
   use:
     - FILE
