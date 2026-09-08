@@ -2,18 +2,68 @@
 
 ## Status update
 
-Status: verified (shopping slice; full Go port remains incomplete)
+Status: implementing Phase 4 (catalog/settings; full Go port remains incomplete)
 Last completed: shopping aggregation, catalog/aisle dependencies, manual add/remove
 and revision-checked atomic ordering, PRs 54–55; browser evidence in PR 56.
-Now: full shopping screen uses Go/Connect on staging, including checks and clearing.
-Next: catalog/settings editors and recipe-save catalog enrichment (Phase 4), then
+Now: port catalog/settings editors and recipe-save catalog enrichment (Phase 4).
+Next: API/SQL parity, then gated client/browser verification; afterwards
 scraper and remaining import parser/board orchestration ownership.
 Staging: https://pantry-staging.waltermichelin.com (verified baseline)
 Blocker: none
 
 ## Delivery brief
 
-### Active slice: remaining shopping screen
+### Active slice: catalog and settings
+
+Staging: https://pantry-staging.waltermichelin.com (verified baseline).
+Base main `afb9e3dd2f3b267c2001adb349737a7b04f4fa59`; recovery web
+`staging-d76c9d55a88555161fc7bb9ec67fd41736a20bdd`, API
+`staging-api-9d4c28e9451c6b3ab95ef44b92d34f062a574ff4`.
+
+Six-role review (before implementation):
+- Product: port the three existing catalog/aisle/household-settings screens and
+  shared catalog helpers used by manual, single-import and board recipe saves.
+  Preserve existing catalog identities/custom values; do not invent household
+  name/member editing or an unavailable ingredient-store assignment editor.
+- Architect: explicit household scope for every mutation; invoker/RLS functions,
+  scalar bounded snapshots, atomic aisle changes, loaded revision plus complete
+  unique keyset for ordering. Share shopping lock 817 without claiming old-writer
+  serialization. Settings reads must not depend on shopping/recipe bodies.
+- Unit expert: shared single-ingredient parser fixtures (not compound array
+  expansion), actual missing-only seed counts, >1,000 rows, same-user foreign IDs,
+  owner/member/outsider cases, failure injection after reassignment and on mirror.
+- Staff: preserve ensure max+10 versus seed max(0,max)+10; store count*10 and
+  duplicate names. Move catalog name-cleaning to Go; full import array expansion
+  remains separate. Keep post-save enrichment explicitly best-effort.
+- DevOps: independent `EXPO_PUBLIC_PANTRY_API_CATALOG_SETTINGS` flag, disabled
+  until additive staging SQL/API acceptance; immutable API first, web second.
+  No infrastructure or production changes; retain known-good recovery images.
+- QA: real cross-platform delete confirmations (RN Web Alert.alert is empty),
+  custom-aisle label search, visible enrichment warnings without duplicate-save
+  encouragement, desktop/touch dragging, failed/delayed mutations, binary Connect
+  and zero direct business-table calls for all newly gated paths.
+
+Decision: implement this coherent Phase 4 slice. A narrow non-exposed
+`pantry_internal.mirror_household_aisles` SECURITY DEFINER helper will validate
+membership, derive the mirror only from stored household aisles, and update only
+`households.aisle_category_order`. This corrects the legacy member mirror omission
+without broadening household table grants/policies or permitting arbitrary fields.
+PUBLIC/anon execution is revoked; only the necessary authenticated schema usage
+and function execution is granted. Test member success, outsider denial and
+unchanged owner/name fields. All public operations remain SECURITY INVOKER.
+
+Intentional corrections: aisle changes/reassignment/mirror become atomic; seed
+counts reflect actual inserts; settings dependency errors fail closed; catalog
+delete/aisle delete work on web; manual recipe enrichment failure is a separate
+warning after successful save. Preserve deterministic ordering and existing
+metadata; new bounded operations fail explicitly rather than truncate.
+
+Execution checkpoints: (1) this reviewed plan; (2) parser/contracts/domain/SQL and
+unit/transaction gates; (3) gated client with mutation serialization and read epochs;
+(4) API-first deployment/live acceptance; (5) flag-enabled web and real browser
+parity/failure checks; (6) commit verified evidence and next-slice inventory.
+
+### Completed slice: remaining shopping screen
 
 Status: verified. Staging: https://pantry-staging.waltermichelin.com (verified).
 Pre-change recovery baseline (retained):
