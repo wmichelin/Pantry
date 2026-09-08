@@ -2,19 +2,18 @@
 
 ## Status update
 
-Status: testing Phase 4 (catalog/settings; full Go port remains incomplete)
-Last completed: catalog/settings Go implementation, local/CI checks, staging SQL
-failure-injection gates and live API parity (78 parser fixtures, 12 authenticated
-operations, member/outsider boundaries and 1,001-row seed/read).
-Now: staging-only client flag and real browser verification (Phase 4).
-Next: verify catalog/settings and recipe enrichment routes; afterwards
-scraper and remaining import parser/board orchestration ownership.
-Staging: https://pantry-staging.waltermichelin.com (deploying client; API verified)
+Status: verified Phase 4 (catalog/settings; full Go port remains incomplete)
+Last completed: Go catalog/settings, catalog single-name parsing and recipe-save
+enrichment transport; local/CI, transactional SQL, live API and real browser gates.
+Now: commit verification evidence and hand off the remaining-port inventory.
+Next: scraper and remaining import parser/board orchestration ownership; dashboard
+household-name read and final cross-capability/residual-call audit.
+Staging: https://pantry-staging.waltermichelin.com (verified)
 Blocker: none
 
 ## Delivery brief
 
-### Active slice: catalog and settings
+### Completed slice: catalog and settings
 
 Staging: https://pantry-staging.waltermichelin.com (verified baseline).
 Base main `afb9e3dd2f3b267c2001adb349737a7b04f4fa59`; recovery web
@@ -166,7 +165,7 @@ successful save. Failed saves must not suppress retrying the same URL.
 | 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Verified in staging |
 | 3a | Running queue list/add/remove/clear and three screens | Add/remove/retry, targeted membership lookup, cross-household references, atomic clear preserves manual items | Verified in staging |
 | 3b | Shopping-list services and client | Occurrence aggregation, checked-key identity, manual items, ordering; clear shopping week removes queue/checks/manuals | Verified in staging |
-| 4 | Ingredient catalog and household settings | Normalization, catalog seeding/backfill, category/store assignments, store CRUD, member/invite reads, aisle create/delete/reorder and reassignment | Shopping read/seed dependencies done; editors, settings and post-save enrichment pending |
+| 4 | Ingredient catalog and household settings | Single-name parsing, missing-only seed, display/category edits, store add/delete and availability-cascade preservation, member/invite reads, atomic aisle CRUD/order/reassignment | Verified in staging; no nonexistent assignment editor invented |
 | 5 | Go scraper and client | Saved website/pin/board fixtures; parsing/errors, authenticated requests, DNS/redirect SSRF checks, bounded concurrency/time/body, rate limiting | Pending |
 | 6 | Cross-capability regression and residual-call audit | Real onboarding → import → queue → shop → clear journey; all remaining direct business-data calls accounted for; rollback rehearsal | Pending |
 
@@ -412,7 +411,10 @@ then port manual add/remove, deduplicated atomic ordering and remaining catalog/
 settings/scraping/import business logic. The full Go port is not complete.
 No production changes were made; original-checkout local edits remain preserved.
 
-## Latest verified checkpoint: complete shopping screen
+## Previous verified checkpoint: complete shopping screen
+
+Historical checkpoint: catalog/settings pending statements below describe the
+pre-Phase-4 state. See the latest checkpoint for current completion and residuals.
 
 Staging: https://pantry-staging.waltermichelin.com (verified).
 Implementation [PR 54](https://github.com/wmichelin/Pantry/pull/54), flat-view
@@ -485,3 +487,80 @@ No production deployment, DB access, migrations, configuration or backup changes
 Original checkout's `docs/DEPLOY.md` and untracked `scripts/pantry-actions.sh`
 remain untouched. The verified images above are the next slice's recovery baseline;
 the pre-change images at the top remain available for this slice's rollback.
+
+## Latest verified checkpoint: catalog/settings and enrichment (2026-09-08)
+
+Staging: https://pantry-staging.waltermichelin.com (verified).
+
+- [Implementation PR 57](https://github.com/wmichelin/Pantry/pull/57) merged as
+  `a60c95f147f833653a52498bd0f43784cf432e63`. Commits: reviewed plan `dfd7b6b`,
+  Go/SQL/contracts `f1ba35d`, gated client `f13fb33`, fixture correction `f906cb9`,
+  staging-only enablement/evidence `edc654f`.
+- Current API: `ghcr.io/wmichelin/pantry:staging-api-f906cb91ec2c7ab3b4c6c4e09af063b532efc81d`,
+  [deployment/loopback health](https://github.com/wmichelin/Pantry/actions/runs/34174788509).
+- Current web: `ghcr.io/wmichelin/pantry:staging-a60c95f147f833653a52498bd0f43784cf432e63`,
+  [deployment/HTTPS smoke](https://github.com/wmichelin/Pantry/actions/runs/34175117087).
+  Only the staging workflow sets `EXPO_PUBLIC_PANTRY_API_CATALOG_SETTINGS=enabled`.
+  The earlier web/API images in the Phase-4 brief remain the rollback pair.
+- Local and [cutover CI](https://github.com/wmichelin/Pantry/actions/runs/34174972327):
+  `go vet ./...`, `go test -race ./...`, `bun test` (235 tests, 554 assertions),
+  `npx tsc --noEmit`, Protobuf format/lint/build/breaking/generated-code checks,
+  `npx expo export --platform web`, and API Docker build passed. Host toolchains
+  used official Go 1.24.11/Bun 1.3.14 containers where needed.
+- Narrow SQL/live API evidence appears above. The new
+  [repeatable catalog workflow](https://github.com/wmichelin/Pantry/actions/runs/34175118367)
+  also passed. The six existing API regression workflows passed:
+  [households/manual saves](https://github.com/wmichelin/Pantry/actions/runs/34174949500),
+  [imports](https://github.com/wmichelin/Pantry/actions/runs/34174951000),
+  [recipe management](https://github.com/wmichelin/Pantry/actions/runs/34174969758),
+  [queue](https://github.com/wmichelin/Pantry/actions/runs/34174969817),
+  [shopping checks](https://github.com/wmichelin/Pantry/actions/runs/34174969878),
+  [shopping list](https://github.com/wmichelin/Pantry/actions/runs/34174969777).
+- `node scripts/verify-staging-catalog-settings-browser.mjs` passed on the final
+  web image: parsed add/edit/seed, custom-label filtering, real canceled and
+  confirmed deletes, failed edit/add/delete/order/store-delete recovery, retained
+  user input, store CRUD, aisle reassignment/recipe preservation, actual desktop
+  pointer and emulated mobile touch dragging, Other last, delayed-mutation
+  serialization, failed seed refresh remaining visible, and an older SPA refocus
+  read unable to undo a newer saved aisle. All 12 operations used binary Connect;
+  zero direct settings-table requests and zero uncaught browser exceptions.
+  Measurement begins after the existing dashboard's initial read completes.
+- `node scripts/verify-staging-catalog-enrichment-browser.mjs` passed manual,
+  single-import and board success plus injected postcommit enrichment failures.
+  Successful names were checked in the catalog; each saved recipe existed exactly
+  once. Visible acknowledgement prevents an accidental resave, and catalog seeding
+  repaired missing enrichment without duplicating recipes. Autocomplete reads Go;
+  zero direct recipe/catalog table requests and zero uncaught exceptions.
+- `node scripts/verify-staging-import-browser.mjs` passed again: single metadata,
+  mobile-width board, stored/batch dedup, continuation after a failed recipe and
+  binary import calls. Its expected partial-success acknowledgement now clicks
+  the actual Continue control before asserting navigation.
+- `node scripts/verify-staging-shopping-list-browser.mjs` passed again on the
+  final web image: desktop/touch drag, empty-aisle moves, failed/delayed mutation
+  recovery, check-preserving rollback, manual add/remove and clear-week. Zero
+  direct shopping-table calls and zero uncaught exceptions.
+- Collaborative preview status/open were unavailable. Each browser suite used a
+  fresh Chromium profile with a loopback-only debug port and closed it afterward.
+  An initial settings harness assertion expected title case where the legacy
+  parser deliberately preserves caller case; the fixture assertion was corrected
+  and the full suite passed. This was not a staging application failure.
+
+Remaining port inventory (not hidden behind a full-port claim):
+
+1. `supabase/functions/scrape-recipe/index.ts` and the `import-recipe` Edge Function
+   invocation remain TypeScript; characterize website/pin/board fixtures and
+   authenticated SSRF/time/body/concurrency/rate-limit behavior before Go cutover.
+2. `parseIngredients` compound expansion/filtering and `lib/recipe-import.ts`
+   board orchestration/dedup still determine persisted input on the client.
+   Catalog's single-name parser is ported, not this complete import pipeline.
+3. The household dashboard still directly reads `households(id,name)`; migrate
+   that read and complete the onboarding/import/queue/shop/clear residual-call audit.
+4. Flag-off direct-table branches and operational backfill scripts remain for
+   compatibility. No ingredient-store assignment or household-name/member editor
+   exists in the current UI; no such editor was invented or claimed ported.
+5. Native iOS/Android runtime remains untested. Emulated web touch is not native
+   validation. Postcommit enrichment is intentionally best-effort. Advisory locks
+   cover cooperating operations, not existing noncooperating writers.
+
+Production: no deployment, DB access/migration, configuration or backup changes.
+Original checkout `docs/DEPLOY.md` and untracked `scripts/pantry-actions.sh` preserved.

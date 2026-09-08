@@ -103,6 +103,7 @@ try {
   });
   await b.call("Emulation.setTouchEmulationEnabled", { enabled: false });
   await b.login(member);
+  await b.until(text(household.name)); // Finish the still-legacy dashboard read before measuring these routes.
   b.responses.length = 0;
   await b.navigate("/household-edit?id=" + h);
   await b.until(text("Members (2)"));
@@ -134,12 +135,26 @@ try {
   );
   await b.fill('input[placeholder="Display name"]', "My Flour");
   await b.click("Custom aisle");
+  await fault("UpdateCatalogIngredient");
+  await b.click("Save");
+  await b.until(text("Pantry could not update"));
   await b.click("Save");
   await waitCall("UpdateCatalogIngredient");
   await b.until(text("My Flour"));
+  await addCatalog("Tea");
+  await b.until(text("2 ingredients"));
   await b.fill('input[placeholder="Filter…"]', "Custom aisle");
+  await b.until(text("1 of 2"));
   await b.until(text("My Flour"));
   await b.fill('input[placeholder="Filter…"]', "");
+  await b.until(text("2 ingredients"));
+  await b.evaluate(
+    "[...document.querySelectorAll('[tabindex=\"0\"]')].find(e=>e.innerText.startsWith('Tea\\n')).click()",
+  );
+  await b.click("Custom aisle");
+  await b.click("Save");
+  await waitCall("UpdateCatalogIngredient", 2);
+  await b.until("!" + text("Edit ingredient"));
   let removes = methodCount("RemoveCatalogIngredient");
   await aria("Remove My Flour from catalog");
   await b.until(text("Remove from catalog?"));
@@ -163,6 +178,15 @@ try {
   await b.click("Seed from recipes");
   await waitCall("SeedCatalogFromRecipes", 2);
   await b.until(text("No new names"));
+  await fault("GetCatalog");
+  await b.click("Seed from recipes");
+  await waitCall("SeedCatalogFromRecipes", 3);
+  await b.until(text("Pantry could not load the catalog"));
+  assert.equal(
+    await b.evaluate(text("No new names")),
+    false,
+    "Seed success hid failed refresh",
+  );
   await fault("EnsureCatalogIngredient");
   await addCatalog("Failed ingredient");
   await b.until(text("Pantry could not prepare"));
@@ -180,7 +204,7 @@ try {
   );
   assert.equal(methodCount("SeedCatalogFromRecipes"), seeds);
   await b.evaluate("window.__release()");
-  await b.until(text("Delayed Ingredient"));
+  await b.until(text("Delayed ingredient")); // Preserve caller casing, as the legacy parser does.
   await b.navigate("/edit-aisles?householdId=" + h);
   await b.until("!!document.querySelector('[data-sortable-id=second]')");
   await waitCall("GetHouseholdAisles");
@@ -211,17 +235,32 @@ try {
   ).view.aisles.find((a) => a.key === "custom_aisle");
   assert(created);
   let deletes = methodCount("RemoveHouseholdAisle");
-  await aria("Delete Custom aisle");
+  await b.evaluate(
+    "document.querySelector('[data-sortable-id=custom] [aria-label=\"Delete Custom aisle\"]').click()",
+  );
   await b.until(text("Delete aisle?"));
   await b.click("Cancel");
   assert.equal(methodCount("RemoveHouseholdAisle"), deletes);
-  await aria("Delete Custom aisle");
+  await b.evaluate(
+    "document.querySelector('[data-sortable-id=custom] [aria-label=\"Delete Custom aisle\"]').click()",
+  );
   await fault("RemoveHouseholdAisle");
   await b.click("Delete");
   await b.until(text("Couldn't delete aisle"));
   await b.click("Delete");
   await waitCall("RemoveHouseholdAisle", deletes + 1);
   await b.until("!" + text("Delete aisle?"));
+  assert.equal(
+    (await call(owner, "CatalogService/GetCatalog", input)).items.find(
+      (i) => i.normalizedName === "tea",
+    ).category,
+    "other",
+  );
+  assert(
+    (await call(owner, "RecipeService/ListRecipes", input)).recipes.some(
+      (r) => r.title === "Catalog browser recipe",
+    ),
+  );
   await b.call("Emulation.setDeviceMetricsOverride", {
     width: 390,
     height: 844,
@@ -242,6 +281,32 @@ try {
   view = (await call(owner, "AisleService/GetHouseholdAisles", input)).view;
   assert.equal(view.aisles[0].key, movable.at(-1).key);
   assert.equal(view.aisles.at(-1).key, "other");
+  // Restore an already-mounted aisle route with its refocus read held, then
+  // finish a newer mutation before releasing the older snapshot.
+  await aria("Shopping list");
+  await b.until("location.pathname==='/shopping-list'");
+  await waitCall("GetShoppingList");
+  await b.evaluate(
+    `(()=>{const original=window.fetch;window.__heldAisles=false;window.__releasedAisles=false;window.fetch=async(...args)=>{if(String(args[0]).endsWith('/GetHouseholdAisles')){window.fetch=original;const response=await original(...args);window.__heldAisles=true;await new Promise(resolve=>{window.__releaseAisles=resolve;});window.__releasedAisles=true;return response;}return original(...args);};history.back();})()`,
+  );
+  await b.until(
+    "location.pathname==='/edit-aisles' && window.__heldAisles && !!document.querySelector('input[placeholder=\"New aisle name…\"]')",
+  );
+  const creates = methodCount("CreateHouseholdAisle");
+  await b.fill('input[placeholder="New aisle name…"]', "Newer aisle");
+  await b.click("Add");
+  await waitCall("CreateHouseholdAisle", creates + 1);
+  await b.until(text("Newer aisle"));
+  await b.evaluate("window.__releaseAisles()");
+  await b.until("window.__releasedAisles");
+  await b.evaluate(
+    "new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))",
+  );
+  assert.equal(
+    await b.evaluate(text("Newer aisle")),
+    true,
+    "Older read undid new aisle",
+  );
   const direct = [
     "ingredient_metadata",
     "household_aisles",
@@ -285,6 +350,8 @@ try {
       storeAddDelete: true,
       failedMutationsRecover: true,
       delayedMutationSerialized: true,
+      olderRefocusReadDiscarded: true,
+      failedSeedRefreshVisible: true,
       desktopAndEmulatedTouchDrag: true,
       binaryMethods: 12,
       directSettingsTableCalls: 0,
