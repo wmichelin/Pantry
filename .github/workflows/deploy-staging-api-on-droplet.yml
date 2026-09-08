@@ -136,6 +136,10 @@ jobs:
                     --read-only \
                     --cap-drop ALL \
                     --security-opt no-new-privileges \
+                    --memory 256m \
+                    --memory-swap 256m \
+                    --cpus 1 \
+                    --pids-limit 128 \
                     --publish "$api_port:8080" \
                     --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
                     --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \
@@ -191,6 +195,10 @@ jobs:
               --read-only \
               --cap-drop ALL \
               --security-opt no-new-privileges \
+              --memory 256m \
+              --memory-swap 256m \
+              --cpus 1 \
+              --pids-limit 128 \
               --publish "$api_port:8080" \
               --env PANTRY_API_SUPABASE_URL="$STAGING_API_SUPABASE_URL" \
               --env PANTRY_API_SUPABASE_ANON_KEY="$STAGING_API_SUPABASE_ANON_KEY" \

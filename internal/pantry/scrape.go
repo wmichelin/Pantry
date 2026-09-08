@@ -13,6 +13,8 @@ var (
 	ErrScrapeBusy        = errors.New("scrape already running")
 )
 
+const maxScrapeAdmissions = 8
+
 type ScrapedRecipe struct {
 	Title           string
 	SourceURL       string
@@ -45,6 +47,12 @@ func (service *Service) ScrapeRecipe(ctx context.Context, caller authn.Caller, h
 	rawURL = strings.TrimSpace(rawURL)
 	if householdID == "" || rawURL == "" {
 		return nil, invalid("A household and recipe URL are required.")
+	}
+	select {
+	case service.scrapeAdmissions <- struct{}{}:
+		defer func() { <-service.scrapeAdmissions }()
+	default:
+		return nil, &Error{Kind: ErrorResourceExhausted, Code: "scrape_capacity", Message: "Recipe imports are busy. Please try again shortly."}
 	}
 	if service.membershipChecker == nil {
 		return nil, unavailable("Pantry could not verify your household right now.", errors.New("household membership checker not configured"))

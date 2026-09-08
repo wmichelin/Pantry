@@ -135,6 +135,7 @@ type Service struct {
 	catalogSettings   CatalogSettingsStore
 	boardImports      BoardImportStore
 	recipeScraper     RecipeScraper
+	scrapeAdmissions  chan struct{}
 }
 
 type Option func(*Service)
@@ -169,11 +170,12 @@ func WithQueueManager(manager QueueManager) Option {
 
 func NewService(households HouseholdReader, memberships MembershipReader, creator HouseholdCreator, joiner HouseholdJoiner, recipes RecipeSaver, options ...Option) *Service {
 	service := &Service{
-		households:  households,
-		memberships: memberships,
-		creator:     creator,
-		joiner:      joiner,
-		recipes:     recipes,
+		households:       households,
+		memberships:      memberships,
+		creator:          creator,
+		joiner:           joiner,
+		recipes:          recipes,
+		scrapeAdmissions: make(chan struct{}, maxScrapeAdmissions),
 	}
 	if checker, ok := memberships.(HouseholdMembershipChecker); ok {
 		service.membershipChecker = checker

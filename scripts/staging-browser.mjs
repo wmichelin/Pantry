@@ -7,8 +7,9 @@
 import assert from 'node:assert/strict';
 import { origin } from './verify-staging-recipe-import.mjs';
 
-export async function stagingBrowser() {
-  const tab = await (await fetch('http://127.0.0.1:9222/json/new?' + encodeURIComponent(origin + '/login'), { method: 'PUT' })).json();
+export async function stagingBrowser(browserOrigin = origin) {
+  const debugPort = process.env.PANTRY_BROWSER_DEBUG_PORT ?? '9222';
+  const tab = await (await fetch(`http://127.0.0.1:${debugPort}/json/new?` + encodeURIComponent(browserOrigin + '/login'), { method: 'PUT' })).json();
   const socket = new WebSocket(tab.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
   let sequence = 0;
@@ -28,7 +29,7 @@ export async function stagingBrowser() {
       const request = message.params.request;
       const url = new URL(request.url);
       // Record transport metadata only. Never capture headers, bodies or tokens.
-      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/rest/')) {
+      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/rest/') || url.pathname.startsWith('/functions/')) {
         requests.set(message.params.requestId, { path: url.pathname, method: request.method,
           contentType: Object.entries(request.headers).find(([key]) => key.toLowerCase() === 'content-type')?.[1] });
       }
@@ -51,8 +52,8 @@ export async function stagingBrowser() {
     assert(!result.exceptionDetails, 'Browser evaluation failed');
     return result.result.value;
   }
-  async function until(expression) {
-    for (let attempt = 0; attempt < 100; attempt++) {
+  async function until(expression, attempts = 100) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       if (await evaluate(expression)) return;
       await new Promise(resolve => setTimeout(resolve, 200));
     }
@@ -76,7 +77,7 @@ export async function stagingBrowser() {
     },
     async navigate(path) {
       assert(path.startsWith('/') && !path.startsWith('//'));
-      await call('Page.navigate', { url: origin + path });
+      await call('Page.navigate', { url: browserOrigin + path });
     },
     async close() {
       await Promise.race([call('Browser.close'), new Promise(resolve => setTimeout(resolve, 1000))]).catch(() => {});
