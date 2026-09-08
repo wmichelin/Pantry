@@ -16,13 +16,16 @@ import (
 
 const MaxRequestBytes = 16 << 10
 const MaxImportRequestBytes = 256 << 10
+const MaxBoardImportRequestBytes = 4 << 20
 const MaxShoppingOrderRequestBytes = 1 << 20
 const MaxAisleOrderRequestBytes = 128 << 10
+const BoardImportTimeout = 5 * time.Minute
 
 type Server struct {
 	pantryv1connect.UnimplementedIdentityServiceHandler
 	pantryv1connect.UnimplementedHouseholdServiceHandler
 	pantryv1connect.UnimplementedRecipeServiceHandler
+	pantryv1connect.UnimplementedBoardImportServiceHandler
 	pantryv1connect.UnimplementedQueueServiceHandler
 	pantryv1connect.UnimplementedShoppingServiceHandler
 	pantryv1connect.UnimplementedCatalogServiceHandler
@@ -42,6 +45,7 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 	mux.Handle(pantryv1connect.NewIdentityServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewHouseholdServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewRecipeServiceHandler(server, handlerOptions...))
+	mux.Handle(pantryv1connect.NewBoardImportServiceHandler(server, connect.WithReadMaxBytes(MaxBoardImportRequestBytes)))
 	mux.Handle(pantryv1connect.NewQueueServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewShoppingServiceHandler(server, handlerOptions...))
 	mux.Handle(pantryv1connect.NewCatalogServiceHandler(server, handlerOptions...))
@@ -62,6 +66,19 @@ func New(verifier authn.Verifier, service *pantry.Service, logger *slog.Logger) 
 			request.URL.Path == pantryv1connect.RecipeServiceImportRawRecipeProcedure ||
 			request.URL.Path == pantryv1connect.RecipeServiceParseImportIngredientsProcedure {
 			limit = MaxImportRequestBytes
+		}
+		if request.URL.Path == pantryv1connect.BoardImportServiceImportBoardProcedure {
+			limit = MaxBoardImportRequestBytes
+			writer.Header().Set("Cache-Control", "no-store")
+			writer.Header().Set("X-Accel-Buffering", "no")
+			if err := http.NewResponseController(writer).SetWriteDeadline(time.Now().Add(BoardImportTimeout)); err != nil {
+				logger.ErrorContext(request.Context(), "set board import write deadline", "error", err)
+				http.Error(writer, "Board import streaming is unavailable.", http.StatusInternalServerError)
+				return
+			}
+			ctx, cancel := context.WithTimeout(request.Context(), BoardImportTimeout)
+			defer cancel()
+			request = request.WithContext(ctx)
 		}
 		if request.URL.Path == pantryv1connect.ShoppingServiceSaveShoppingOrderProcedure {
 			limit = MaxShoppingOrderRequestBytes
@@ -248,6 +265,91 @@ func (server *Server) ImportRawRecipe(ctx context.Context, request *connect.Requ
 		Ingredients: importedIngredientsToProto(recipe.Ingredients),
 	}
 	return connect.NewResponse(response), nil
+}
+
+func (server *Server) ImportBoard(ctx context.Context, request *connect.Request[pantryv1.ImportBoardRequest], stream *connect.ServerStream[pantryv1.ImportBoardResponse]) error {
+	caller, ok := authn.CallerFromContext(ctx)
+	if !ok {
+		return connectError(connect.CodeUnauthenticated, "unauthenticated", "A valid Pantry session is required.")
+	}
+	items := make([]pantry.BoardImportItem, len(request.Msg.Items))
+	for index, item := range request.Msg.Items {
+		if item == nil {
+			items[index] = pantry.BoardImportItem{Index: -1}
+			continue
+		}
+		items[index] = pantry.BoardImportItem{
+			Index: item.ItemIndex, Title: item.Title,
+			RawIngredients: append([]string{}, item.RawIngredients...),
+			Metadata:       recipeImportMetadataFromProto(item.Metadata),
+		}
+	}
+	progress, err := server.service.ImportBoard(ctx, caller, request.Msg.HouseholdId, request.Msg.OperationId, items,
+		func(total int32) error {
+			return stream.Send(&pantryv1.ImportBoardResponse{
+				Kind:  pantryv1.BoardImportEventKind_BOARD_IMPORT_EVENT_KIND_PREFLIGHTED,
+				Total: total,
+			})
+		},
+		func(progress pantry.BoardImportProgress) error {
+			if progress.InternalError != nil {
+				server.logger.ErrorContext(ctx, "import board item", "operation_id", request.Msg.OperationId, "item_index", progress.Index, "error", progress.InternalError)
+			}
+			return stream.Send(boardImportEventProto(progress, pantryv1.BoardImportEventKind_BOARD_IMPORT_EVENT_KIND_ITEM))
+		},
+	)
+	if err != nil {
+		var serviceError *pantry.Error
+		if errors.As(err, &serviceError) {
+			return server.serviceError(ctx, "import board", err)
+		}
+		if errors.Is(err, context.Canceled) {
+			return connect.NewError(connect.CodeCanceled, errors.New("board import canceled"))
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return connect.NewError(connect.CodeDeadlineExceeded, errors.New("board import deadline exceeded"))
+		}
+		return err
+	}
+	return stream.Send(boardImportEventProto(progress, pantryv1.BoardImportEventKind_BOARD_IMPORT_EVENT_KIND_COMPLETE))
+}
+
+func recipeImportMetadataFromProto(metadata *pantryv1.RecipeImportMetadata) *pantry.RecipeImportMetadata {
+	if metadata == nil {
+		return nil
+	}
+	return &pantry.RecipeImportMetadata{
+		SourceURL: metadata.SourceUrl, SourceType: metadata.SourceType,
+		ImageURL: metadata.ImageUrl, Instructions: append([]string{}, metadata.Instructions...),
+		Tags: append([]string{}, metadata.Tags...), Servings: metadata.Servings,
+		PrepTimeMinutes: metadata.PrepTimeMinutes, CookTimeMinutes: metadata.CookTimeMinutes,
+	}
+}
+
+func boardImportEventProto(progress pantry.BoardImportProgress, kind pantryv1.BoardImportEventKind) *pantryv1.ImportBoardResponse {
+	event := &pantryv1.ImportBoardResponse{
+		Kind: kind, ItemIndex: progress.Index, Title: progress.Title,
+		Processed: progress.Processed, Total: progress.Total,
+		Saved: progress.Saved, Skipped: progress.Skipped, Failed: progress.Failed,
+		FailedTitles:   append([]string{}, progress.FailedTitles...),
+		CatalogWarning: progress.CatalogWarning,
+		Ingredients:    importedIngredientsToProto(progress.Ingredients),
+	}
+	switch progress.Status {
+	case pantry.BoardImportSaved:
+		event.Status = pantryv1.BoardImportItemStatus_BOARD_IMPORT_ITEM_STATUS_SAVED
+	case pantry.BoardImportSkipped:
+		event.Status = pantryv1.BoardImportItemStatus_BOARD_IMPORT_ITEM_STATUS_SKIPPED
+	case pantry.BoardImportFailed:
+		event.Status = pantryv1.BoardImportItemStatus_BOARD_IMPORT_ITEM_STATUS_FAILED
+	}
+	if progress.Recipe != nil {
+		event.Recipe = &pantryv1.SavedRecipe{
+			Id: progress.Recipe.ID, Title: progress.Recipe.Title,
+			IngredientCount: int32(progress.Recipe.IngredientCount),
+		}
+	}
+	return event
 }
 
 func importedRecipeResponse(saved *pantry.SavedRecipe, ingredients []pantry.RecipeIngredient) *connect.Response[pantryv1.ImportRecipeResponse] {

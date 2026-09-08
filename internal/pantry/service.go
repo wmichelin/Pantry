@@ -131,12 +131,17 @@ type Service struct {
 	shoppingChecks    ShoppingChecks
 	shoppingListStore ShoppingListStore
 	catalogSettings   CatalogSettingsStore
+	boardImports      BoardImportStore
 }
 
 type Option func(*Service)
 
 func WithCatalogSettings(store CatalogSettingsStore) Option {
 	return func(s *Service) { s.catalogSettings = store }
+}
+
+func WithBoardImportStore(store BoardImportStore) Option {
+	return func(s *Service) { s.boardImports = store }
 }
 
 func WithShoppingListStore(store ShoppingListStore) Option {
@@ -231,13 +236,20 @@ func (service *Service) SaveRecipe(ctx context.Context, caller authn.Caller, rec
 }
 
 func (service *Service) ImportRecipe(ctx context.Context, caller authn.Caller, recipe RecipeSave) (*SavedRecipe, error) {
-	if strings.TrimSpace(recipe.HouseholdID) == "" || strings.TrimSpace(recipe.Title) == "" || recipe.Metadata == nil {
-		return nil, invalid("A household, title, and import metadata are required.")
-	}
-	if recipe.Metadata.SourceType != "url" && recipe.Metadata.SourceType != "pinterest_pin" {
-		return nil, invalid("An imported recipe must have a URL or Pinterest source type.")
+	if err := validateImportedRecipe(recipe); err != nil {
+		return nil, err
 	}
 	return service.persistRecipe(ctx, caller, recipe)
+}
+
+func validateImportedRecipe(recipe RecipeSave) error {
+	if strings.TrimSpace(recipe.HouseholdID) == "" || strings.TrimSpace(recipe.Title) == "" || recipe.Metadata == nil {
+		return invalid("A household, title, and import metadata are required.")
+	}
+	if recipe.Metadata.SourceType != "url" && recipe.Metadata.SourceType != "pinterest_pin" {
+		return invalid("An imported recipe must have a URL or Pinterest source type.")
+	}
+	return validateRecipeIngredients(recipe.Ingredients)
 }
 
 func (service *Service) ParseImportIngredients(ctx context.Context, caller authn.Caller, householdID string, raws []string) ([]ParsedIngredient, error) {
@@ -258,13 +270,8 @@ func (service *Service) ParseImportIngredients(ctx context.Context, caller authn
 }
 
 func (service *Service) persistRecipe(ctx context.Context, caller authn.Caller, recipe RecipeSave) (*SavedRecipe, error) {
-	for _, ingredient := range recipe.Ingredients {
-		if strings.TrimSpace(ingredient.Name) == "" {
-			return nil, invalid("Every recipe ingredient needs a name.")
-		}
-		if ingredient.Quantity != nil && (math.IsNaN(*ingredient.Quantity) || math.IsInf(*ingredient.Quantity, 0)) {
-			return nil, invalid("Ingredient quantities must be finite numbers.")
-		}
+	if err := validateRecipeIngredients(recipe.Ingredients); err != nil {
+		return nil, err
 	}
 	saved, err := service.recipes.SaveRecipe(ctx, caller.AccessToken, recipe)
 	if err != nil {
@@ -274,6 +281,18 @@ func (service *Service) persistRecipe(ctx context.Context, caller authn.Caller, 
 		return nil, unavailable("Pantry could not save the recipe right now.", errors.New("recipe saver returned an empty response"))
 	}
 	return saved, nil
+}
+
+func validateRecipeIngredients(ingredients []RecipeIngredient) error {
+	for _, ingredient := range ingredients {
+		if strings.TrimSpace(ingredient.Name) == "" {
+			return invalid("Every recipe ingredient needs a name.")
+		}
+		if ingredient.Quantity != nil && (math.IsNaN(*ingredient.Quantity) || math.IsInf(*ingredient.Quantity, 0)) {
+			return invalid("Ingredient quantities must be finite numbers.")
+		}
+	}
+	return nil
 }
 
 func invalid(message string) *Error {
