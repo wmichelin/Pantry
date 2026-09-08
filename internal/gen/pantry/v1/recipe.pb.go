@@ -356,13 +356,15 @@ func (x *RecipeImportMetadata) GetCookTimeMinutes() int32 {
 }
 
 type ImportRecipeRequest struct {
-	state         protoimpl.MessageState      `protogen:"open.v1"`
-	HouseholdId   string                      `protobuf:"bytes,1,opt,name=household_id,json=householdId,proto3" json:"household_id,omitempty"`
-	Title         string                      `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Ingredients   []*ImportedRecipeIngredient `protobuf:"bytes,3,rep,name=ingredients,proto3" json:"ingredients,omitempty"`
-	Metadata      *RecipeImportMetadata       `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState      `protogen:"open.v1"`
+	HouseholdId         string                      `protobuf:"bytes,1,opt,name=household_id,json=householdId,proto3" json:"household_id,omitempty"`
+	Title               string                      `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Ingredients         []*ImportedRecipeIngredient `protobuf:"bytes,3,rep,name=ingredients,proto3" json:"ingredients,omitempty"`
+	Metadata            *RecipeImportMetadata       `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	RawIngredients      []string                    `protobuf:"bytes,5,rep,name=raw_ingredients,json=rawIngredients,proto3" json:"raw_ingredients,omitempty"`
+	ParseRawIngredients bool                        `protobuf:"varint,6,opt,name=parse_raw_ingredients,json=parseRawIngredients,proto3" json:"parse_raw_ingredients,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ImportRecipeRequest) Reset() {
@@ -421,6 +423,20 @@ func (x *ImportRecipeRequest) GetMetadata() *RecipeImportMetadata {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *ImportRecipeRequest) GetRawIngredients() []string {
+	if x != nil {
+		return x.RawIngredients
+	}
+	return nil
+}
+
+func (x *ImportRecipeRequest) GetParseRawIngredients() bool {
+	if x != nil {
+		return x.ParseRawIngredients
+	}
+	return false
 }
 
 type ImportedRecipeIngredient struct {
@@ -491,6 +507,102 @@ func (x *ImportedRecipeIngredient) GetRawString() string {
 	return ""
 }
 
+type ParseImportIngredientsRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	HouseholdId    string                 `protobuf:"bytes,1,opt,name=household_id,json=householdId,proto3" json:"household_id,omitempty"`
+	RawIngredients []string               `protobuf:"bytes,2,rep,name=raw_ingredients,json=rawIngredients,proto3" json:"raw_ingredients,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ParseImportIngredientsRequest) Reset() {
+	*x = ParseImportIngredientsRequest{}
+	mi := &file_pantry_v1_recipe_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParseImportIngredientsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParseImportIngredientsRequest) ProtoMessage() {}
+
+func (x *ParseImportIngredientsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pantry_v1_recipe_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParseImportIngredientsRequest.ProtoReflect.Descriptor instead.
+func (*ParseImportIngredientsRequest) Descriptor() ([]byte, []int) {
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ParseImportIngredientsRequest) GetHouseholdId() string {
+	if x != nil {
+		return x.HouseholdId
+	}
+	return ""
+}
+
+func (x *ParseImportIngredientsRequest) GetRawIngredients() []string {
+	if x != nil {
+		return x.RawIngredients
+	}
+	return nil
+}
+
+type ParseImportIngredientsResponse struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Ingredients   []*ImportedRecipeIngredient `protobuf:"bytes,1,rep,name=ingredients,proto3" json:"ingredients,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ParseImportIngredientsResponse) Reset() {
+	*x = ParseImportIngredientsResponse{}
+	mi := &file_pantry_v1_recipe_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParseImportIngredientsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParseImportIngredientsResponse) ProtoMessage() {}
+
+func (x *ParseImportIngredientsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pantry_v1_recipe_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParseImportIngredientsResponse.ProtoReflect.Descriptor instead.
+func (*ParseImportIngredientsResponse) Descriptor() ([]byte, []int) {
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ParseImportIngredientsResponse) GetIngredients() []*ImportedRecipeIngredient {
+	if x != nil {
+		return x.Ingredients
+	}
+	return nil
+}
+
 type ImportRecipeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Recipe        *SavedRecipe           `protobuf:"bytes,1,opt,name=recipe,proto3" json:"recipe,omitempty"`
@@ -500,7 +612,7 @@ type ImportRecipeResponse struct {
 
 func (x *ImportRecipeResponse) Reset() {
 	*x = ImportRecipeResponse{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[7]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -512,7 +624,7 @@ func (x *ImportRecipeResponse) String() string {
 func (*ImportRecipeResponse) ProtoMessage() {}
 
 func (x *ImportRecipeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[7]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -525,7 +637,7 @@ func (x *ImportRecipeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportRecipeResponse.ProtoReflect.Descriptor instead.
 func (*ImportRecipeResponse) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{7}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ImportRecipeResponse) GetRecipe() *SavedRecipe {
@@ -545,7 +657,7 @@ type RecipeTextList struct {
 
 func (x *RecipeTextList) Reset() {
 	*x = RecipeTextList{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[8]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -557,7 +669,7 @@ func (x *RecipeTextList) String() string {
 func (*RecipeTextList) ProtoMessage() {}
 
 func (x *RecipeTextList) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[8]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -570,7 +682,7 @@ func (x *RecipeTextList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecipeTextList.ProtoReflect.Descriptor instead.
 func (*RecipeTextList) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{8}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RecipeTextList) GetValues() []string {
@@ -592,7 +704,7 @@ type RecipeSummary struct {
 
 func (x *RecipeSummary) Reset() {
 	*x = RecipeSummary{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[9]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -604,7 +716,7 @@ func (x *RecipeSummary) String() string {
 func (*RecipeSummary) ProtoMessage() {}
 
 func (x *RecipeSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[9]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -617,7 +729,7 @@ func (x *RecipeSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecipeSummary.ProtoReflect.Descriptor instead.
 func (*RecipeSummary) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{9}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RecipeSummary) GetId() string {
@@ -668,7 +780,7 @@ type RecipeDetail struct {
 
 func (x *RecipeDetail) Reset() {
 	*x = RecipeDetail{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[10]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -680,7 +792,7 @@ func (x *RecipeDetail) String() string {
 func (*RecipeDetail) ProtoMessage() {}
 
 func (x *RecipeDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[10]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -693,7 +805,7 @@ func (x *RecipeDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecipeDetail.ProtoReflect.Descriptor instead.
 func (*RecipeDetail) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{10}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *RecipeDetail) GetId() string {
@@ -792,7 +904,7 @@ type StoredRecipeIngredient struct {
 
 func (x *StoredRecipeIngredient) Reset() {
 	*x = StoredRecipeIngredient{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[11]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -804,7 +916,7 @@ func (x *StoredRecipeIngredient) String() string {
 func (*StoredRecipeIngredient) ProtoMessage() {}
 
 func (x *StoredRecipeIngredient) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[11]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -817,7 +929,7 @@ func (x *StoredRecipeIngredient) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoredRecipeIngredient.ProtoReflect.Descriptor instead.
 func (*StoredRecipeIngredient) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{11}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *StoredRecipeIngredient) GetId() string {
@@ -857,7 +969,7 @@ type ListRecipesRequest struct {
 
 func (x *ListRecipesRequest) Reset() {
 	*x = ListRecipesRequest{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[12]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -869,7 +981,7 @@ func (x *ListRecipesRequest) String() string {
 func (*ListRecipesRequest) ProtoMessage() {}
 
 func (x *ListRecipesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[12]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -882,7 +994,7 @@ func (x *ListRecipesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecipesRequest.ProtoReflect.Descriptor instead.
 func (*ListRecipesRequest) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{12}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListRecipesRequest) GetHouseholdId() string {
@@ -901,7 +1013,7 @@ type ListRecipesResponse struct {
 
 func (x *ListRecipesResponse) Reset() {
 	*x = ListRecipesResponse{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[13]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -913,7 +1025,7 @@ func (x *ListRecipesResponse) String() string {
 func (*ListRecipesResponse) ProtoMessage() {}
 
 func (x *ListRecipesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[13]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -926,7 +1038,7 @@ func (x *ListRecipesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecipesResponse.ProtoReflect.Descriptor instead.
 func (*ListRecipesResponse) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{13}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListRecipesResponse) GetRecipes() []*RecipeSummary {
@@ -945,7 +1057,7 @@ type GetRecipeRequest struct {
 
 func (x *GetRecipeRequest) Reset() {
 	*x = GetRecipeRequest{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[14]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -957,7 +1069,7 @@ func (x *GetRecipeRequest) String() string {
 func (*GetRecipeRequest) ProtoMessage() {}
 
 func (x *GetRecipeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[14]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -970,7 +1082,7 @@ func (x *GetRecipeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRecipeRequest.ProtoReflect.Descriptor instead.
 func (*GetRecipeRequest) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{14}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetRecipeRequest) GetRecipeId() string {
@@ -990,7 +1102,7 @@ type GetRecipeResponse struct {
 
 func (x *GetRecipeResponse) Reset() {
 	*x = GetRecipeResponse{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[15]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1002,7 +1114,7 @@ func (x *GetRecipeResponse) String() string {
 func (*GetRecipeResponse) ProtoMessage() {}
 
 func (x *GetRecipeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[15]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1015,7 +1127,7 @@ func (x *GetRecipeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRecipeResponse.ProtoReflect.Descriptor instead.
 func (*GetRecipeResponse) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{15}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetRecipeResponse) GetRecipe() *RecipeDetail {
@@ -1042,7 +1154,7 @@ type SearchRecipeIngredientsRequest struct {
 
 func (x *SearchRecipeIngredientsRequest) Reset() {
 	*x = SearchRecipeIngredientsRequest{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[16]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1054,7 +1166,7 @@ func (x *SearchRecipeIngredientsRequest) String() string {
 func (*SearchRecipeIngredientsRequest) ProtoMessage() {}
 
 func (x *SearchRecipeIngredientsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[16]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1067,7 +1179,7 @@ func (x *SearchRecipeIngredientsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRecipeIngredientsRequest.ProtoReflect.Descriptor instead.
 func (*SearchRecipeIngredientsRequest) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{16}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SearchRecipeIngredientsRequest) GetHouseholdId() string {
@@ -1093,7 +1205,7 @@ type SearchRecipeIngredientsResponse struct {
 
 func (x *SearchRecipeIngredientsResponse) Reset() {
 	*x = SearchRecipeIngredientsResponse{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[17]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1217,7 @@ func (x *SearchRecipeIngredientsResponse) String() string {
 func (*SearchRecipeIngredientsResponse) ProtoMessage() {}
 
 func (x *SearchRecipeIngredientsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[17]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1230,7 @@ func (x *SearchRecipeIngredientsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRecipeIngredientsResponse.ProtoReflect.Descriptor instead.
 func (*SearchRecipeIngredientsResponse) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{17}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SearchRecipeIngredientsResponse) GetRecipeIds() []string {
@@ -1138,7 +1250,7 @@ type UpdateRecipeTagsRequest struct {
 
 func (x *UpdateRecipeTagsRequest) Reset() {
 	*x = UpdateRecipeTagsRequest{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[18]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1150,7 +1262,7 @@ func (x *UpdateRecipeTagsRequest) String() string {
 func (*UpdateRecipeTagsRequest) ProtoMessage() {}
 
 func (x *UpdateRecipeTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[18]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1163,7 +1275,7 @@ func (x *UpdateRecipeTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRecipeTagsRequest.ProtoReflect.Descriptor instead.
 func (*UpdateRecipeTagsRequest) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{18}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UpdateRecipeTagsRequest) GetRecipeId() string {
@@ -1188,7 +1300,7 @@ type UpdateRecipeTagsResponse struct {
 
 func (x *UpdateRecipeTagsResponse) Reset() {
 	*x = UpdateRecipeTagsResponse{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[19]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1200,7 +1312,7 @@ func (x *UpdateRecipeTagsResponse) String() string {
 func (*UpdateRecipeTagsResponse) ProtoMessage() {}
 
 func (x *UpdateRecipeTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[19]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1213,7 +1325,7 @@ func (x *UpdateRecipeTagsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRecipeTagsResponse.ProtoReflect.Descriptor instead.
 func (*UpdateRecipeTagsResponse) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{19}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{21}
 }
 
 type DeleteRecipeRequest struct {
@@ -1225,7 +1337,7 @@ type DeleteRecipeRequest struct {
 
 func (x *DeleteRecipeRequest) Reset() {
 	*x = DeleteRecipeRequest{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[20]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1237,7 +1349,7 @@ func (x *DeleteRecipeRequest) String() string {
 func (*DeleteRecipeRequest) ProtoMessage() {}
 
 func (x *DeleteRecipeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[20]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1250,7 +1362,7 @@ func (x *DeleteRecipeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecipeRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRecipeRequest) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{20}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DeleteRecipeRequest) GetRecipeId() string {
@@ -1268,7 +1380,7 @@ type DeleteRecipeResponse struct {
 
 func (x *DeleteRecipeResponse) Reset() {
 	*x = DeleteRecipeResponse{}
-	mi := &file_pantry_v1_recipe_proto_msgTypes[21]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1280,7 +1392,7 @@ func (x *DeleteRecipeResponse) String() string {
 func (*DeleteRecipeResponse) ProtoMessage() {}
 
 func (x *DeleteRecipeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pantry_v1_recipe_proto_msgTypes[21]
+	mi := &file_pantry_v1_recipe_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1293,7 +1405,7 @@ func (x *DeleteRecipeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecipeResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRecipeResponse) Descriptor() ([]byte, []int) {
-	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{21}
+	return file_pantry_v1_recipe_proto_rawDescGZIP(), []int{23}
 }
 
 var File_pantry_v1_recipe_proto protoreflect.FileDescriptor
@@ -1333,12 +1445,14 @@ const file_pantry_v1_recipe_proto_rawDesc = "" +
 	"_image_urlB\v\n" +
 	"\t_servingsB\x14\n" +
 	"\x12_prep_time_minutesB\x14\n" +
-	"\x12_cook_time_minutes\"\xd2\x01\n" +
+	"\x12_cook_time_minutes\"\xaf\x02\n" +
 	"\x13ImportRecipeRequest\x12!\n" +
 	"\fhousehold_id\x18\x01 \x01(\tR\vhouseholdId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12E\n" +
 	"\vingredients\x18\x03 \x03(\v2#.pantry.v1.ImportedRecipeIngredientR\vingredients\x12;\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x1f.pantry.v1.RecipeImportMetadataR\bmetadata\"\x9d\x01\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1f.pantry.v1.RecipeImportMetadataR\bmetadata\x12'\n" +
+	"\x0fraw_ingredients\x18\x05 \x03(\tR\x0erawIngredients\x122\n" +
+	"\x15parse_raw_ingredients\x18\x06 \x01(\bR\x13parseRawIngredients\"\x9d\x01\n" +
 	"\x18ImportedRecipeIngredient\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1f\n" +
 	"\bquantity\x18\x02 \x01(\x01H\x00R\bquantity\x88\x01\x01\x12\x17\n" +
@@ -1346,7 +1460,12 @@ const file_pantry_v1_recipe_proto_rawDesc = "" +
 	"\n" +
 	"raw_string\x18\x04 \x01(\tR\trawStringB\v\n" +
 	"\t_quantityB\a\n" +
-	"\x05_unit\"F\n" +
+	"\x05_unit\"k\n" +
+	"\x1dParseImportIngredientsRequest\x12!\n" +
+	"\fhousehold_id\x18\x01 \x01(\tR\vhouseholdId\x12'\n" +
+	"\x0fraw_ingredients\x18\x02 \x03(\tR\x0erawIngredients\"g\n" +
+	"\x1eParseImportIngredientsResponse\x12E\n" +
+	"\vingredients\x18\x01 \x03(\v2#.pantry.v1.ImportedRecipeIngredientR\vingredients\"F\n" +
 	"\x14ImportRecipeResponse\x12.\n" +
 	"\x06recipe\x18\x01 \x01(\v2\x16.pantry.v1.SavedRecipeR\x06recipe\"(\n" +
 	"\x0eRecipeTextList\x12\x16\n" +
@@ -1409,10 +1528,11 @@ const file_pantry_v1_recipe_proto_rawDesc = "" +
 	"\x18UpdateRecipeTagsResponse\"2\n" +
 	"\x13DeleteRecipeRequest\x12\x1b\n" +
 	"\trecipe_id\x18\x01 \x01(\tR\brecipeId\"\x16\n" +
-	"\x14DeleteRecipeResponse2\xe1\x04\n" +
+	"\x14DeleteRecipeResponse2\xd0\x05\n" +
 	"\rRecipeService\x12I\n" +
 	"\n" +
-	"SaveRecipe\x12\x1c.pantry.v1.SaveRecipeRequest\x1a\x1d.pantry.v1.SaveRecipeResponse\x12O\n" +
+	"SaveRecipe\x12\x1c.pantry.v1.SaveRecipeRequest\x1a\x1d.pantry.v1.SaveRecipeResponse\x12m\n" +
+	"\x16ParseImportIngredients\x12(.pantry.v1.ParseImportIngredientsRequest\x1a).pantry.v1.ParseImportIngredientsResponse\x12O\n" +
 	"\fImportRecipe\x12\x1e.pantry.v1.ImportRecipeRequest\x1a\x1f.pantry.v1.ImportRecipeResponse\x12L\n" +
 	"\vListRecipes\x12\x1d.pantry.v1.ListRecipesRequest\x1a\x1e.pantry.v1.ListRecipesResponse\x12F\n" +
 	"\tGetRecipe\x12\x1b.pantry.v1.GetRecipeRequest\x1a\x1c.pantry.v1.GetRecipeResponse\x12p\n" +
@@ -1432,7 +1552,7 @@ func file_pantry_v1_recipe_proto_rawDescGZIP() []byte {
 	return file_pantry_v1_recipe_proto_rawDescData
 }
 
-var file_pantry_v1_recipe_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_pantry_v1_recipe_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_pantry_v1_recipe_proto_goTypes = []any{
 	(*RecipeIngredient)(nil),                // 0: pantry.v1.RecipeIngredient
 	(*SaveRecipeRequest)(nil),               // 1: pantry.v1.SaveRecipeRequest
@@ -1441,53 +1561,58 @@ var file_pantry_v1_recipe_proto_goTypes = []any{
 	(*RecipeImportMetadata)(nil),            // 4: pantry.v1.RecipeImportMetadata
 	(*ImportRecipeRequest)(nil),             // 5: pantry.v1.ImportRecipeRequest
 	(*ImportedRecipeIngredient)(nil),        // 6: pantry.v1.ImportedRecipeIngredient
-	(*ImportRecipeResponse)(nil),            // 7: pantry.v1.ImportRecipeResponse
-	(*RecipeTextList)(nil),                  // 8: pantry.v1.RecipeTextList
-	(*RecipeSummary)(nil),                   // 9: pantry.v1.RecipeSummary
-	(*RecipeDetail)(nil),                    // 10: pantry.v1.RecipeDetail
-	(*StoredRecipeIngredient)(nil),          // 11: pantry.v1.StoredRecipeIngredient
-	(*ListRecipesRequest)(nil),              // 12: pantry.v1.ListRecipesRequest
-	(*ListRecipesResponse)(nil),             // 13: pantry.v1.ListRecipesResponse
-	(*GetRecipeRequest)(nil),                // 14: pantry.v1.GetRecipeRequest
-	(*GetRecipeResponse)(nil),               // 15: pantry.v1.GetRecipeResponse
-	(*SearchRecipeIngredientsRequest)(nil),  // 16: pantry.v1.SearchRecipeIngredientsRequest
-	(*SearchRecipeIngredientsResponse)(nil), // 17: pantry.v1.SearchRecipeIngredientsResponse
-	(*UpdateRecipeTagsRequest)(nil),         // 18: pantry.v1.UpdateRecipeTagsRequest
-	(*UpdateRecipeTagsResponse)(nil),        // 19: pantry.v1.UpdateRecipeTagsResponse
-	(*DeleteRecipeRequest)(nil),             // 20: pantry.v1.DeleteRecipeRequest
-	(*DeleteRecipeResponse)(nil),            // 21: pantry.v1.DeleteRecipeResponse
+	(*ParseImportIngredientsRequest)(nil),   // 7: pantry.v1.ParseImportIngredientsRequest
+	(*ParseImportIngredientsResponse)(nil),  // 8: pantry.v1.ParseImportIngredientsResponse
+	(*ImportRecipeResponse)(nil),            // 9: pantry.v1.ImportRecipeResponse
+	(*RecipeTextList)(nil),                  // 10: pantry.v1.RecipeTextList
+	(*RecipeSummary)(nil),                   // 11: pantry.v1.RecipeSummary
+	(*RecipeDetail)(nil),                    // 12: pantry.v1.RecipeDetail
+	(*StoredRecipeIngredient)(nil),          // 13: pantry.v1.StoredRecipeIngredient
+	(*ListRecipesRequest)(nil),              // 14: pantry.v1.ListRecipesRequest
+	(*ListRecipesResponse)(nil),             // 15: pantry.v1.ListRecipesResponse
+	(*GetRecipeRequest)(nil),                // 16: pantry.v1.GetRecipeRequest
+	(*GetRecipeResponse)(nil),               // 17: pantry.v1.GetRecipeResponse
+	(*SearchRecipeIngredientsRequest)(nil),  // 18: pantry.v1.SearchRecipeIngredientsRequest
+	(*SearchRecipeIngredientsResponse)(nil), // 19: pantry.v1.SearchRecipeIngredientsResponse
+	(*UpdateRecipeTagsRequest)(nil),         // 20: pantry.v1.UpdateRecipeTagsRequest
+	(*UpdateRecipeTagsResponse)(nil),        // 21: pantry.v1.UpdateRecipeTagsResponse
+	(*DeleteRecipeRequest)(nil),             // 22: pantry.v1.DeleteRecipeRequest
+	(*DeleteRecipeResponse)(nil),            // 23: pantry.v1.DeleteRecipeResponse
 }
 var file_pantry_v1_recipe_proto_depIdxs = []int32{
 	0,  // 0: pantry.v1.SaveRecipeRequest.ingredients:type_name -> pantry.v1.RecipeIngredient
 	2,  // 1: pantry.v1.SaveRecipeResponse.recipe:type_name -> pantry.v1.SavedRecipe
 	6,  // 2: pantry.v1.ImportRecipeRequest.ingredients:type_name -> pantry.v1.ImportedRecipeIngredient
 	4,  // 3: pantry.v1.ImportRecipeRequest.metadata:type_name -> pantry.v1.RecipeImportMetadata
-	2,  // 4: pantry.v1.ImportRecipeResponse.recipe:type_name -> pantry.v1.SavedRecipe
-	8,  // 5: pantry.v1.RecipeSummary.tags:type_name -> pantry.v1.RecipeTextList
-	8,  // 6: pantry.v1.RecipeDetail.instructions:type_name -> pantry.v1.RecipeTextList
-	8,  // 7: pantry.v1.RecipeDetail.tags:type_name -> pantry.v1.RecipeTextList
-	9,  // 8: pantry.v1.ListRecipesResponse.recipes:type_name -> pantry.v1.RecipeSummary
-	10, // 9: pantry.v1.GetRecipeResponse.recipe:type_name -> pantry.v1.RecipeDetail
-	11, // 10: pantry.v1.GetRecipeResponse.ingredients:type_name -> pantry.v1.StoredRecipeIngredient
-	1,  // 11: pantry.v1.RecipeService.SaveRecipe:input_type -> pantry.v1.SaveRecipeRequest
-	5,  // 12: pantry.v1.RecipeService.ImportRecipe:input_type -> pantry.v1.ImportRecipeRequest
-	12, // 13: pantry.v1.RecipeService.ListRecipes:input_type -> pantry.v1.ListRecipesRequest
-	14, // 14: pantry.v1.RecipeService.GetRecipe:input_type -> pantry.v1.GetRecipeRequest
-	16, // 15: pantry.v1.RecipeService.SearchRecipeIngredients:input_type -> pantry.v1.SearchRecipeIngredientsRequest
-	18, // 16: pantry.v1.RecipeService.UpdateRecipeTags:input_type -> pantry.v1.UpdateRecipeTagsRequest
-	20, // 17: pantry.v1.RecipeService.DeleteRecipe:input_type -> pantry.v1.DeleteRecipeRequest
-	3,  // 18: pantry.v1.RecipeService.SaveRecipe:output_type -> pantry.v1.SaveRecipeResponse
-	7,  // 19: pantry.v1.RecipeService.ImportRecipe:output_type -> pantry.v1.ImportRecipeResponse
-	13, // 20: pantry.v1.RecipeService.ListRecipes:output_type -> pantry.v1.ListRecipesResponse
-	15, // 21: pantry.v1.RecipeService.GetRecipe:output_type -> pantry.v1.GetRecipeResponse
-	17, // 22: pantry.v1.RecipeService.SearchRecipeIngredients:output_type -> pantry.v1.SearchRecipeIngredientsResponse
-	19, // 23: pantry.v1.RecipeService.UpdateRecipeTags:output_type -> pantry.v1.UpdateRecipeTagsResponse
-	21, // 24: pantry.v1.RecipeService.DeleteRecipe:output_type -> pantry.v1.DeleteRecipeResponse
-	18, // [18:25] is the sub-list for method output_type
-	11, // [11:18] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	6,  // 4: pantry.v1.ParseImportIngredientsResponse.ingredients:type_name -> pantry.v1.ImportedRecipeIngredient
+	2,  // 5: pantry.v1.ImportRecipeResponse.recipe:type_name -> pantry.v1.SavedRecipe
+	10, // 6: pantry.v1.RecipeSummary.tags:type_name -> pantry.v1.RecipeTextList
+	10, // 7: pantry.v1.RecipeDetail.instructions:type_name -> pantry.v1.RecipeTextList
+	10, // 8: pantry.v1.RecipeDetail.tags:type_name -> pantry.v1.RecipeTextList
+	11, // 9: pantry.v1.ListRecipesResponse.recipes:type_name -> pantry.v1.RecipeSummary
+	12, // 10: pantry.v1.GetRecipeResponse.recipe:type_name -> pantry.v1.RecipeDetail
+	13, // 11: pantry.v1.GetRecipeResponse.ingredients:type_name -> pantry.v1.StoredRecipeIngredient
+	1,  // 12: pantry.v1.RecipeService.SaveRecipe:input_type -> pantry.v1.SaveRecipeRequest
+	7,  // 13: pantry.v1.RecipeService.ParseImportIngredients:input_type -> pantry.v1.ParseImportIngredientsRequest
+	5,  // 14: pantry.v1.RecipeService.ImportRecipe:input_type -> pantry.v1.ImportRecipeRequest
+	14, // 15: pantry.v1.RecipeService.ListRecipes:input_type -> pantry.v1.ListRecipesRequest
+	16, // 16: pantry.v1.RecipeService.GetRecipe:input_type -> pantry.v1.GetRecipeRequest
+	18, // 17: pantry.v1.RecipeService.SearchRecipeIngredients:input_type -> pantry.v1.SearchRecipeIngredientsRequest
+	20, // 18: pantry.v1.RecipeService.UpdateRecipeTags:input_type -> pantry.v1.UpdateRecipeTagsRequest
+	22, // 19: pantry.v1.RecipeService.DeleteRecipe:input_type -> pantry.v1.DeleteRecipeRequest
+	3,  // 20: pantry.v1.RecipeService.SaveRecipe:output_type -> pantry.v1.SaveRecipeResponse
+	8,  // 21: pantry.v1.RecipeService.ParseImportIngredients:output_type -> pantry.v1.ParseImportIngredientsResponse
+	9,  // 22: pantry.v1.RecipeService.ImportRecipe:output_type -> pantry.v1.ImportRecipeResponse
+	15, // 23: pantry.v1.RecipeService.ListRecipes:output_type -> pantry.v1.ListRecipesResponse
+	17, // 24: pantry.v1.RecipeService.GetRecipe:output_type -> pantry.v1.GetRecipeResponse
+	19, // 25: pantry.v1.RecipeService.SearchRecipeIngredients:output_type -> pantry.v1.SearchRecipeIngredientsResponse
+	21, // 26: pantry.v1.RecipeService.UpdateRecipeTags:output_type -> pantry.v1.UpdateRecipeTagsResponse
+	23, // 27: pantry.v1.RecipeService.DeleteRecipe:output_type -> pantry.v1.DeleteRecipeResponse
+	20, // [20:28] is the sub-list for method output_type
+	12, // [12:20] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_pantry_v1_recipe_proto_init() }
@@ -1498,16 +1623,16 @@ func file_pantry_v1_recipe_proto_init() {
 	file_pantry_v1_recipe_proto_msgTypes[0].OneofWrappers = []any{}
 	file_pantry_v1_recipe_proto_msgTypes[4].OneofWrappers = []any{}
 	file_pantry_v1_recipe_proto_msgTypes[6].OneofWrappers = []any{}
-	file_pantry_v1_recipe_proto_msgTypes[9].OneofWrappers = []any{}
-	file_pantry_v1_recipe_proto_msgTypes[10].OneofWrappers = []any{}
 	file_pantry_v1_recipe_proto_msgTypes[11].OneofWrappers = []any{}
+	file_pantry_v1_recipe_proto_msgTypes[12].OneofWrappers = []any{}
+	file_pantry_v1_recipe_proto_msgTypes[13].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pantry_v1_recipe_proto_rawDesc), len(file_pantry_v1_recipe_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   22,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Single-ingredient compatibility parser. Array expansion/filtering is a separate
@@ -97,6 +98,9 @@ var (
 	ingredientPurpose     = ingredientRE(`(?i)\s+for\s+(?:topping|garnish|serving|sprinkling)\s*$`)
 	ingredientFootnote    = ingredientRE(`\*+$`)
 	ingredientCan         = ingredientRE(`(?i)^cans?$`)
+	ingredientSection     = ingredientRE(`:$`)
+	ingredientServingLine = ingredientRE(`(?i)^for serving\b`)
+	ingredientCompound    = ingredientRE(`(?i)^([a-zA-Z][^,]*?)\s+(?:and|or)\s+([a-zA-Z].*)$`)
 	ingredientQuantities  = []ingredientPattern{
 		ingredientRE(`^(\d+/\d+)\s*[-–]\s*(\d+/\d+)\s+`),
 		ingredientRE(`^(\d+/\d+)\s*[-–]\s*(\d+)\s+`),
@@ -110,6 +114,90 @@ var (
 		ingredientRE(`(?i)^(\d+(?:\.\d+)?)(kg|g|mg|lb|lbs|oz|ml|l)\b\s*`),
 	}
 )
+
+// ParseIngredients preserves the legacy import-array contract. It intentionally
+// differs from the catalog's single-ingredient parser: section/serving lines are
+// removed, one alphabetic compound is expanded, and final names are lowercased.
+func ParseIngredients(raws []string) []ParsedIngredient {
+	parsed := make([]ParsedIngredient, 0, len(raws))
+	for _, raw := range raws {
+		stripped := strings.Trim(raw, jsTrim)
+		stripped = ingredientBullet.replace(stripped, "")
+		if ingredientSection.match(stripped) != nil || ingredientServingLine.match(stripped) != nil {
+			continue
+		}
+		for _, expanded := range expandCompoundIngredient(raw) {
+			ingredient := ParseIngredient(expanded)
+			ingredient.Name = javascriptLower(ingredient.Name)
+			parsed = append(parsed, ingredient)
+		}
+	}
+	return parsed
+}
+
+// JavaScript's String#toLowerCase uses Unicode default case conversion, which
+// has two observable differences from Go's simple strings.ToLower for our
+// fixtures: dotted capital I expands and Greek sigma is context-sensitive.
+func javascriptLower(value string) string {
+	runes := []rune(value)
+	var result strings.Builder
+	for index, current := range runes {
+		switch current {
+		case '\u0130':
+			result.WriteString("i\u0307")
+		case '\u03A3':
+			if hasCasedRuneBefore(runes, index) && !hasCasedRuneAfter(runes, index) {
+				result.WriteRune('\u03C2')
+			} else {
+				result.WriteRune('\u03C3')
+			}
+		default:
+			result.WriteRune(unicode.ToLower(current))
+		}
+	}
+	return result.String()
+}
+
+func hasCasedRuneBefore(runes []rune, index int) bool {
+	for index--; index >= 0; index-- {
+		if isCaseIgnorable(runes[index]) {
+			continue
+		}
+		return unicode.IsUpper(runes[index]) || unicode.IsLower(runes[index]) || unicode.IsTitle(runes[index])
+	}
+	return false
+}
+
+func hasCasedRuneAfter(runes []rune, index int) bool {
+	for index++; index < len(runes); index++ {
+		if isCaseIgnorable(runes[index]) {
+			continue
+		}
+		return unicode.IsUpper(runes[index]) || unicode.IsLower(runes[index]) || unicode.IsTitle(runes[index])
+	}
+	return false
+}
+
+func isCaseIgnorable(value rune) bool {
+	return unicode.In(value, unicode.Mn, unicode.Me, unicode.Cf, unicode.Lm, unicode.Sk) ||
+		value == '\'' || value == '\u2019'
+}
+
+func expandCompoundIngredient(raw string) []string {
+	stripped := strings.Trim(raw, jsTrim)
+	stripped = ingredientBullet.replace(stripped, "")
+	stripped = ingredientFiller.replace(stripped, "")
+	stripped = ingredientPurpose.replace(stripped, "")
+	stripped = ingredientDescription.replace(stripped, "")
+	stripped = strings.Trim(stripped, jsTrim)
+	if stripped == "" {
+		return []string{raw}
+	}
+	if match := ingredientCompound.match(stripped); match != nil {
+		return []string{strings.Trim(match[1], jsTrim), strings.Trim(match[2], jsTrim)}
+	}
+	return []string{stripped}
+}
 
 func ingredientFraction(s string) float64 {
 	if v, ok := map[string]float64{"½": .5, "⅓": .333, "⅔": .667, "¼": .25, "¾": .75, "⅛": .125, "⅜": .375, "⅝": .625, "⅞": .875}[s]; ok {

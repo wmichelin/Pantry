@@ -98,3 +98,48 @@ func TestImportRecipePreservesMetadataAndBounds(t *testing.T) {
 		})
 	}
 }
+
+func TestParseImportIngredientsAndRawPersistenceUseSameHouseholdScopedParser(t *testing.T) {
+	backend := &backendStub{
+		membership: &pantry.Membership{HouseholdID: "household-1"},
+		saved:      &pantry.SavedRecipe{ID: "recipe-1", Title: "Imported", IngredientCount: 2},
+	}
+	server := newServer(t, backend)
+	client := pantryv1connect.NewRecipeServiceClient(http.DefaultClient, server.URL+api.RPCPrefix)
+	raws := []string{"For Sauce:", "Salt and Pepper", "0 cups Water"}
+	parseRequest := connect.NewRequest(&pantryv1.ParseImportIngredientsRequest{HouseholdId: "household-1", RawIngredients: raws})
+	parseRequest.Header().Set("Authorization", "Bearer verified-user-token")
+	preview, err := client.ParseImportIngredients(context.Background(), parseRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.Msg.Ingredients) != 3 {
+		t.Fatalf("preview ingredients = %d, want 3", len(preview.Msg.Ingredients))
+	}
+
+	request := connect.NewRequest(&pantryv1.ImportRecipeRequest{
+		HouseholdId: "household-1", Title: "Imported", RawIngredients: raws, ParseRawIngredients: true,
+		Ingredients: []*pantryv1.ImportedRecipeIngredient{{Name: "client value must be ignored"}},
+		Metadata:    &pantryv1.RecipeImportMetadata{SourceUrl: "https://example.com", SourceType: "url"},
+	})
+	request.Header().Set("Authorization", "Bearer verified-user-token")
+	if _, err := client.ImportRecipe(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	stored := backend.recipes[0].Ingredients
+	if len(stored) != len(preview.Msg.Ingredients) {
+		t.Fatalf("stored ingredients = %d, preview = %d", len(stored), len(preview.Msg.Ingredients))
+	}
+	for index, ingredient := range preview.Msg.Ingredients {
+		want := pantry.RecipeIngredient{Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString}
+		if diff := cmp.Diff(want, stored[index]); diff != "" {
+			t.Fatalf("ingredient %d mismatch (-preview +stored):\n%s", index, diff)
+		}
+	}
+
+	foreign := connect.NewRequest(&pantryv1.ParseImportIngredientsRequest{HouseholdId: "household-2", RawIngredients: raws})
+	foreign.Header().Set("Authorization", "Bearer verified-user-token")
+	if _, err := client.ParseImportIngredients(context.Background(), foreign); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("foreign household code = %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+	}
+}

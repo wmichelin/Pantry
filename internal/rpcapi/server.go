@@ -192,14 +192,27 @@ func (server *Server) ImportRecipe(ctx context.Context, request *connect.Request
 			PrepTimeMinutes: metadata.PrepTimeMinutes, CookTimeMinutes: metadata.CookTimeMinutes,
 		}
 	}
-	for _, ingredient := range request.Msg.Ingredients {
-		if ingredient == nil {
-			recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{})
-			continue
+	if request.Msg.ParseRawIngredients {
+		parsed, err := server.service.ParseImportIngredients(ctx, caller, request.Msg.HouseholdId, request.Msg.RawIngredients)
+		if err != nil {
+			return nil, server.serviceError(ctx, "parse imported ingredients", err)
 		}
-		recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{
-			Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
-		})
+		recipe.Ingredients = make([]pantry.RecipeIngredient, len(parsed))
+		for index, ingredient := range parsed {
+			recipe.Ingredients[index] = pantry.RecipeIngredient{
+				Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
+			}
+		}
+	} else {
+		for _, ingredient := range request.Msg.Ingredients {
+			if ingredient == nil {
+				recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{})
+				continue
+			}
+			recipe.Ingredients = append(recipe.Ingredients, pantry.RecipeIngredient{
+				Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
+			})
+		}
 	}
 	saved, err := server.service.ImportRecipe(ctx, caller, recipe)
 	if err != nil {
@@ -208,6 +221,24 @@ func (server *Server) ImportRecipe(ctx context.Context, request *connect.Request
 	return connect.NewResponse(&pantryv1.ImportRecipeResponse{Recipe: &pantryv1.SavedRecipe{
 		Id: saved.ID, Title: saved.Title, IngredientCount: int32(saved.IngredientCount),
 	}}), nil
+}
+
+func (server *Server) ParseImportIngredients(ctx context.Context, request *connect.Request[pantryv1.ParseImportIngredientsRequest]) (*connect.Response[pantryv1.ParseImportIngredientsResponse], error) {
+	caller, ok := authn.CallerFromContext(ctx)
+	if !ok {
+		return nil, connectError(connect.CodeUnauthenticated, "unauthenticated", "A valid Pantry session is required.")
+	}
+	parsed, err := server.service.ParseImportIngredients(ctx, caller, request.Msg.HouseholdId, request.Msg.RawIngredients)
+	if err != nil {
+		return nil, server.serviceError(ctx, "parse imported ingredients", err)
+	}
+	response := &pantryv1.ParseImportIngredientsResponse{Ingredients: make([]*pantryv1.ImportedRecipeIngredient, len(parsed))}
+	for index, ingredient := range parsed {
+		response.Ingredients[index] = &pantryv1.ImportedRecipeIngredient{
+			Name: ingredient.Name, Quantity: ingredient.Quantity, Unit: ingredient.Unit, RawString: ingredient.RawString,
+		}
+	}
+	return connect.NewResponse(response), nil
 }
 
 func householdToProto(household pantry.Household) *pantryv1.Household {

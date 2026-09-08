@@ -1,0 +1,55 @@
+[
+  {"raw": [], "parsed": []},
+  {
+    "raw": ["For The Sauce:", "2 cups Rice", " - FOR SERVING quinoa", "0 cups Water"],
+    "parsed": [
+      {"quantity": 2, "unit": "cups", "name": "rice", "raw_string": "2 cups Rice"},
+      {"quantity": 0, "unit": "cups", "name": "water", "raw_string": "0 cups Water"}
+    ]
+  },
+  {
+    "raw": ["Additional Cilantro And Sesame Seeds For Topping", "salt and pepper and cumin"],
+    "parsed": [
+      {"quantity": null, "unit": null, "name": "cilantro", "raw_string": "Cilantro"},
+      {"quantity": null, "unit": null, "name": "sesame seeds", "raw_string": "Sesame Seeds"},
+      {"quantity": null, "unit": null, "name": "salt", "raw_string": "salt"},
+      {"quantity": null, "unit": null, "name": "pepper and cumin", "raw_string": "pepper and cumin"}
+    ]
+  },
+  {
+    "raw": ["4 tbsp avocado oil or olive oil", "salt, pepper and cumin", "ÉCLAIR and sugar"],
+    "parsed": [
+      {"quantity": 4, "unit": "tbsp", "name": "avocado oil or olive oil", "raw_string": "4 tbsp avocado oil or olive oil"},
+      {"quantity": null, "unit": null, "name": "salt, pepper and cumin", "raw_string": "salt, pepper and cumin"},
+      {"quantity": null, "unit": null, "name": "éclair and sugar", "raw_string": "ÉCLAIR and sugar"}
+    ]
+  },
+  {
+    "raw": ["Red pepper flakes or sriracha – If you want heat.", "salt and pepper ( to taste)", "• Extra Basil for garnish"],
+    "parsed": [
+      {"quantity": null, "unit": null, "name": "red pepper flakes", "raw_string": "Red pepper flakes"},
+      {"quantity": null, "unit": null, "name": "sriracha", "raw_string": "sriracha"},
+      {"quantity": null, "unit": null, "name": "salt", "raw_string": "salt"},
+      {"quantity": null, "unit": null, "name": "pepper", "raw_string": "pepper ( to taste)"},
+      {"quantity": null, "unit": null, "name": "basil", "raw_string": "Basil"}
+    ]
+  },
+  {
+    "raw": ["1/2-1 teaspoon Red Pepper Flakes", "0/0 cup flour", "", "   ", "﻿  ", "green  onion"],
+    "parsed": [
+      {"quantity": 1, "unit": "teaspoon", "name": "red pepper flakes", "raw_string": "1/2-1 teaspoon Red Pepper Flakes"},
+      {"quantity": null, "unit": null, "name": "0/0 cup flour", "raw_string": "0/0 cup flour"},
+      {"quantity": null, "unit": null, "name": "", "raw_string": ""},
+      {"quantity": null, "unit": null, "name": "", "raw_string": "   "},
+      {"quantity": null, "unit": null, "name": "", "raw_string": "﻿  "},
+      {"quantity": null, "unit": null, "name": "green onion", "raw_string": "green  onion"}
+    ]
+  },
+  {
+    "raw": ["İ AND SUGAR", "ΟΣ and SALT"],
+    "parsed": [
+      {"quantity": null, "unit": null, "name": "i̇ and sugar", "raw_string": "İ AND SUGAR"},
+      {"quantity": null, "unit": null, "name": "ος and salt", "raw_string": "ΟΣ and SALT"}
+    ]
+  }
+]

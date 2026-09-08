@@ -6,6 +6,7 @@ option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1
 
 service RecipeService {
   rpc SaveRecipe(SaveRecipeRequest) returns (SaveRecipeResponse);
+  rpc ParseImportIngredients(ParseImportIngredientsRequest) returns (ParseImportIngredientsResponse);
   rpc ImportRecipe(ImportRecipeRequest) returns (ImportRecipeResponse);
   rpc ListRecipes(ListRecipesRequest) returns (ListRecipesResponse);
   rpc GetRecipe(GetRecipeRequest) returns (GetRecipeResponse);
@@ -55,6 +56,8 @@ message ImportRecipeRequest {
   string title = 2;
   repeated ImportedRecipeIngredient ingredients = 3;
   RecipeImportMetadata metadata = 4;
+  repeated string raw_ingredients = 5;
+  bool parse_raw_ingredients = 6;
 }
 
 message ImportedRecipeIngredient {
@@ -62,6 +65,15 @@ message ImportedRecipeIngredient {
   optional double quantity = 2;
   optional string unit = 3;
   string raw_string = 4;
+}
+
+message ParseImportIngredientsRequest {
+  string household_id = 1;
+  repeated string raw_ingredients = 2;
+}
+
+message ParseImportIngredientsResponse {
+  repeated ImportedRecipeIngredient ingredients = 1;
 }
 
 message ImportRecipeResponse {

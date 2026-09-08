@@ -36,6 +36,9 @@ const (
 	// RecipeServiceSaveRecipeProcedure is the fully-qualified name of the RecipeService's SaveRecipe
 	// RPC.
 	RecipeServiceSaveRecipeProcedure = "/pantry.v1.RecipeService/SaveRecipe"
+	// RecipeServiceParseImportIngredientsProcedure is the fully-qualified name of the RecipeService's
+	// ParseImportIngredients RPC.
+	RecipeServiceParseImportIngredientsProcedure = "/pantry.v1.RecipeService/ParseImportIngredients"
 	// RecipeServiceImportRecipeProcedure is the fully-qualified name of the RecipeService's
 	// ImportRecipe RPC.
 	RecipeServiceImportRecipeProcedure = "/pantry.v1.RecipeService/ImportRecipe"
@@ -58,6 +61,7 @@ const (
 // RecipeServiceClient is a client for the pantry.v1.RecipeService service.
 type RecipeServiceClient interface {
 	SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error)
+	ParseImportIngredients(context.Context, *connect.Request[v1.ParseImportIngredientsRequest]) (*connect.Response[v1.ParseImportIngredientsResponse], error)
 	ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error)
 	ListRecipes(context.Context, *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error)
 	GetRecipe(context.Context, *connect.Request[v1.GetRecipeRequest]) (*connect.Response[v1.GetRecipeResponse], error)
@@ -81,6 +85,12 @@ func NewRecipeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RecipeServiceSaveRecipeProcedure,
 			connect.WithSchema(recipeServiceMethods.ByName("SaveRecipe")),
+			connect.WithClientOptions(opts...),
+		),
+		parseImportIngredients: connect.NewClient[v1.ParseImportIngredientsRequest, v1.ParseImportIngredientsResponse](
+			httpClient,
+			baseURL+RecipeServiceParseImportIngredientsProcedure,
+			connect.WithSchema(recipeServiceMethods.ByName("ParseImportIngredients")),
 			connect.WithClientOptions(opts...),
 		),
 		importRecipe: connect.NewClient[v1.ImportRecipeRequest, v1.ImportRecipeResponse](
@@ -125,6 +135,7 @@ func NewRecipeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 // recipeServiceClient implements RecipeServiceClient.
 type recipeServiceClient struct {
 	saveRecipe              *connect.Client[v1.SaveRecipeRequest, v1.SaveRecipeResponse]
+	parseImportIngredients  *connect.Client[v1.ParseImportIngredientsRequest, v1.ParseImportIngredientsResponse]
 	importRecipe            *connect.Client[v1.ImportRecipeRequest, v1.ImportRecipeResponse]
 	listRecipes             *connect.Client[v1.ListRecipesRequest, v1.ListRecipesResponse]
 	getRecipe               *connect.Client[v1.GetRecipeRequest, v1.GetRecipeResponse]
@@ -136,6 +147,11 @@ type recipeServiceClient struct {
 // SaveRecipe calls pantry.v1.RecipeService.SaveRecipe.
 func (c *recipeServiceClient) SaveRecipe(ctx context.Context, req *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error) {
 	return c.saveRecipe.CallUnary(ctx, req)
+}
+
+// ParseImportIngredients calls pantry.v1.RecipeService.ParseImportIngredients.
+func (c *recipeServiceClient) ParseImportIngredients(ctx context.Context, req *connect.Request[v1.ParseImportIngredientsRequest]) (*connect.Response[v1.ParseImportIngredientsResponse], error) {
+	return c.parseImportIngredients.CallUnary(ctx, req)
 }
 
 // ImportRecipe calls pantry.v1.RecipeService.ImportRecipe.
@@ -171,6 +187,7 @@ func (c *recipeServiceClient) DeleteRecipe(ctx context.Context, req *connect.Req
 // RecipeServiceHandler is an implementation of the pantry.v1.RecipeService service.
 type RecipeServiceHandler interface {
 	SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error)
+	ParseImportIngredients(context.Context, *connect.Request[v1.ParseImportIngredientsRequest]) (*connect.Response[v1.ParseImportIngredientsResponse], error)
 	ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error)
 	ListRecipes(context.Context, *connect.Request[v1.ListRecipesRequest]) (*connect.Response[v1.ListRecipesResponse], error)
 	GetRecipe(context.Context, *connect.Request[v1.GetRecipeRequest]) (*connect.Response[v1.GetRecipeResponse], error)
@@ -190,6 +207,12 @@ func NewRecipeServiceHandler(svc RecipeServiceHandler, opts ...connect.HandlerOp
 		RecipeServiceSaveRecipeProcedure,
 		svc.SaveRecipe,
 		connect.WithSchema(recipeServiceMethods.ByName("SaveRecipe")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recipeServiceParseImportIngredientsHandler := connect.NewUnaryHandler(
+		RecipeServiceParseImportIngredientsProcedure,
+		svc.ParseImportIngredients,
+		connect.WithSchema(recipeServiceMethods.ByName("ParseImportIngredients")),
 		connect.WithHandlerOptions(opts...),
 	)
 	recipeServiceImportRecipeHandler := connect.NewUnaryHandler(
@@ -232,6 +255,8 @@ func NewRecipeServiceHandler(svc RecipeServiceHandler, opts ...connect.HandlerOp
 		switch r.URL.Path {
 		case RecipeServiceSaveRecipeProcedure:
 			recipeServiceSaveRecipeHandler.ServeHTTP(w, r)
+		case RecipeServiceParseImportIngredientsProcedure:
+			recipeServiceParseImportIngredientsHandler.ServeHTTP(w, r)
 		case RecipeServiceImportRecipeProcedure:
 			recipeServiceImportRecipeHandler.ServeHTTP(w, r)
 		case RecipeServiceListRecipesProcedure:
@@ -255,6 +280,10 @@ type UnimplementedRecipeServiceHandler struct{}
 
 func (UnimplementedRecipeServiceHandler) SaveRecipe(context.Context, *connect.Request[v1.SaveRecipeRequest]) (*connect.Response[v1.SaveRecipeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.SaveRecipe is not implemented"))
+}
+
+func (UnimplementedRecipeServiceHandler) ParseImportIngredients(context.Context, *connect.Request[v1.ParseImportIngredientsRequest]) (*connect.Response[v1.ParseImportIngredientsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pantry.v1.RecipeService.ParseImportIngredients is not implemented"))
 }
 
 func (UnimplementedRecipeServiceHandler) ImportRecipe(context.Context, *connect.Request[v1.ImportRecipeRequest]) (*connect.Response[v1.ImportRecipeResponse], error) {

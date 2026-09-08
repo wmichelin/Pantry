@@ -232,6 +232,20 @@ func (service *Service) ImportRecipe(ctx context.Context, caller authn.Caller, r
 	return service.persistRecipe(ctx, caller, recipe)
 }
 
+func (service *Service) ParseImportIngredients(ctx context.Context, caller authn.Caller, householdID string, raws []string) ([]ParsedIngredient, error) {
+	if strings.TrimSpace(householdID) == "" {
+		return nil, invalid("A household is required.")
+	}
+	membership, err := service.memberships.FindMembership(ctx, caller.Principal.Subject, caller.AccessToken)
+	if err != nil {
+		return nil, unavailable("Pantry could not verify your household right now.", err)
+	}
+	if membership == nil || membership.HouseholdID != householdID {
+		return nil, &Error{Kind: ErrorNotFound, Code: "household_not_found", Message: "Household not found."}
+	}
+	return ParseIngredients(raws), nil
+}
+
 func (service *Service) persistRecipe(ctx context.Context, caller authn.Caller, recipe RecipeSave) (*SavedRecipe, error) {
 	for _, ingredient := range recipe.Ingredients {
 		if strings.TrimSpace(ingredient.Name) == "" {

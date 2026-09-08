@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { parseIngredient, parseIngredients } from "../parse-ingredient";
+import importIngredientFixtures from "../../contracts/fixtures/import-ingredients.json";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HAPPY PATH — cases that already work and must keep working
@@ -555,6 +556,14 @@ describe("parseIngredients — filter cases", () => {
     expect(results).toHaveLength(1);
     expect(results[0].name).toBe("avocado oil or olive oil");
   });
+});
+
+describe("parseIngredients — shared Go compatibility fixtures", () => {
+  for (const [index, fixture] of importIngredientFixtures.entries()) {
+    it(`matches fixture ${index}`, () => {
+      expect(parseIngredients(fixture.raw)).toEqual(fixture.parsed);
+    });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
