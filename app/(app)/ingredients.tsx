@@ -7,11 +7,13 @@ import {
   ActivityIndicator,
   Pressable,
   TextInput,
-  Alert,
   Modal,
 } from "react-native";
 import { useLocalSearchParams, useFocusEffect, useNavigation, useRouter } from "expo-router";
-import { showError } from "../../lib/db";
+import { errorMessage } from "../../lib/db";
+import { activeCatalogSettingsAPI } from "../../lib/active-catalog-settings";
+import { ConfirmAction } from "../../components/ConfirmAction";
+import { useSettingsOperation } from "../../lib/use-settings-operation";
 import {
   DEFAULT_INGREDIENT_CATEGORY,
   getIngredientCategory,
@@ -30,6 +32,10 @@ import { supabase } from "../../lib/supabase";
 
 export default function IngredientsScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
+  return <HouseholdIngredients key={householdId} householdId={householdId} />;
+}
+
+function HouseholdIngredients({ householdId }: { householdId: string }) {
   const navigation = useNavigation();
   const router = useRouter();
   const [items, setItems] = useState<CatalogIngredient[]>([]);
@@ -45,6 +51,10 @@ export default function IngredientsScreen() {
     DEFAULT_INGREDIENT_CATEGORY
   );
   const [savingEdit, setSavingEdit] = useState(false);
+  const [removing, setRemoving] = useState<CatalogIngredient | null>(null);
+  const [notice, setNotice] = useState("");
+  const operation = useSettingsOperation();
+  const { pending, epoch } = operation;
 
   useEffect(() => {
     navigation.setOptions({
@@ -72,21 +82,22 @@ export default function IngredientsScreen() {
     });
   }, [householdId, navigation, router]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (duringMutation = false) => {
     if (!householdId) return;
+    if (pending.current && !duringMutation) return;
+    const version = ++epoch.current;
     try {
       const [list, householdAisles] = await Promise.all([
         listCatalogIngredients(householdId),
         listHouseholdAisles(householdId),
       ]);
-      setItems(list);
-      setAisles(householdAisles);
+      if (version === epoch.current) { setItems(list); setAisles(householdAisles); return true; }
     } catch (err) {
-      showError("Couldn't load ingredients", err);
+      if (version === epoch.current) setNotice(errorMessage(err));
     } finally {
-      setLoading(false);
+      if (version === epoch.current) setLoading(false);
     }
-  }, [householdId]);
+  }, [householdId, pending, epoch]);
 
   useFocusEffect(
     useCallback(() => {
@@ -95,52 +106,59 @@ export default function IngredientsScreen() {
   );
 
   const addIngredient = async () => {
-    if (!householdId || !newName.trim() || adding) return;
+    if (!householdId || !newName.trim() || !operation.begin()) return;
+    setNotice("");
     setAdding(true);
     try {
       const row = await ensureCatalogIngredient(householdId, newName);
       if (!row) {
-        Alert.alert("Invalid name", "Enter a valid ingredient name.");
+        setNotice("Enter a valid ingredient name.");
         return;
       }
       setNewName("");
-      await load();
+      await load(true);
     } catch (err) {
-      showError("Couldn't add ingredient", err);
+      setNotice(errorMessage(err));
     } finally {
       setAdding(false);
+      operation.end();
     }
   };
 
   const seedFromRecipes = async () => {
-    if (!householdId || seeding) return;
+    if (!householdId || !operation.begin()) return;
+    setNotice("");
     setSeeding(true);
     try {
       const n = await seedCatalogFromRecipes(householdId);
-      await load();
-      Alert.alert(
-        "Seeded from recipes",
+      if (await load(true)) setNotice(
         n === 0
           ? "No new names — catalog already has everything from your recipes."
           : `Added ${n} ingredient${n === 1 ? "" : "s"} from recipes.`
       );
     } catch (err) {
-      showError("Couldn't seed from recipes", err);
+      setNotice(errorMessage(err));
     } finally {
       setSeeding(false);
+      operation.end();
     }
   };
 
   const openEdit = (item: CatalogIngredient) => {
+    setNotice("");
     setEditing(item);
     setEditName(item.display_name);
     setEditCategory(item.category);
   };
 
   const saveEdit = async () => {
-    if (!editing || !editName.trim()) return;
+    if (!editing || !householdId || !editName.trim() || !operation.begin()) return;
+    setNotice("");
     setSavingEdit(true);
     try {
+      const api = await activeCatalogSettingsAPI();
+      if (api) await api.update(householdId, editing.id, editName, editCategory);
+      else {
       const { error } = await supabase
         .from("ingredient_metadata")
         .update({
@@ -149,38 +167,27 @@ export default function IngredientsScreen() {
         })
         .eq("id", editing.id);
       if (error) throw error;
+      }
       setEditing(null);
-      await load();
+      await load(true);
     } catch (err) {
-      showError("Couldn't update ingredient", err);
+      setNotice(errorMessage(err));
     } finally {
       setSavingEdit(false);
+      operation.end();
     }
   };
 
-  const deleteIngredient = (item: CatalogIngredient) => {
-    Alert.alert(
-      "Remove from catalog?",
-      `"${item.display_name}" will leave the ingredients list. Recipes that use this name are unchanged.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            const { error } = await supabase
-              .from("ingredient_metadata")
-              .delete()
-              .eq("id", item.id);
-            if (error) {
-              showError("Couldn't remove ingredient", error);
-              return;
-            }
-            setItems((prev) => prev.filter((i) => i.id !== item.id));
-          },
-        },
-      ]
-    );
+  const deleteIngredient = async () => {
+    if (!householdId || !removing || !operation.begin()) return;
+    setNotice("");
+    try {
+      const api = await activeCatalogSettingsAPI();
+      if (api) await api.removeIngredient(householdId, removing.id);
+      else { const { error } = await supabase.from("ingredient_metadata").delete().eq("id", removing.id); if (error) throw error; }
+      setItems(prev => prev.filter(i => i.id !== removing.id)); setRemoving(null);
+    } catch (err) { setNotice(errorMessage(err)); }
+    finally { operation.end(); }
   };
 
   const filtered = items.filter((i) => {
@@ -189,7 +196,7 @@ export default function IngredientsScreen() {
     return (
       i.normalized_name.includes(q) ||
       i.display_name.toLowerCase().includes(q) ||
-      getIngredientCategory(i.category).label.toLowerCase().includes(q)
+      getIngredientCategory(i.category, aisles).label.toLowerCase().includes(q)
     );
   });
 
@@ -212,6 +219,7 @@ export default function IngredientsScreen() {
           Household ingredient catalog — used for autocomplete on the shopping
           list and when creating recipes. Separate from your recipe list.
         </Text>
+        {!!notice && <Text accessibilityRole="alert" style={{ color: "#9a3412", marginBottom: 12 }}>{notice}</Text>}
 
         <View style={styles.addRow}>
           <TextInput
@@ -222,12 +230,12 @@ export default function IngredientsScreen() {
             onSubmitEditing={addIngredient}
             returnKeyType="done"
             autoCorrect={false}
-            editable={!adding}
+            editable={!operation.busy}
           />
           <Pressable
             style={[styles.addButton, (!newName.trim() || adding) && styles.disabled]}
             onPress={addIngredient}
-            disabled={!newName.trim() || adding}
+            disabled={!newName.trim() || operation.busy}
           >
             {adding ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -240,7 +248,7 @@ export default function IngredientsScreen() {
         <Pressable
           style={[styles.seedButton, seeding && styles.disabled]}
           onPress={seedFromRecipes}
-          disabled={seeding}
+          disabled={operation.busy}
         >
           <Text style={styles.seedButtonText}>
             {seeding ? "Seeding…" : "Seed from recipes"}
@@ -271,7 +279,7 @@ export default function IngredientsScreen() {
         ) : (
           filtered.map((item) => (
             <View key={item.id} style={styles.row}>
-              <Pressable style={styles.rowMain} onPress={() => openEdit(item)}>
+              <Pressable disabled={operation.busy} style={styles.rowMain} onPress={() => openEdit(item)}>
                 <Text style={styles.rowName}>{item.display_name}</Text>
                 <Text style={styles.rowMeta}>
                   {getIngredientCategory(item.category, aisles).label} · Tap to edit
@@ -279,7 +287,10 @@ export default function IngredientsScreen() {
               </Pressable>
               <Pressable
                 style={styles.deleteBtn}
-                onPress={() => deleteIngredient(item)}
+                onPress={() => { setNotice(""); setRemoving(item); }}
+                disabled={operation.busy}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${item.display_name} from catalog`}
               >
                 <Text style={styles.deleteText}>✕</Text>
               </Pressable>
@@ -292,11 +303,12 @@ export default function IngredientsScreen() {
         visible={editing !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setEditing(null)}
+        onRequestClose={() => !operation.busy && setEditing(null)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Edit ingredient</Text>
+            {!!notice && <Text accessibilityRole="alert">{notice}</Text>}
             <TextInput
               style={styles.modalInput}
               value={editName}
@@ -304,6 +316,7 @@ export default function IngredientsScreen() {
               autoFocus
               autoCorrect={false}
               placeholder="Display name"
+              editable={!operation.busy}
             />
             <Text style={styles.categoryLabel}>Aisle category</Text>
             <ScrollView
@@ -318,6 +331,7 @@ export default function IngredientsScreen() {
                     key={cat.id}
                     style={[styles.categoryOption, selected && styles.categoryOptionSelected]}
                     onPress={() => setEditCategory(cat.id)}
+                    disabled={operation.busy}
                   >
                     <Text
                       style={[
@@ -343,13 +357,14 @@ export default function IngredientsScreen() {
                   <Text style={styles.modalSaveText}>Save</Text>
                 )}
               </Pressable>
-              <Pressable onPress={() => setEditing(null)}>
+              <Pressable disabled={operation.busy} onPress={() => setEditing(null)}>
                 <Text style={styles.modalCancel}>Cancel</Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
+      <ConfirmAction visible={removing !== null} title="Remove from catalog?" message={`Recipes using ${removing?.display_name ?? "this ingredient"} are unchanged. ${notice}`} confirmLabel="Remove" busy={operation.busy} onConfirm={() => void deleteIngredient()} onCancel={() => setRemoving(null)} />
     </>
   );
 }

@@ -125,9 +125,14 @@ type Service struct {
 	queueManager      QueueManager
 	shoppingChecks    ShoppingChecks
 	shoppingListStore ShoppingListStore
+	catalogSettings   CatalogSettingsStore
 }
 
 type Option func(*Service)
+
+func WithCatalogSettings(store CatalogSettingsStore) Option {
+	return func(s *Service) { s.catalogSettings = store }
+}
 
 func WithShoppingListStore(store ShoppingListStore) Option {
 	return func(s *Service) { s.shoppingListStore = store }

@@ -1,10 +1,11 @@
 import { supabase } from "./supabase";
+import { activeCatalogSettingsAPI } from "./active-catalog-settings";
 import {
   DEFAULT_INGREDIENT_CATEGORY,
   type IngredientCategoryId,
 } from "./ingredient-categories";
-import { normalizeIngredient, titleCaseIngredient } from "./normalize-ingredient";
-import { parseIngredient } from "./parse-ingredient";
+import { catalogNameFromRaw } from "./catalog-name";
+export { catalogNameFromRaw } from "./catalog-name";
 import { coerceIngredientCategory } from "./sort-shopping-list-by-aisle";
 
 const CATALOG_SELECT =
@@ -34,25 +35,14 @@ function asCatalogIngredient(row: {
   };
 }
 
-/** Strip qty/units/bullets from a raw ingredient string for catalog use. */
-export function catalogNameFromRaw(raw: string): { normalized: string; display: string } | null {
-  const parsed = parseIngredient(raw);
-  const normalized = normalizeIngredient(parsed.name);
-  if (!normalized || normalized.endsWith(":")) return null;
-  // Prefer parser's casing when it kept letters; otherwise title-case the key.
-  const display =
-    parsed.name.trim() && parsed.name.trim() !== normalized
-      ? parsed.name.trim()
-      : titleCaseIngredient(normalized);
-  return { normalized, display };
-}
-
 /** Ensure a catalog row exists. Does not overwrite display_name on existing rows. */
 export async function ensureCatalogIngredient(
   householdId: string,
   name: string,
   opts?: { displayName?: string; sortOrder?: number; category?: IngredientCategoryId }
 ): Promise<CatalogIngredient | null> {
+  const api = await activeCatalogSettingsAPI();
+  if (api) return api.ensure(householdId, name, opts);
   const cleaned = catalogNameFromRaw(name);
   if (!cleaned) return null;
   const { normalized, display } = cleaned;
@@ -118,6 +108,8 @@ export async function ensureCatalogIngredient(
  * Only inserts missing catalog rows — never touches recipes.
  */
 export async function seedCatalogFromRecipes(householdId: string): Promise<number> {
+  const api = await activeCatalogSettingsAPI();
+  if (api) return api.seed(householdId);
   const { data: recipes, error: recipesError } = await supabase
     .from("recipes")
     .select("id")
@@ -182,6 +174,8 @@ export async function seedCatalogFromRecipes(householdId: string): Promise<numbe
 export async function listCatalogIngredients(
   householdId: string
 ): Promise<CatalogIngredient[]> {
+  const api = await activeCatalogSettingsAPI();
+  if (api) return api.catalog(householdId);
   const { data, error } = await supabase
     .from("ingredient_metadata")
     .select(CATALOG_SELECT)

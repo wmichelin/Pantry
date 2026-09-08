@@ -21,6 +21,7 @@ import TagEditor from "../../components/TagEditor";
 import { importRecipe, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
 import { importedRecipeInput, saveImportedBoard } from "../../lib/recipe-import";
 import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../lib/recipe-api";
+import { SavedNotice, catalogSavedWarning } from "../../components/SavedNotice";
 
 export default function ReviewBoardScreen() {
   const { householdId, recipesJson } = useLocalSearchParams<{
@@ -40,6 +41,8 @@ export default function ReviewBoardScreen() {
   const [editingCardIndex, setEditingCardIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
+  const [savedNotice, setSavedNotice] = useState("");
+  const finish = () => router.replace({ pathname: "/(app)/household", params: { id: householdId } });
 
   const toggleSelect = (index: number) => {
     setSelected((prev) => {
@@ -60,6 +63,8 @@ export default function ReviewBoardScreen() {
   };
 
   const handleSave = async () => {
+    if (saving || savedNotice) return;
+    let catalogFailed = false;
     const toSave = recipes.filter((_, i) => selected.has(i));
     if (toSave.length === 0) {
       Alert.alert("Nothing selected", "Select at least one recipe to save.");
@@ -77,7 +82,7 @@ export default function ReviewBoardScreen() {
         const result = await saveImportedBoard(inputs, {
           save: (input) => importRecipe(apiURL, session.access_token, input),
           ensureCatalog: (name) => ensureCatalogIngredient(householdId!, name),
-          catalogWarning: () => console.warn("Catalog enrichment after import failed"),
+          catalogWarning: () => { catalogFailed = true; },
           progress: setSaveProgress,
           existingURLs: async () => {
             const readURL = stagingRecipeManagementAPIOrigin();
@@ -90,10 +95,9 @@ export default function ReviewBoardScreen() {
             return (data ?? []).flatMap((recipe) => recipe.source_url ? [recipe.source_url] : []);
           },
         });
-        if (result.failed.length) {
-          Alert.alert("Some recipes didn't save", `Saved ${result.saved}. Skipped ${result.skipped}.\n\nNot saved: ${result.failed.join(", ")}`);
-        }
-        router.replace({ pathname: "/(app)/household", params: { id: householdId } });
+        if (result.failed.length || catalogFailed) {
+          setSavedNotice(`Saved ${result.saved}. Skipped ${result.skipped}.${result.failed.length ? `\n\nNot saved: ${result.failed.join(", ")}` : ""}${catalogFailed ? `\n\n${catalogSavedWarning}` : ""}`);
+        } else finish();
       } catch (error) {
         Alert.alert("Couldn't import board", error instanceof Error ? error.message : "Could not import board.");
       } finally {
@@ -152,8 +156,8 @@ export default function ReviewBoardScreen() {
           for (const ing of parsed) {
             try {
               await ensureCatalogIngredient(householdId!, ing.name);
-            } catch (err) {
-              console.warn("Catalog upsert after import failed", err);
+            } catch {
+              catalogFailed = true;
             }
           }
         }
@@ -164,16 +168,9 @@ export default function ReviewBoardScreen() {
     }
 
     setSaving(false);
-    if (failed.length > 0) {
-      Alert.alert(
-        "Some recipes didn't save",
-        `Saved ${saved} of ${deduped.length}.\n\nNot saved: ${failed.join(", ")}`
-      );
-    }
-    router.replace({
-      pathname: "/(app)/household",
-      params: { id: householdId },
-    });
+    if (failed.length || catalogFailed) {
+      setSavedNotice(`Saved ${saved} of ${deduped.length}.${failed.length ? `\n\nNot saved: ${failed.join(", ")}` : ""}${catalogFailed ? `\n\n${catalogSavedWarning}` : ""}`);
+    } else finish();
   };
 
   const selectedCount = selected.size;
@@ -181,6 +178,7 @@ export default function ReviewBoardScreen() {
 
   return (
     <View style={styles.container}>
+      <SavedNotice message={savedNotice} onContinue={finish} />
       <View style={styles.header}>
         <Text style={styles.headerText}>
           {recipes.length} recipes found
