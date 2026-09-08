@@ -1,12 +1,19 @@
 import { Modal, Pressable, Text, View } from "react-native";
 
-/** Acknowledgement after a committed save; never offers a duplicate-save retry. */
+/** Acknowledgement after a committed save. Retry is reserved for operations
+ * with durable idempotency, so ordinary recipe saves cannot be duplicated. */
 export function SavedNotice({
   message,
   onContinue,
+  onRetry,
+  title = "Save result",
+  continueLabel = "Continue to recipes",
 }: {
   message: string;
   onContinue: () => void;
+  onRetry?: () => void;
+  title?: string;
+  continueLabel?: string;
 }) {
   return (
     <Modal visible={!!message} transparent onRequestClose={onContinue}>
@@ -30,15 +37,24 @@ export function SavedNotice({
             accessibilityRole="header"
             style={{ fontSize: 18, fontWeight: "700" }}
           >
-            Save result
+            {title}
           </Text>
           <Text>{message}</Text>
+          {onRetry && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onRetry}
+              style={{ padding: 12 }}
+            >
+              <Text style={{ color: "#2f95dc", fontWeight: "600" }}>Retry unsaved recipes</Text>
+            </Pressable>
+          )}
           <Pressable
             accessibilityRole="button"
             onPress={onContinue}
             style={{ padding: 12 }}
           >
-            <Text style={{ color: "#2f95dc" }}>Continue to recipes</Text>
+            <Text style={{ color: "#2f95dc" }}>{continueLabel}</Text>
           </Pressable>
         </View>
       </View>

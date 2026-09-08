@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { BoardImportEventKind, BoardImportItemStatus, ImportBoardRequestSchema, ImportBoardResponseSchema } from "../gen/pantry/v1/board_import_pb";
 import { ImportRawRecipeRequestSchema, ImportRawRecipeResponseSchema, ImportRecipeRequestSchema, ImportRecipeResponseSchema, ParseImportIngredientsRequestSchema, ParseImportIngredientsResponseSchema } from "../gen/pantry/v1/recipe_pb";
-import { importRecipe, parseImportIngredients, stagingImportParserAPIOrigin, stagingRecipeImportAPIOrigin, type RecipeImport } from "../pantry-api";
+import { importBoard, importRecipe, parseImportIngredients, stagingBoardImportAPIOrigin, stagingImportParserAPIOrigin, stagingRecipeImportAPIOrigin, type BoardRecipeImport, type RecipeImport } from "../pantry-api";
 import { importedRecipeInput, saveImportedBoard, saveImportedRecipe } from "../recipe-import";
 
 const fixture = (): RecipeImport => importedRecipeInput("h", {
@@ -26,6 +27,15 @@ describe("recipe import transport", () => {
       ], { env: { ...process.env, EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER: "enabled", ...config } });
       expect(child.exitCode).toBe(0);
     }
+  });
+  it("keeps board orchestration independently off and fails closed without its parser dependency", () => {
+    expect(stagingBoardImportAPIOrigin()).toBeNull();
+    const child = Bun.spawnSync([
+      process.execPath,
+      "-e",
+      "import {stagingBoardImportAPIOrigin as origin} from './lib/pantry-api.ts'; try { origin(); process.exit(1); } catch { process.exit(0); }",
+    ], { env: { ...process.env, EXPO_PUBLIC_PANTRY_API_BOARD_IMPORT: "enabled", EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER: "", EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS: "enabled", EXPO_PUBLIC_PANTRY_API_URL: "https://example.com" } });
+    expect(child.exitCode).toBe(0);
   });
   it("preserves metadata, edited title/tags, order and null/zero through binary Connect", async () => {
     const input = fixture();
@@ -82,6 +92,117 @@ describe("recipe import transport", () => {
     expect(saved.ingredients).toEqual(preview);
   });
 });
+
+describe("board import stream", () => {
+  const boardInputs = (): BoardRecipeImport[] => [
+    { ...fixture(), item_index: 4, raw_ingredients: ["salt"] },
+    { ...fixture(), item_index: 9, title: "Second", raw_ingredients: ["water"] },
+  ];
+
+  it("uses one binary stream and requires ordered progress plus explicit completion", async () => {
+    let request: ReturnType<typeof fromBinary<typeof ImportBoardRequestSchema>> | undefined;
+    const progress: unknown[] = [];
+    const result = await importBoard("https://example.com", "token", "h", "88f3198e-8844-4ab4-9c0b-b35d1e64c10e", boardInputs(), (event) => progress.push(event), async (url, init) => {
+      expect(String(url)).toEndWith("/ImportBoard");
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer token");
+      expect(new Headers(init?.headers).get("Content-Type")).toBe("application/connect+proto");
+      const body = new Uint8Array(await new Response(init?.body).arrayBuffer());
+      request = fromBinary(ImportBoardRequestSchema, body.slice(5, 5 + new DataView(body.buffer, body.byteOffset + 1, 4).getUint32(0)));
+      return connectStream([
+        { kind: BoardImportEventKind.PREFLIGHTED, total: 2 },
+        { kind: BoardImportEventKind.ITEM, itemIndex: 4, title: "Edited", status: BoardImportItemStatus.SAVED, processed: 1, total: 2, saved: 1 },
+        { kind: BoardImportEventKind.ITEM, itemIndex: 9, title: "Second", status: BoardImportItemStatus.SKIPPED, processed: 2, total: 2, saved: 1, skipped: 1 },
+        { kind: BoardImportEventKind.COMPLETE, processed: 2, total: 2, saved: 1, skipped: 1 },
+      ]);
+    });
+    expect(request?.operationId).toBe("88f3198e-8844-4ab4-9c0b-b35d1e64c10e");
+    expect(request?.items.map((item) => item.itemIndex)).toEqual([4, 9]);
+    expect(request?.items[0].metadata?.tags).toEqual(["chosen", "tag"]);
+    expect(progress).toHaveLength(2);
+    expect(result).toEqual({ saved: 1, skipped: 1, failed: 0, failed_titles: [], catalog_warning: false });
+  });
+
+  it("rejects malformed whole-board metadata before transport", async () => {
+    const inputs = boardInputs();
+    inputs[1].metadata.servings = 2.5;
+    let calls = 0;
+    await expect(importBoard("https://example.com", "token", "h", "88f3198e-8844-4ab4-9c0b-b35d1e64c10e", inputs, () => {}, async () => { calls++; return connectStream([]); })).rejects.toThrow("whole numbers");
+    expect(calls).toBe(0);
+  });
+
+  it("treats a truncated post-preflight stream as safely resumable", async () => {
+    await expect(importBoard("https://example.com", "token", "h", "88f3198e-8844-4ab4-9c0b-b35d1e64c10e", boardInputs(), () => {}, async () => connectStream([
+      { kind: BoardImportEventKind.PREFLIGHTED, total: 2 },
+      { kind: BoardImportEventKind.ITEM, itemIndex: 4, title: "Edited", status: BoardImportItemStatus.SAVED, processed: 1, total: 2, saved: 1 },
+    ], false))).rejects.toThrow("Retry to resume");
+  });
+
+  it("rejects out-of-order events instead of corrupting progress", async () => {
+    await expect(importBoard("https://example.com", "token", "h", "88f3198e-8844-4ab4-9c0b-b35d1e64c10e", boardInputs(), () => {}, async () => connectStream([
+      { kind: BoardImportEventKind.PREFLIGHTED, total: 2 },
+      { kind: BoardImportEventKind.ITEM, itemIndex: 9, status: BoardImportItemStatus.SAVED, processed: 1, total: 2, saved: 1 },
+    ]))).rejects.toThrow("invalid board import progress");
+  });
+
+  it("requires every item and exact monotonic status counters", async () => {
+    const invalidStreams = [
+      [
+        { kind: BoardImportEventKind.PREFLIGHTED, total: 2 },
+        { kind: BoardImportEventKind.COMPLETE, processed: 2, total: 2, saved: 2 },
+      ],
+      [
+        { kind: BoardImportEventKind.PREFLIGHTED, total: 2 },
+        { kind: BoardImportEventKind.ITEM, itemIndex: 4, title: "Edited", status: BoardImportItemStatus.SAVED, processed: 1, total: 2, skipped: 1 },
+      ],
+      [
+        { kind: BoardImportEventKind.PREFLIGHTED, total: 2 },
+        { kind: BoardImportEventKind.ITEM, itemIndex: 4, title: "Edited", status: BoardImportItemStatus.SAVED, processed: 1, total: 2, saved: 1, catalogWarning: true },
+        { kind: BoardImportEventKind.ITEM, itemIndex: 9, title: "Second", status: BoardImportItemStatus.SAVED, processed: 2, total: 2, saved: 2, catalogWarning: false },
+      ],
+      [
+        { kind: BoardImportEventKind.PREFLIGHTED, total: 2 },
+        { kind: BoardImportEventKind.ITEM, itemIndex: 4, title: "Edited", status: BoardImportItemStatus.SAVED, processed: 1, total: 2, saved: 1 },
+        { kind: BoardImportEventKind.ITEM, itemIndex: 9, title: "Second", status: BoardImportItemStatus.SKIPPED, processed: 2, total: 2, saved: 1, skipped: 1 },
+        { kind: BoardImportEventKind.COMPLETE, processed: 2, total: 2, saved: 2 },
+      ],
+    ];
+    for (const events of invalidStreams) {
+      await expect(importBoard("https://example.com", "token", "h", "88f3198e-8844-4ab4-9c0b-b35d1e64c10e", boardInputs(), () => {}, async () => connectStream(events))).rejects.toThrow("invalid board import");
+    }
+  });
+
+  it("requires one successful terminal envelope after exactly one completion", async () => {
+    const events = [
+      { kind: BoardImportEventKind.PREFLIGHTED, total: 2 },
+      { kind: BoardImportEventKind.ITEM, itemIndex: 4, title: "Edited", status: BoardImportItemStatus.SAVED, processed: 1, total: 2, saved: 1 },
+      { kind: BoardImportEventKind.ITEM, itemIndex: 9, title: "Second", status: BoardImportItemStatus.SKIPPED, processed: 2, total: 2, saved: 1, skipped: 1 },
+      { kind: BoardImportEventKind.COMPLETE, processed: 2, total: 2, saved: 1, skipped: 1 },
+    ];
+    await expect(importBoard("https://example.com", "token", "h", "88f3198e-8844-4ab4-9c0b-b35d1e64c10e", boardInputs(), () => {}, async () => connectStream([...events, events[3]]))).rejects.toThrow("data after");
+    await expect(importBoard("https://example.com", "token", "h", "88f3198e-8844-4ab4-9c0b-b35d1e64c10e", boardInputs(), () => {}, async () => connectStream(events, true, { error: { code: "unavailable", message: "lost" } }))).rejects.toThrow("Retry to resume");
+  });
+});
+
+function connectStream(events: any[], complete = true, terminal: Record<string, unknown> = {}): Response {
+  const chunks = events.map((event) => envelope(0, toBinary(ImportBoardResponseSchema, create(ImportBoardResponseSchema, event))));
+  if (complete) chunks.push(envelope(2, new TextEncoder().encode(JSON.stringify(terminal))));
+  return new Response(concatenate(chunks), { headers: { "Content-Type": "application/connect+proto" } });
+}
+
+function envelope(flags: number, payload: Uint8Array): Uint8Array {
+  const framed = new Uint8Array(payload.length + 5);
+  framed[0] = flags;
+  new DataView(framed.buffer).setUint32(1, payload.length);
+  framed.set(payload, 5);
+  return framed;
+}
+
+function concatenate(chunks: Uint8Array[]): ArrayBuffer {
+  const output = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.length; }
+  return output.buffer as ArrayBuffer;
+}
 
 function fixtureSource() {
   return {
