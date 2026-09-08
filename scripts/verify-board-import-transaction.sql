@@ -124,9 +124,11 @@ begin
     raise exception 'Failed completion did not roll back recipe and ledger';
   end if;
   perform set_config('pantry.test_fail_completion', 'off', true);
-  if public.import_board_item(household, fixture_operation, 40)->>'status' <> 'saved'
+  result := public.import_board_item(household, fixture_operation, 40);
+  if result->>'status' <> 'saved'
      or (select count(*) from public.recipes where household_id=household) <> before_recipes + 1 then
-    raise exception 'Failed item did not remain retryable';
+    raise exception 'Failed item did not remain retryable: result=%, before=%, after=%',
+      result, before_recipes, (select count(*) from public.recipes where household_id=household);
   end if;
 
   changed_manifest := jsonb_set(manifest, '{1,title}', '"Changed after preflight"');
