@@ -23,9 +23,11 @@ async function publicConfig() {
   const bundleResponse = await fetch(new URL(asset, origin));
   assert.equal(bundleResponse.status, 200, `${target} application bundle unavailable`);
   const bundle = await bundleResponse.text();
-  const database = bundle.match(/https:\/\/[a-z]+\.supabase\.co/)?.[0];
+  const projectRef = target === 'production' ? 'uyuswprxolsktmiraala' : 'fncsyvsgolbpviidmpuc';
+  const database = `https://${projectRef}.supabase.co`;
   const key = bundle.match(/sb_publishable_[A-Za-z0-9_-]+/)?.[0];
-  assert(database && key, `${target} public client configuration missing`);
+  assert(bundle.includes(database), `${target} bundle does not use the approved Supabase project`);
+  assert(key, `${target} public client key missing`);
   return { database, key, fingerprint: createHash('sha256').update(bundle).digest('hex').slice(0, 12) };
 }
 
@@ -56,7 +58,7 @@ async function scopedRows(config, identity, path) {
 }
 
 const config = await publicConfig();
-const identity = await createIdentity(config);
+let identity;
 const suffix = `${Date.now()}-${randomBytes(3).toString('hex')}`;
 const householdName = `Parity ${target} ${suffix}`;
 const recipeTitle = `Parity recipe ${suffix}`;
@@ -65,7 +67,11 @@ const manualName = `parity tea ${suffix}`;
 const storeName = `Parity store ${suffix}`;
 const catalogName = `parity catalog ${suffix}`;
 const tagName = `parity-${randomBytes(3).toString('hex')}`;
-const browser = await stagingBrowser(origin);
+function allowAppendOnlyRequest(request) {
+  return request.method !== 'DELETE' && !/(?:^|\/)(?:Delete|Remove|Clear)[^/]*$/.test(request.path);
+}
+
+const browser = await stagingBrowser(origin, { requestGuard: allowAppendOnlyRequest });
 let householdID;
 const comparisonFailures = [];
 
@@ -80,6 +86,17 @@ async function waitForResponse(predicate, label) {
 
 try {
   await browser.until("!!document.querySelector('input[type=email]')");
+  const guardProbe = await browser.evaluate(`Promise.all([
+    fetch('/__pantry_append_only_guard_probe__/safe', { method: 'DELETE' }),
+    fetch('/__pantry_append_only_guard_probe__/ClearProbe', { method: 'POST' }),
+  ].map(request => request.then(() => 'sent', () => 'blocked')))`);
+  assert.deepEqual(guardProbe, ['blocked', 'blocked'], 'Append-only request guard did not fail closed');
+  assert.deepEqual(browser.blockedRequests.map(request => [request.method, request.path]), [
+    ['DELETE', '/__pantry_append_only_guard_probe__/safe'],
+    ['POST', '/__pantry_append_only_guard_probe__/ClearProbe'],
+  ]);
+  browser.blockedRequests.length = 0;
+  identity = await createIdentity(config);
   await browser.fill('input[type=email]', identity.email);
   await browser.fill('input[type=password]', identity.password);
   await browser.click('Sign In');
@@ -204,14 +221,18 @@ try {
   assert(stores.some(store => store.name === storeName));
   assert(catalog.some(item => item.normalized_name === catalogName));
 
-  const unsafe = browser.responses.filter(response =>
-    response.method === 'DELETE' || /\/(Delete|Remove|Clear)[A-Za-z]+$/.test(response.path));
-  assert.deepEqual(unsafe, [], `${target} comparison attempted a destructive request`);
-  assert.deepEqual(browser.errors, []);
   await browser.navigate('/household-edit?id=' + householdID);
   await browser.until("document.body.innerText.includes('Sign Out')");
   await browser.click('Sign Out');
   await browser.until("location.pathname === '/login'");
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  const unsafe = browser.responses.filter(response =>
+    response.method === 'DELETE' || /\/(Delete|Remove|Clear)[A-Za-z]+$/.test(response.path));
+  assert.deepEqual(browser.blockedRequests, [],
+    `${target} comparison attempted a destructive request that was blocked before transmission`);
+  assert.deepEqual(unsafe, [], `${target} comparison attempted a destructive request`);
+  assert.deepEqual(browser.errors, []);
 
   console.log(JSON.stringify({
     target,
