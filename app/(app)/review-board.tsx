@@ -49,10 +49,11 @@ export default function ReviewBoardScreen() {
   const [saveProgress, setSaveProgress] = useState(0);
   const [savedNotice, setSavedNotice] = useState("");
   const [saveError, setSaveError] = useState(invalidRecovery
-    ? "This board import recovery link is incomplete or invalid. Return to your recipes and start the import again so Pantry cannot duplicate an unconfirmed save."
+    ? "This board import recovery link is incomplete or invalid. Pantry blocked a new save to avoid duplicating an unconfirmed recipe. Return to your recipes and review what was saved before trying again."
     : "");
   const [canRetry, setCanRetry] = useState(false);
   const operationID = useRef(resume?.operationID ?? "");
+  const savingRef = useRef(false);
   const [operationStarted, setOperationStarted] = useState(operationID.current !== "");
   const finish = () => router.replace({ pathname: "/(app)/household", params: { id: householdId } });
 
@@ -77,7 +78,9 @@ export default function ReviewBoardScreen() {
   };
 
   const handleSave = async (resume = false) => {
-    if (saving || (savedNotice && !resume)) return;
+    if (savingRef.current || saving || (savedNotice && !resume)) return;
+    savingRef.current = true;
+    try {
     if (resume) {
       setSavedNotice("");
       setSaveError("");
@@ -231,6 +234,10 @@ export default function ReviewBoardScreen() {
     if (failed.length || catalogFailed) {
       setSavedNotice(`Saved ${saved} of ${deduped.length}.${failed.length ? `\n\nNot saved: ${failed.join(", ")}` : ""}${catalogFailed ? `\n\n${catalogSavedWarning}` : ""}`);
     } else finish();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const selectedCount = selected.size;

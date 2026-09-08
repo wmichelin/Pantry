@@ -73,6 +73,7 @@ jobs:
             EXPO_PUBLIC_PANTRY_API_SHOPPING_LIST=enabled
             EXPO_PUBLIC_PANTRY_API_CATALOG_SETTINGS=enabled
             EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER=enabled
+            EXPO_PUBLIC_PANTRY_API_BOARD_IMPORT=enabled
 
   deploy:
     name: Deploy and smoke-test staging only
