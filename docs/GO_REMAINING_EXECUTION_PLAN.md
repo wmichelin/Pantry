@@ -2,13 +2,14 @@
 
 ## Status update
 
-Status: implementing Phase 4 (catalog/settings; full Go port remains incomplete)
-Last completed: shopping aggregation, catalog/aisle dependencies, manual add/remove
-and revision-checked atomic ordering, PRs 54–55; browser evidence in PR 56.
-Now: port catalog/settings editors and recipe-save catalog enrichment (Phase 4).
-Next: API/SQL parity, then gated client/browser verification; afterwards
+Status: testing Phase 4 (catalog/settings; full Go port remains incomplete)
+Last completed: catalog/settings Go implementation, local/CI checks, staging SQL
+failure-injection gates and live API parity (78 parser fixtures, 12 authenticated
+operations, member/outsider boundaries and 1,001-row seed/read).
+Now: staging-only client flag and real browser verification (Phase 4).
+Next: verify catalog/settings and recipe enrichment routes; afterwards
 scraper and remaining import parser/board orchestration ownership.
-Staging: https://pantry-staging.waltermichelin.com (verified baseline)
+Staging: https://pantry-staging.waltermichelin.com (deploying client; API verified)
 Blocker: none
 
 ## Delivery brief
@@ -62,6 +63,26 @@ Execution checkpoints: (1) this reviewed plan; (2) parser/contracts/domain/SQL a
 unit/transaction gates; (3) gated client with mutation serialization and read epochs;
 (4) API-first deployment/live acceptance; (5) flag-enabled web and real browser
 parity/failure checks; (6) commit verified evidence and next-slice inventory.
+
+Pre-client evidence (2026-09-08): backend `f1ba35d`, gated client `f13fb33`,
+acceptance fixture correction `f906cb9`; [PR 57](https://github.com/wmichelin/Pantry/pull/57).
+[CI](https://github.com/wmichelin/Pantry/actions/runs/34174677909) passed Go vet/race,
+API Docker build, 234 Bun tests, TypeScript, Protobuf checks/generation and Expo export.
+[API deployment](https://github.com/wmichelin/Pantry/actions/runs/34174788509)
+verified `staging-api-f906cb91ec2c7ab3b4c6c4e09af063b532efc81d` at the existing
+loopback staging port. `node scripts/verify-staging-catalog-settings.mjs` passed
+78 shared parser cases, persisted metadata parity, preservation of custom values,
+all 12 anonymous/outsider denials, member mirror/order, stale rejection, scoped
+cascades, actual seed counts and 1,001-row source/catalog reads. Bulk rows removed
+only from generated fixture household. The SQL migration was narrowly applied to
+`fncsyvsgolbpviidmpuc`; `verify-catalog-settings-transaction.sql` exited 0 and passed
+atomic injected mirror/metadata/aisle failure rollback, full-keyset rejection,
+owner/member/private-helper privileges, unchanged household owner/name, and scoped
+cascades. All synthetic SQL identities/rows/triggers rolled back. No bulk migration
+history repair. Advisors: nine unchanged legacy security warnings, no new-function
+warnings or performance warnings. Review additionally caught/fixed malformed
+fraction and JS line-break parser parity, missing-origin fail-open, stale seed
+refresh notices and household-route state reuse. Native devices remain untested.
 
 ### Completed slice: remaining shopping screen
 
