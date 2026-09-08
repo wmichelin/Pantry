@@ -10,12 +10,14 @@ const household = created.body.household.id;
 const browser = await stagingBrowser();
 try {
   await browser.login(user);
+  await browser.call('Page.enable');
   const previewFailureScript = await browser.call('Page.addScriptToEvaluateOnNewDocument', { source: `
     (() => {
       const original = window.fetch;
       let failed = false;
       window.fetch = async (...args) => {
-        if (!failed && String(args[0]).endsWith('/ParseImportIngredients')) {
+        const requestUrl = args[0] instanceof Request ? args[0].url : String(args[0]);
+        if (!failed && requestUrl.endsWith('/ParseImportIngredients')) {
           failed = true;
           window.__parserFailureInjected = true;
           return new Response('{}', { status: 503, headers: { 'Content-Type': 'application/json' } });
@@ -28,7 +30,9 @@ try {
     instructions: ['First', 'Second'], suggested_tags: ['dinner'], servings: 0, cook_time_minutes: 9,
     raw_ingredients: ['salt', '0 cups water'] };
   await browser.navigate('/review-recipe?' + new URLSearchParams({ householdId: household, recipeJson: JSON.stringify(single) }));
-  await browser.until("window.__parserFailureInjected && document.body.innerText.includes('Try again')");
+  await browser.until("window.__parserFailureInjected || document.body.innerText.includes('Ingredients (2)') || document.body.innerText.includes('Try again')");
+  assert.equal(await browser.evaluate("!!window.__parserFailureInjected"), true, 'Preview interceptor was not installed before the request');
+  await browser.until("document.body.innerText.includes('Try again')");
   assert(!browser.responses.some(r => r.path.endsWith('/ImportRawRecipe') || r.path.endsWith('/ImportRecipe')),
     'A failed preview attempted persistence');
   await browser.click('Try again');
@@ -39,7 +43,8 @@ try {
     const original = window.fetch;
     let failed = false;
     window.fetch = async (...args) => {
-      if (!failed && String(args[0]).endsWith('/ImportRawRecipe')) {
+      const requestUrl = args[0] instanceof Request ? args[0].url : String(args[0]);
+      if (!failed && requestUrl.endsWith('/ImportRawRecipe')) {
         failed = true;
         window.__rawSaveFailureInjected = true;
         return new Response('{}', { status: 503, headers: { 'Content-Type': 'application/json' } });

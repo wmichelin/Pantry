@@ -58,6 +58,42 @@ a disconnect rather than replaying committed writes.
 | 5c | Authenticated Go scraper/extraction | Saved website/pin/board fixture oracle plus malformed/limit/error cases; resolver/redirect/rebinding/port/body/time/concurrency/rate gates; API-first deploy and authenticated live public-URL smoke; staging web flag only after binary Connect evidence. |
 | 6 | Dashboard read and comprehensive parity audit | Dashboard uses Go with no active direct business-table read. Disposable public-UI accounts compare production legacy and staging for onboarding, website/pin/board import, review/edit/save, recipes/tags/delete, queue, shopping, checks, ordering, catalog and settings. Staging additionally exercises recoverable failures. All active staging business calls are binary Connect; Supabase Auth remains direct by design. |
 
+### Stage 5a verified checkpoint (2026-09-08)
+
+Status: complete. Next: Stage 5b recoverable Go board-import orchestration.
+Current recovery pair is API
+`staging-api-f36a6196193bce8588b141fd88be60099a735ef0` and web
+`staging-dd4cdd2db621ace357d20d56bb9daba7a1a499a1`; the pre-5a pair above remains
+available for whole-slice rollback.
+
+- Reviewed plan `8bfe22e`; parser/domain/protobuf `4831f34`; fail-closed raw RPC,
+  exact membership, gated client and acceptance `f36a619`; staging enablement
+  `dd4cdd2`. [PR 59](https://github.com/wmichelin/Pantry/pull/59).
+- [CI run 34181359256](https://github.com/wmichelin/Pantry/actions/runs/34181359256)
+  passed 245 Bun tests, Go vet/race, TypeScript, Protobuf format/lint/build/
+  breaking/generated checks, Expo export and the production-shaped API image.
+- [API deployment 34181215289](https://github.com/wmichelin/Pantry/actions/runs/34181215289)
+  replaced and probed only the loopback staging API. The staging client flag
+  remained off until authenticated acceptance passed.
+- Hosted acceptance passed exact preview/persistence equality, compound/filter/
+  Unicode/line-separator fixtures, null/zero/raw/order, filtered-only member import,
+  a 20 KiB preview, and outsider/anonymous/oversized rejection with no new rows.
+  The existing parsed-import acceptance also passed unchanged.
+- [Web deployment 34181432219](https://github.com/wmichelin/Pantry/actions/runs/34181432219)
+  enabled only `EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER` on staging. Real desktop and
+  touch-width browser gates passed injected preview failure with disabled Save and
+  recovery, injected raw-save failure with retained edits and recovery, single and
+  board persistence, authoritative catalog enrichment, three binary raw saves,
+  zero legacy parsed-import calls, zero direct recipe writes and zero exceptions.
+- Review caught and corrected first-membership authorization, incomplete Unicode
+  casing, JavaScript-dot line semantics, a 16 KiB preview limit, unsafe old-API
+  version skew, fail-open configuration and invisible web errors before cutover.
+  The first browser injection did not match because the Page domain was not enabled;
+  the harness was corrected and rerun without weakening the application assertions.
+
+Production was not accessed or changed for this checkpoint. No SQL, migration,
+Edge Function, secret, infrastructure or backup state was changed.
+
 For every stage: regenerate Protobuf deterministically; run focused unit/transport/
 client tests, Go vet/race, all Bun tests, TypeScript, Protobuf format/lint/build/
 breaking/generated checks, Expo export and API image build; obtain role review;
