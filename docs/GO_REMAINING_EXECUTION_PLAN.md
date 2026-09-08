@@ -4,15 +4,19 @@
 
 Authorization and boundary (2026-09-08): continue through feature parity, commit
 incrementally, push only staging branches/images and verify every stage. Production
-may be exercised only through its public UI with a disposable account for the
-explicitly authorized black-box comparison. Do not deploy production or access its
-database, administration APIs, secrets, host, migrations or infrastructure. The
-original checkout's unrelated edits remain untouched; implementation continues in
-the isolated `codex/go-full-parity` worktree. Current recovery images are web
-`staging-64cc4c5731a84d33277dd22a4a3c1df2f14c7ee5` and API
-`staging-api-593a0097e05f5ccb5ef4972d1da14ca64f493189`.
+may be exercised only through its public app and public caller-scoped APIs with a
+disposable account for the explicitly authorized black-box comparison. Do not
+deploy production or use database administration, privileged APIs, secrets, host
+access, migrations or infrastructure. The original checkout's unrelated edits
+remain untouched; implementation continues in the isolated
+`codex/go-full-parity` worktree. The current verified pair is web
+`staging-92766efa7aab7fa8cc4a2d27821ef25ac4e3108b` and API
+`staging-api-6e7653c06e162fb31f0ceb09c6475d2baa02f1a0`. The rehearsed rollback pair is
+web `staging-bbaa19e8db96352c019cc4d271f1560db0fac6a9` and API
+`staging-api-503731715c3be7cb70b7a78f695d0cf8d8393c14`.
 
-The six-role review reconfirmed four remaining active slices. Product requires the
+At the start of this continuation, the six-role review reconfirmed four active
+slices. Product requires the
 existing website, Pinterest pin and Pinterest board review flows; edited titles,
 tags and selection; ordered progress; partial-success summaries; and the complete
 onboarding-to-shopping journey. Architecture requires authenticated household
@@ -55,8 +59,87 @@ a disconnect rather than replaying committed writes.
 | --- | --- | --- |
 | 5a | Go import-array parser and raw-ingredient contracts | Golden legacy/Go fixtures cover compound splitting/filtering/case/raw text, malformed fractions, Unicode, null/zero and order. Both preview and persistence use the same Go result; API deploy precedes the independently flagged staging web cutover. |
 | 5b | Recoverable Go board-import orchestration | Migration/grant/RLS and injected-rollback gates; stored and in-batch exact-URL dedup; URL-less idempotency; edited fields/selection; zero writes on preflight failure; per-item atomicity, partial success, retry-after-failure and lost-response recovery; visible ordered progress. |
-| 5c | Authenticated Go scraper/extraction | Saved website/pin/board fixture oracle plus malformed/limit/error cases; resolver/redirect/rebinding/port/body/time/concurrency/rate gates; API-first deploy and authenticated live public-URL smoke; staging web flag only after binary Connect evidence. |
-| 6 | Dashboard read and comprehensive parity audit | Dashboard uses Go with no active direct business-table read. Disposable public-UI accounts compare production legacy and staging for onboarding, website/pin/board import, review/edit/save, recipes/tags/delete, queue, shopping, checks, ordering, catalog and settings. Staging additionally exercises recoverable failures. All active staging business calls are binary Connect; Supabase Auth remains direct by design. |
+| 5c | Authenticated Go scraper/extraction | Legacy recipe-extraction oracle plus deterministic pin/board discovery fixtures and malformed/limit/error cases; resolver/redirect/rebinding/port/body/time/concurrency/rate gates; API-first deploy and authenticated live public-URL smoke; staging web flag only after binary Connect evidence. |
+| 6 | Dashboard read and comprehensive parity audit | Dashboard uses Go with no active direct business-table read. Disposable public accounts compare production legacy and staging across the safe append-only workflow; staging separately exercises delete/remove/clear and recoverable failures. All active staging business calls are binary Connect; Supabase Auth remains direct by design. |
+
+### Final web-parity checkpoint (2026-09-08)
+
+Status: complete for the deployed web product. Every active staging business
+workflow is owned by Go through generated Protobuf/Connect contracts; direct
+Supabase use is limited to Auth plus disabled production/rollback compatibility
+branches. This is not a production Go deployment and is not a native-device
+runtime claim.
+
+- Scraper implementation `5037317`, staging client cutover `34c9c93`, dashboard
+  household-read cutover `bbaa19e`, deterministic browser runner `523fb7b`,
+  resource/admission/UI hardening `26f8120`, corrected board assertion `92766ef`,
+  cross-environment/recovery gates `6e7653c`, and fail-closed production test
+  guards plus pinned scrape diagnostics `00489a1` are in
+  [PR 59](https://github.com/wmichelin/Pantry/pull/59).
+- The scrape contract uses an explicit recipe/board `oneof`. Membership is checked
+  before outbound admission/fetch. The safe fetcher enforces the reviewed URL,
+  DNS/dial, redirect, request/body/concurrency/rate/time limits, and the deployment
+  requires protected-destination configuration. A legacy-generated oracle pins
+  recipe-page extraction semantics; deterministic Go fixtures pin Pinterest pin/
+  board discovery and orchestration. They explicitly document where live
+  third-party responses are outside deterministic parity.
+- [CI 34235531851](https://github.com/wmichelin/Pantry/actions/runs/34235531851)
+  and [CI 34239811649](https://github.com/wmichelin/Pantry/actions/runs/34239811649)
+  passed 258 Bun tests, TypeScript, Protobuf format/lint/build/breaking/generated
+  checks, Expo web export, Go module verification/vet/race tests, and the API image
+  build. Fully flagged iOS and Android Expo exports also completed locally; no real
+  native device or simulator was exercised.
+- The exact API image was deployed and resource-limit/health/readiness checked in
+  [34239990941](https://github.com/wmichelin/Pantry/actions/runs/34239990941).
+  The exact web image was built/deployed in
+  [34235907088](https://github.com/wmichelin/Pantry/actions/runs/34235907088).
+- Server-side workflows passed for recipe import `34231571809`, recipe management
+  `34231574641`, queue `34231577496`, shopping checks `34231580281`, catalog/settings
+  `34231585323`, and shopping list `34231724898`. Shopping-list run `34231582945`
+  returned a transient `503` while all six fixture workflows overlapped; the
+  isolated rerun passed. Overlap is observed, but is not claimed as a proven cause.
+- On the final pair, all deterministic browser suites passed: dashboard/list/detail/
+  search/tags/delete; import preview, board interruption/resume and failure recovery;
+  queue; shopping list/check/stale-read races; catalog/settings; and enrichment.
+  Their active business calls were binary Connect, prohibited direct table/Edge
+  calls were zero, and uncaught browser exceptions were zero.
+- The append-only public comparison is reproducible with
+  `scripts/verify-public-append-only-parity-browser.mjs`. It pins the approved
+  Supabase project per environment and proves its pre-transmission DELETE and
+  Delete/Remove/Clear RPC guard before creating data. Staging passed onboarding,
+  household/settings/store, manual recipe with zero quantity, search/detail/tags,
+  queue/shopping/manual/check, mobile-width reload, catalog seed, website scrape/
+  review/save, scoped persistence reads and sign-out with bundle fingerprint
+  `a56029e6518f`, zero destructive requests and zero exceptions. Production
+  fingerprint `f886c35497cb` completed the same append-only journey but failed the
+  final parity assertion on an existing legacy defect: a shopping check persisted
+  (`201` and scoped readback) but did not render checked, including after reload.
+  Staging intentionally corrects that defect.
+- `scripts/diagnose-public-scrape-parity.mjs` exercised each public scrape
+  transport and produced the same user-level availability: `example.com` returned
+  one recipe; the selected public Pinterest
+  pin failed in both environments (safe staging `503`, legacy production `500`);
+  and the selected public board returned an empty board in both. No recipe was
+  saved by this diagnosis. Recipe-page extraction semantics are covered by the
+  legacy-generated oracle, while deterministic Go fixtures cover Pinterest pin/
+  board discovery and orchestration. Current live Pinterest availability is not
+  claimed.
+- Rollback was actually rehearsed. Web rollback
+  [34240177553](https://github.com/wmichelin/Pantry/actions/runs/34240177553) and API
+  rollback
+  [34240264969](https://github.com/wmichelin/Pantry/actions/runs/34240264969)
+  restored the prior pair, which passed the append-only browser/persistence journey
+  with fingerprint
+  `7a6b4385d87d`. API restore
+  [34240370341](https://github.com/wmichelin/Pantry/actions/runs/34240370341) and web
+  restore [34240429234](https://github.com/wmichelin/Pantry/actions/runs/34240429234)
+  returned staging to the final pair; the same journey passed again with fingerprint
+  `a56029e6518f`.
+
+Production received only the explicitly authorized append-only disposable public
+test accounts and their isolated household data. No production deployment,
+migration, administrator API, secret, host, infrastructure, existing household,
+or backup state was accessed or changed.
 
 ### Stage 5a verified checkpoint (2026-09-08)
 
@@ -162,7 +245,7 @@ Move extraction and fetch orchestration behind a new unary
 raw-recipe and recoverable-board services as the only persistence paths. The
 response is a single/board oneof whose recipe shape preserves repeated-field order
 and optional image/serving/time presence. The client gets an independent
-`EXPO_PUBLIC_PANTRY_API_SCRAPER` staging flag and fails closed when enabled but
+`EXPO_PUBLIC_PANTRY_API_RECIPE_SCRAPE` staging flag and fails closed when enabled but
 misconfigured or when Go fails. The legacy Edge path remains only as flag-off
 rollback compatibility.
 
@@ -216,9 +299,12 @@ fallback/operational paths that are explicitly inventoried. It does not mean a
 production Go deployment, removal of compatibility code, or unperformed native
 iOS/Android validation. Those remain separately stated rather than implied.
 
-## Status update
+## Historical Phase 4 status update
 
-Status: verified Phase 4 (catalog/settings; full Go port remains incomplete)
+The status and plan below are retained as the pre-Stage-5 historical record. The
+final web-parity checkpoint above is authoritative.
+
+Status at this checkpoint: verified Phase 4 (catalog/settings; full Go port incomplete)
 Last completed: Go catalog/settings, catalog single-name parsing and recipe-save
 enrichment transport; local/CI, transactional SQL, live API and real browser gates.
 Now: commit verification evidence and hand off the remaining-port inventory.
@@ -377,18 +463,18 @@ successful save. Failed saves must not suppress retrying the same URL.
 | Phase | Scope and commits | Required parity gate | State |
 | --- | --- | --- | --- |
 | 0 | Commit this plan and baseline/review | Scope, clean implementation tree, staging rollback identified | Complete |
-| 1 | Import contract/domain/storage + SQL + tests; single/board client + tests; acceptance + staged flag | All source metadata, instructions/tags order, null/zero, empty single import, long text, dedup, atomic failure and accurate board summary | Persistence verified; parser/board orchestration remain to port |
+| 1 | Import contract/domain/storage + SQL + tests; single/board client + tests; acceptance + staged flag | All source metadata, instructions/tags order, null/zero, empty single import, long text, dedup, atomic failure and accurate board summary | Verified in staging, including later parser/board cutovers |
 | 2 | Recipe reads/details/tags/delete | Ordering, nullable fields, filtering, absent/outsider responses, deletion cascades and rollback | Verified in staging |
 | 3a | Running queue list/add/remove/clear and three screens | Add/remove/retry, targeted membership lookup, cross-household references, atomic clear preserves manual items | Verified in staging |
 | 3b | Shopping-list services and client | Occurrence aggregation, checked-key identity, manual items, ordering; clear shopping week removes queue/checks/manuals | Verified in staging |
 | 4 | Ingredient catalog and household settings | Single-name parsing, missing-only seed, display/category edits, store add/delete and availability-cascade preservation, member/invite reads, atomic aisle CRUD/order/reassignment | Verified in staging; no nonexistent assignment editor invented |
-| 5 | Go scraper and client | Saved website/pin/board fixtures; parsing/errors, authenticated requests, DNS/redirect SSRF checks, bounded concurrency/time/body, rate limiting | Pending |
-| 6 | Cross-capability regression and residual-call audit | Real onboarding → import → queue → shop → clear journey; all remaining direct business-data calls accounted for; rollback rehearsal | Pending |
+| 5 | Go scraper and client | Saved website/pin/board fixtures; parsing/errors, authenticated requests, DNS/redirect SSRF checks, bounded concurrency/time/body, rate limiting | Verified in staging; live Pinterest availability limitation recorded above |
+| 6 | Cross-capability regression and residual-call audit | Real onboarding → import → queue → shop → clear journey; all remaining direct business-data calls accounted for; rollback rehearsal | Verified for web; native runtime remains explicitly unverified |
 
 Keep parsing/formatting that is purely presentation-side in TypeScript. If parsing
 or aggregation determines persisted state, characterize it before moving ownership
 to Go; do not claim the domain fully ported while such behavior remains client-owned.
-Catalog enrichment after recipe saves remains separately tracked until Phase 4.
+Catalog enrichment after recipe saves was completed in Phase 4.
 
 ## Gates for every slice
 
@@ -704,7 +790,7 @@ Original checkout's `docs/DEPLOY.md` and untracked `scripts/pantry-actions.sh`
 remain untouched. The verified images above are the next slice's recovery baseline;
 the pre-change images at the top remain available for this slice's rollback.
 
-## Latest verified checkpoint: catalog/settings and enrichment (2026-09-08)
+## Historical Phase 4 checkpoint: catalog/settings and enrichment (2026-09-08)
 
 Staging: https://pantry-staging.waltermichelin.com (verified).
 
@@ -761,16 +847,15 @@ Staging: https://pantry-staging.waltermichelin.com (verified).
   parser deliberately preserves caller case; the fixture assertion was corrected
   and the full suite passed. This was not a staging application failure.
 
-Remaining port inventory (not hidden behind a full-port claim):
+Pre-Stage-5 inventory (items 1–3 were completed by the final checkpoint above):
 
-1. `supabase/functions/scrape-recipe/index.ts` and the `import-recipe` Edge Function
-   invocation remain TypeScript; characterize website/pin/board fixtures and
-   authenticated SSRF/time/body/concurrency/rate-limit behavior before Go cutover.
-2. `parseIngredients` compound expansion/filtering and `lib/recipe-import.ts`
-   board orchestration/dedup still determine persisted input on the client.
-   Catalog's single-name parser is ported, not this complete import pipeline.
-3. The household dashboard still directly reads `households(id,name)`; migrate
-   that read and complete the onboarding/import/queue/shop/clear residual-call audit.
+1. The authenticated Go scraper and independently gated staging client cutover
+   completed this former scraper item in Stage 5c. The Edge Function remains only
+   as the production/rollback implementation.
+2. Go parser and recoverable board-import ownership completed this former client
+   parser/orchestration item in Stages 5a and 5b.
+3. The Go `ListHouseholds` dashboard read and residual-call audit completed this
+   former dashboard item in Stage 6.
 4. Flag-off direct-table branches and operational backfill scripts remain for
    compatibility. No ingredient-store assignment or household-name/member editor
    exists in the current UI; no such editor was invented or claimed ported.
@@ -778,5 +863,6 @@ Remaining port inventory (not hidden behind a full-port claim):
    validation. Postcommit enrichment is intentionally best-effort. Advisory locks
    cover cooperating operations, not existing noncooperating writers.
 
-Production: no deployment, DB access/migration, configuration or backup changes.
+At this historical checkpoint, production had no deployment, database access/
+migration, configuration or backup changes.
 Original checkout `docs/DEPLOY.md` and untracked `scripts/pantry-actions.sh` preserved.

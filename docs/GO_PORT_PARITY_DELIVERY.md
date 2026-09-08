@@ -8,16 +8,13 @@ Current execution status and verified images are maintained in
 deployed and browser-verified (PRs 47–49). The original delivery review and
 initial gate definitions below are retained as historical context.
 
-Status: in progress
-Last completed: household landing read plus atomic household create/join are
-deployed and verified in staging.
-Now: recipe create/import is the next mutation slice; board, queue/shopping, and
-scrape remain on their legacy client paths.
-Evidence: `f714753`, `c4aea57`, `2216672`; staging API deployment `33421960167`,
-staging web deployment `33422057442`, and complete create/join acceptance run
-`33422287101`. The public staging client also completed a new-account and
-create-household primary-path smoke test.
-Staging: <https://pantry-staging.waltermichelin.com>. Production is excluded.
+Historical initial checkpoint: household landing plus atomic household
+create/join were the only completed slices at this point. Evidence was
+`f714753`, `c4aea57`, `2216672`; staging API deployment `33421960167`, staging
+web deployment `33422057442`, and create/join acceptance `33422287101`. Do not
+use this retained checkpoint as the current port status; the current checkpoint
+and recovery images are in
+[GO_REMAINING_EXECUTION_PLAN.md](GO_REMAINING_EXECUTION_PLAN.md).
 
 ## Delivery brief
 

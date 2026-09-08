@@ -1,7 +1,7 @@
 name: Deploy Go API foundation to staging
 
-# This delivers only the loopback-bound Go foundation. It does not change Nginx,
-# expose /api, alter the Expo client, or contact a database.
+# This delivers only the loopback-bound staging Go business API. It does not
+# change Nginx, alter the Expo client, run migrations, or target production.
 on:
   workflow_dispatch:
     inputs:
@@ -53,7 +53,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Build and push staging API foundation
+      - name: Build and push staging Go API
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -77,7 +77,7 @@ jobs:
       GHCR_USER: ${{ github.repository_owner }}
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
     steps:
-      - name: Replace only the loopback API foundation
+      - name: Replace only the loopback staging Go API
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DROPLET_HOST }}
