@@ -9,9 +9,13 @@ disposable account for the explicitly authorized black-box comparison. Do not
 deploy production or use database administration, privileged APIs, secrets, host
 access, migrations or infrastructure. The original checkout's unrelated edits
 remain untouched; implementation continues in the isolated
-`codex/go-full-parity` worktree. The current verified pair is web
-`staging-92766efa7aab7fa8cc4a2d27821ef25ac4e3108b` and API
-`staging-api-6e7653c06e162fb31f0ceb09c6475d2baa02f1a0`. The rehearsed rollback pair is
+`codex/go-full-parity` worktree. The October continuation uses the durable
+`/home/wmichelin/.t3/worktrees/Pantry/go-rewrite-continuation` checkout because the
+temporary September worktree was no longer present. The current verified pair is
+web `staging-cb36e1a316d70e724bc5d49d9a334d529c9946f3` and API
+`staging-api-cb36e1a316d70e724bc5d49d9a334d529c9946f3`. The October pre-change rollback
+pair is web `staging-92766efa7aab7fa8cc4a2d27821ef25ac4e3108b` and API
+`staging-api-6e7653c06e162fb31f0ceb09c6475d2baa02f1a0`. The older rehearsed rollback pair is
 web `staging-bbaa19e8db96352c019cc4d271f1560db0fac6a9` and API
 `staging-api-503731715c3be7cb70b7a78f695d0cf8d8393c14`.
 
@@ -62,7 +66,77 @@ a disconnect rather than replaying committed writes.
 | 5c | Authenticated Go scraper/extraction | Legacy recipe-extraction oracle plus deterministic pin/board discovery fixtures and malformed/limit/error cases; resolver/redirect/rebinding/port/body/time/concurrency/rate gates; API-first deploy and authenticated live public-URL smoke; staging web flag only after binary Connect evidence. |
 | 6 | Dashboard read and comprehensive parity audit | Dashboard uses Go with no active direct business-table read. Disposable public accounts compare production legacy and staging across the safe append-only workflow; staging separately exercises delete/remove/clear and recoverable failures. All active staging business calls are binary Connect; Supabase Auth remains direct by design. |
 
-### Final web-parity checkpoint (2026-09-08)
+### Main integration and staging checkpoint (2026-10-12)
+
+Status: merged into `main` and verified on staging. [PR 59](https://github.com/wmichelin/Pantry/pull/59)
+merged as `cb36e1a316d70e724bc5d49d9a334d529c9946f3`. Both staging containers now
+use that exact immutable SHA. Production remains on its existing release.
+
+- Six-role continuation review is recorded in the
+  [delivery comment](https://github.com/wmichelin/Pantry/pull/59#issuecomment-6135378679).
+  No new runtime blocker was found. Release-tool correction `6f26a32` makes the
+  browser runner select the eight deterministic suites by default, keeps the strict
+  live Pinterest suite explicit, fixes the checkmark diagnostic wording, and
+  corrects staging host diagnostics to inspect only Pantry's API port `18083`.
+- Fresh local gates passed: `bun test` through the pinned Bun 1.3.14 container
+  (258 tests, 616 assertions), `npx tsc --noEmit`, Protobuf format/lint/build/
+  breaking/generated-code checks, `go mod verify`, `go vet ./...`,
+  `go test -race ./...` through the pinned Go 1.24.11 container, Expo web export,
+  and the API Docker build.
+- [PR CI 38328309201](https://github.com/wmichelin/Pantry/actions/runs/38328309201)
+  and [merged CI 38328591464](https://github.com/wmichelin/Pantry/actions/runs/38328591464)
+  passed all required jobs. The merge commit's tree exactly matches the reviewed
+  PR head; the integration added no application change.
+- Staging recovery: the application containers were running but
+  `fncsyvsgolbpviidmpuc.supabase.co` returned NXDOMAIN. The saved Supabase CLI
+  session confirmed `pantry-staging` was `INACTIVE`. A Management API resume was
+  sent only after confirming the exact staging ref and project name; it returned
+  HTTP 200 and progressed through `COMING_UP`/`RESTORING` to `ACTIVE_HEALTHY`.
+  No project was created, schema reset, migration run, or production backup used.
+  Initial authenticated acceptance failed on DNS, then briefly on signup HTTP 502
+  while the project restored; the suites passed after recovery.
+- [Pre-change host inventory 38327773506](https://github.com/wmichelin/Pantry/actions/runs/38327773506)
+  confirmed the exact September web/API images above. API deployment
+  [38328760947](https://github.com/wmichelin/Pantry/actions/runs/38328760947) passed
+  loopback health/readiness, listener and CPU/memory/swap/PID limit checks. Web
+  deployment [38328914178](https://github.com/wmichelin/Pantry/actions/runs/38328914178)
+  passed loopback and HTTPS checks. Both logs show the exact `cb36e1a` image tags.
+- The seven public API acceptance scripts passed sequentially after Supabase
+  recovery: recipe import, raw parser, recipe management, queue, shopping checks,
+  shopping list and catalog/settings. Import/parser gates passed again after API
+  deployment; the remaining five passed again on the final pair. Evidence includes
+  caller isolation, owner/member/outsider/anonymous behavior, persisted null/zero/
+  order, scoped cascades, Unicode/manual/check identity, stale revision rejection,
+  and reads/order/seed beyond the 1,000-row REST page cap.
+- Local `bun scripts/verify-staging-board-import.ts` passed the 250-item stream,
+  exact parser/metadata, household authorization, stored/in-batch/concurrent dedup,
+  URL-less replay, cancellation/resume identity, and payload-size gates. Incremental
+  item progress spanned 53,368 ms. The post-deployment
+  [Actions repeat 38329414370](https://github.com/wmichelin/Pantry/actions/runs/38329414370)
+  passed the same gates on `cb36e1a`, with progress spanning 58,297 ms.
+- Current shared-browser verification used the T3 preview: fresh disposable signup
+  and login, household creation, manual recipe with quantity zero, detail and queue,
+  shopping check/manual add, mobile-width reload retaining the check and item,
+  website scrape/review/title/tag edit/save, catalog parsed add/seed, household
+  settings/store add, and sign-out. The post-reload measured journey made 27 binary
+  Connect business requests with no failed requests, no legacy business REST/Edge
+  requests, and no uncaught errors. Earlier browser console entries came from the
+  known restoring-project failure and deliberately unauthenticated health probes.
+  This is a refreshed primary-path smoke, not a claim that all eight historical
+  failure-injection browser suites were rerun through the T3 preview.
+- The served bundle fingerprint remains `a56029e6518f`, with the approved staging
+  Supabase project and Go API origin present. Final public checks return web 200
+  and anonymous Go `ListHouseholds` 401. Live staging scrape diagnosis still returns
+  one website recipe, pin 503, and a successful empty board for the selected
+  Pinterest fixtures. Those external availability limits remain explicit.
+
+Remaining gates: native device/simulator runtime remains unverified; production
+promotion still requires its backup recovery gate and explicit production scope.
+Before production promotion, review the existing older capability helpers that
+fall back on invalid API origins and throttle unknown-key JWKS refresh. These are
+recorded hardening follow-ups, not changes introduced in this continuation.
+
+### Historical final web-parity checkpoint (2026-09-08)
 
 Status: complete for the deployed web product. Every active staging business
 workflow is owned by Go through generated Protobuf/Connect contracts; direct
