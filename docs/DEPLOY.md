@@ -97,6 +97,20 @@ the API image. Removing only the transport flag is not a complete rollback:
 restore a previously verified immutable web/API pair and rerun the public and
 capability-specific acceptance gates.
 
+### Staging verification commands
+
+`./scripts/run-staging-browser-suite.sh` runs the eight deterministic application
+browser suites. Live Pinterest availability is tested separately with
+`./scripts/run-staging-browser-suite.sh scripts/verify-staging-recipe-scrape-browser.mjs`;
+that strict test requires successful pin extraction and a nonempty board.
+`PANTRY_PARITY_TARGET=staging ./scripts/run-staging-browser-suite.sh scripts/verify-public-append-only-parity-browser.mjs`
+tests onboarding through website import, shopping and sign-out using isolated data.
+
+Loopback health/readiness and anonymous API rejection are only process/auth-boundary
+checks. Require authenticated acceptance before calling staging verified; a paused
+Supabase project can leave both application containers running while all data
+workflows are unavailable.
+
 ## Production
 
 Production remains a separate, explicit action through **Actions → Deploy** and

@@ -217,7 +217,9 @@ try {
   const shoppingCheckPersisted = checks.some(item => item.normalized_name === ingredientName);
   if (!shoppingCheckPersisted) comparisonFailures.push('shopping check did not persist');
   if (!shoppingCheckReloaded) comparisonFailures.push('persisted shopping check was not rendered after reload');
-  const observedDifferences = shoppingCheckUI ? [] : [`${target} checkmark is stale until reload`];
+  const observedDifferences = shoppingCheckUI ? [] : [shoppingCheckReloaded
+    ? `${target} checkmark renders only after reload`
+    : `${target} checkmark remains unchecked after reload`];
   assert(stores.some(store => store.name === storeName));
   assert(catalog.some(item => item.normalized_name === catalogName));
 

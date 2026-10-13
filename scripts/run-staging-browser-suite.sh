@@ -11,7 +11,17 @@ if [[ ! -x "$CHROMIUM_BIN" ]]; then
 fi
 
 if (($# == 0)); then
-  set -- scripts/verify-staging-*-browser.mjs
+  # Live Pinterest availability is an independent external-source gate. Keep
+  # deterministic application regression usable when Pinterest is unavailable.
+  set -- \
+    scripts/verify-staging-recipe-management-browser.mjs \
+    scripts/verify-staging-import-browser.mjs \
+    scripts/verify-staging-queue-browser.mjs \
+    scripts/verify-staging-shopping-checks-browser.mjs \
+    scripts/verify-staging-shopping-list-browser.mjs \
+    scripts/verify-staging-shopping-stale-load-browser.mjs \
+    scripts/verify-staging-catalog-settings-browser.mjs \
+    scripts/verify-staging-catalog-enrichment-browser.mjs
 fi
 
 run_suite() (

@@ -29,16 +29,12 @@ jobs:
 
             readonly api_container='pantry-api-staging'
             readonly web_container='pantry-staging'
-            readonly api_port='18082'
-            readonly candidate_port='18083'
+            readonly api_port='18083'
 
-            echo '== listener on 127.0.0.1:18082 =='
+            echo '== staging API listener on 127.0.0.1:18083 =='
             ss -ltnp "( sport = :${api_port} )" || true
 
-            echo '== candidate listener on 127.0.0.1:18083 =='
-            ss -ltnp "( sport = :${candidate_port} )" || true
-
-            echo '== Docker containers publishing 18082 =='
+            echo '== Docker containers publishing the staging API port =='
             docker ps --all --filter "publish=${api_port}" \
               --format '{{.Names}} | {{.Status}} | {{.Ports}} | {{.Image}}' || true
 
