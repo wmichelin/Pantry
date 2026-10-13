@@ -2,9 +2,12 @@ import { ConnectError, createClient, type Interceptor } from "@connectrpc/connec
 import { createConnectTransport } from "@connectrpc/connect-web";
 
 import { PantryErrorDetailSchema } from "./gen/pantry/v1/errors_pb";
+import { BoardImportEventKind, BoardImportItemStatus, BoardImportService } from "./gen/pantry/v1/board_import_pb";
 import { HouseholdService } from "./gen/pantry/v1/household_pb";
 import { IdentityService } from "./gen/pantry/v1/identity_pb";
 import { RecipeService } from "./gen/pantry/v1/recipe_pb";
+import { RecipeScrapeService, type ScrapedRecipe as WireScrapedRecipe } from "./gen/pantry/v1/scrape_pb";
+import type { ScrapedRecipe, ScrapeResponse } from "./scrape-types";
 
 export type HouseholdMembership = {
   household_id: string;
@@ -23,7 +26,8 @@ export type Household = {
 export type CreatedHousehold = { id: string; name: string; invite_code: string };
 export type JoinedHousehold = { id: string; name: string; already_member: boolean };
 export type RecipeSaveIngredient = { name: string; quantity: number | null; unit: string; raw_string: string };
-export type SavedRecipe = { id: string; title: string; ingredient_count: number };
+export type ParsedImportIngredient = Omit<RecipeSaveIngredient, "unit"> & { unit: string | null };
+export type SavedRecipe = { id: string; title: string; ingredient_count: number; ingredients?: ParsedImportIngredient[] };
 export type RecipeImportMetadata = {
   source_url: string;
   source_type: "url" | "pinterest_pin";
@@ -34,7 +38,21 @@ export type RecipeImportMetadata = {
   prep_time_minutes?: number;
   cook_time_minutes?: number;
 };
-export type RecipeImport = { household_id: string; title: string; ingredients: (Omit<RecipeSaveIngredient, "unit"> & { unit: string | null })[]; metadata: RecipeImportMetadata };
+export type RecipeImport = {
+  household_id: string;
+  title: string;
+  ingredients: ParsedImportIngredient[];
+  metadata: RecipeImportMetadata;
+  raw_ingredients?: string[];
+  parse_raw_ingredients?: boolean;
+};
+export type BoardRecipeImport = RecipeImport & { item_index: number; raw_ingredients: string[] };
+export type BoardImportProgress = {
+  item_index: number; title: string; status: "saved" | "skipped" | "failed";
+  processed: number; total: number; saved: number; skipped: number; failed: number;
+  failed_titles: string[]; catalog_warning: boolean;
+};
+export type BoardImportResult = Pick<BoardImportProgress, "saved" | "skipped" | "failed" | "failed_titles" | "catalog_warning">;
 export type PantryAPITransport = "rest" | "connect";
 
 type APIProblem = { message?: unknown };
@@ -45,6 +63,9 @@ const configuredTransport: PantryAPITransport =
   process.env.EXPO_PUBLIC_PANTRY_API_TRANSPORT?.trim() === "connect" ? "connect" : "rest";
 const recipeAPIWritesEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_WRITES?.trim() === "enabled";
 const recipeAPIImportsEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_IMPORTS?.trim() === "enabled";
+const importParserEnabled = process.env.EXPO_PUBLIC_PANTRY_API_IMPORT_PARSER?.trim() === "enabled";
+const boardImportEnabled = process.env.EXPO_PUBLIC_PANTRY_API_BOARD_IMPORT?.trim() === "enabled";
+const recipeScrapeEnabled = process.env.EXPO_PUBLIC_PANTRY_API_RECIPE_SCRAPE?.trim() === "enabled";
 const defaultFetch: Fetch = (input, init) => globalThis.fetch(input, init);
 
 // Both settings are intentionally opt-in so production remains on its
@@ -73,14 +94,87 @@ export function stagingRecipeImportAPIOrigin(): string | null {
   return recipeAPIImportsEnabled ? stagingAPIOrigin() : null;
 }
 
+export function stagingImportParserAPIOrigin(): string | null {
+  if (!importParserEnabled) return null;
+  const origin = stagingAPIOrigin();
+  if (!recipeAPIImportsEnabled || !origin) {
+    throw new Error("Pantry import parser is enabled but its recipe import API is unavailable.");
+  }
+  return origin;
+}
+
+export function stagingBoardImportAPIOrigin(): string | null {
+  if (!boardImportEnabled) return null;
+  const origin = stagingImportParserAPIOrigin();
+  if (!origin) throw new Error("Pantry board import is enabled but its Go import parser is unavailable.");
+  return origin;
+}
+
+export function stagingRecipeScrapeAPIOrigin(): string | null {
+  if (!recipeScrapeEnabled) return null;
+  const origin = stagingAPIOrigin();
+  if (!origin) throw new Error("Pantry recipe scraping is enabled but its API is unavailable.");
+  return origin;
+}
+
+export async function scrapeRecipe(apiURL: string, accessToken: string, householdID: string, url: string, fetcher: Fetch = defaultFetch): Promise<ScrapeResponse> {
+  return createConnectClient(apiURL, accessToken, fetcher).scrapeRecipe(householdID, url);
+}
+
 // New capabilities use Connect; legacy REST endpoints remain unchanged.
 export async function importRecipe(apiURL: string, accessToken: string, input: RecipeImport, fetcher: Fetch = defaultFetch): Promise<SavedRecipe> {
-  for (const value of [input.metadata.servings, input.metadata.prep_time_minutes, input.metadata.cook_time_minutes]) {
-    if (value !== undefined && (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)) {
-      throw new Error("Recipe servings and times must be whole numbers within the supported range.");
+  validateImportMetadata([input]);
+  return createConnectClient(apiURL, accessToken, fetcher).importRecipe(input);
+}
+
+export async function parseImportIngredients(apiURL: string, accessToken: string, householdID: string, raws: string[], fetcher: Fetch = defaultFetch): Promise<ParsedImportIngredient[]> {
+  return createConnectClient(apiURL, accessToken, fetcher).parseImportIngredients(householdID, raws);
+}
+
+export async function importBoard(
+  apiURL: string,
+  accessToken: string,
+  householdID: string,
+  operationID: string,
+  items: BoardRecipeImport[],
+  onProgress: (progress: BoardImportProgress) => void,
+  fetcher: Fetch = defaultFetch,
+): Promise<BoardImportResult> {
+  validateBoardImportInputs(items, householdID);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationID)) {
+    throw new Error("A valid board import operation is required.");
+  }
+  return createConnectClient(apiURL, accessToken, fetcher).importBoard(householdID, operationID, items, onProgress);
+}
+
+export function validateBoardImportInputs(items: BoardRecipeImport[], householdID?: string) {
+  if (items.length < 1 || items.length > 250) throw new Error("Select between 1 and 250 recipes to import.");
+  const indexes = new Set<number>();
+  for (const item of items) {
+    if (!Number.isInteger(item.item_index) || item.item_index < 0 || item.item_index > 2147483647 || indexes.has(item.item_index)) {
+      throw new Error("Board recipe indexes must be non-negative and unique.");
+    }
+    indexes.add(item.item_index);
+    if (!item.household_id.trim() || (householdID !== undefined && item.household_id !== householdID) ||
+      !item.title.trim() || !item.metadata || typeof item.metadata.source_url !== "string" ||
+      !["url", "pinterest_pin"].includes(item.metadata.source_type) ||
+      !Array.isArray(item.raw_ingredients) || !item.raw_ingredients.every((raw) => typeof raw === "string") ||
+      !Array.isArray(item.metadata.instructions) || !item.metadata.instructions.every((step) => typeof step === "string") ||
+      !Array.isArray(item.metadata.tags) || !item.metadata.tags.every((tag) => typeof tag === "string")) {
+      throw new Error("Every selected board recipe needs valid import metadata.");
     }
   }
-  return createConnectClient(apiURL, accessToken, fetcher).importRecipe(input);
+  validateImportMetadata(items);
+}
+
+function validateImportMetadata(inputs: RecipeImport[]) {
+  for (const input of inputs) {
+    for (const value of [input.metadata.servings, input.metadata.prep_time_minutes, input.metadata.cook_time_minutes]) {
+      if (value !== undefined && (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)) {
+        throw new Error("Recipe servings and times must be whole numbers within the supported range.");
+      }
+    }
+  }
 }
 
 export function createPantryAPIClient(
@@ -128,29 +222,147 @@ function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch
   const identity = createClient(IdentityService, transport);
   const households = createClient(HouseholdService, transport);
   const recipes = createClient(RecipeService, transport);
+  const boardImports = createClient(BoardImportService, transport);
+  const scrapes = createClient(RecipeScrapeService, transport);
 
   return {
+    async scrapeRecipe(householdID: string, url: string): Promise<ScrapeResponse> {
+      try {
+        const result = (await scrapes.scrapeRecipe({ householdId: householdID, url })).result;
+        if (result.case === "recipe") return { type: "single", recipe: scrapedRecipeFromProto(result.value) };
+        if (result.case === "board") return { type: "board", recipes: result.value.recipes.map(scrapedRecipeFromProto), total_found: result.value.totalFound };
+        throw new Error("Pantry returned an invalid scrape response.");
+      } catch (error) {
+        if (error instanceof Error && error.message === "Pantry returned an invalid scrape response.") throw error;
+        throw safeConnectError(error, "Pantry could not scrape that recipe right now.");
+      }
+    },
     async importRecipe(input: RecipeImport): Promise<SavedRecipe> {
       try {
         const metadata = input.metadata;
-        const recipe = (await recipes.importRecipe({
-          householdId: input.household_id, title: input.title,
-          ingredients: input.ingredients.map((ingredient) => ({
-            name: ingredient.name, quantity: ingredient.quantity ?? undefined,
-            unit: ingredient.unit ?? undefined, rawString: ingredient.raw_string,
-          })),
-          metadata: {
-            sourceUrl: metadata.source_url, sourceType: metadata.source_type,
-            imageUrl: metadata.image_url, instructions: metadata.instructions,
-            tags: metadata.tags, servings: metadata.servings,
-            prepTimeMinutes: metadata.prep_time_minutes, cookTimeMinutes: metadata.cook_time_minutes,
-          },
-        })).recipe;
+        const wireMetadata = {
+          sourceUrl: metadata.source_url, sourceType: metadata.source_type,
+          imageUrl: metadata.image_url, instructions: metadata.instructions,
+          tags: metadata.tags, servings: metadata.servings,
+          prepTimeMinutes: metadata.prep_time_minutes, cookTimeMinutes: metadata.cook_time_minutes,
+        };
+        const response = input.parse_raw_ingredients
+          ? await recipes.importRawRecipe({
+            householdId: input.household_id,
+            title: input.title,
+            rawIngredients: input.raw_ingredients ?? [],
+            metadata: wireMetadata,
+          })
+          : await recipes.importRecipe({
+            householdId: input.household_id,
+            title: input.title,
+            ingredients: input.ingredients.map((ingredient) => ({
+              name: ingredient.name, quantity: ingredient.quantity ?? undefined,
+              unit: ingredient.unit ?? undefined, rawString: ingredient.raw_string,
+            })),
+            metadata: wireMetadata,
+          });
+        const recipe = response.recipe;
         if (!recipe) throw new Error("Pantry returned an invalid recipe response.");
-        return { id: recipe.id, title: recipe.title, ingredient_count: recipe.ingredientCount };
+        return {
+          id: recipe.id,
+          title: recipe.title,
+          ingredient_count: recipe.ingredientCount,
+          ...(response.ingredients.length > 0
+            ? { ingredients: response.ingredients.map(importIngredientFromProto) }
+            : {}),
+        };
       } catch (error) {
         if (isInvalidResponse(error, "recipe")) throw error;
         throw safeConnectError(error, "Pantry could not import the recipe right now.");
+      }
+    },
+    async importBoard(householdID: string, operationID: string, items: BoardRecipeImport[], onProgress: (progress: BoardImportProgress) => void): Promise<BoardImportResult> {
+      let preflighted = false;
+      try {
+        const stream = boardImports.importBoard({
+          householdId: householdID,
+          operationId: operationID,
+          items: items.map((input) => ({
+            itemIndex: input.item_index,
+            title: input.title,
+            rawIngredients: input.raw_ingredients,
+            metadata: importMetadataToProto(input.metadata),
+          })),
+        });
+        let completed: BoardImportResult | null = null;
+        let lastProcessed = 0;
+        let lastSaved = 0;
+        let lastSkipped = 0;
+        let lastFailed = 0;
+        let lastFailedTitles: string[] = [];
+        let catalogWarning = false;
+        for await (const event of stream) {
+          if (completed) throw new Error("Pantry returned data after the board import completed.");
+          if (event.kind === BoardImportEventKind.PREFLIGHTED) {
+            if (preflighted || event.total !== items.length || event.processed !== 0) {
+              throw new Error("Pantry returned an invalid board import preflight.");
+            }
+            preflighted = true;
+            continue;
+          }
+          if (!preflighted) throw new Error("Pantry returned board import progress before preflight.");
+          if (event.kind === BoardImportEventKind.ITEM) {
+            const status = boardImportStatus(event.status);
+            if (event.processed !== lastProcessed + 1 || event.total !== items.length ||
+              event.itemIndex !== items[lastProcessed]?.item_index ||
+              event.title !== items[lastProcessed]?.title ||
+              event.saved + event.skipped + event.failed !== event.processed ||
+              event.saved !== lastSaved + (status === "saved" ? 1 : 0) ||
+              event.skipped !== lastSkipped + (status === "skipped" ? 1 : 0) ||
+              event.failed !== lastFailed + (status === "failed" ? 1 : 0) ||
+              (catalogWarning && !event.catalogWarning)) {
+              throw new Error("Pantry returned invalid board import progress.");
+            }
+            const expectedFailedTitles = status === "failed" ? [...lastFailedTitles, event.title] : lastFailedTitles;
+            if (!sameStrings(event.failedTitles, expectedFailedTitles)) throw new Error("Pantry returned invalid board import progress.");
+            lastProcessed = event.processed;
+            lastSaved = event.saved;
+            lastSkipped = event.skipped;
+            lastFailed = event.failed;
+            lastFailedTitles = [...event.failedTitles];
+            catalogWarning = event.catalogWarning;
+            onProgress({
+              item_index: event.itemIndex, title: event.title, status,
+              processed: event.processed, total: event.total, saved: event.saved,
+              skipped: event.skipped, failed: event.failed,
+              failed_titles: [...event.failedTitles], catalog_warning: event.catalogWarning,
+            });
+            continue;
+          }
+          if (event.kind === BoardImportEventKind.COMPLETE) {
+            if (lastProcessed !== items.length || event.processed !== lastProcessed || event.total !== items.length ||
+              event.saved !== lastSaved || event.skipped !== lastSkipped || event.failed !== lastFailed ||
+              !sameStrings(event.failedTitles, lastFailedTitles) || event.catalogWarning !== catalogWarning) {
+              throw new Error("Pantry returned an invalid board import completion.");
+            }
+            completed = {
+              saved: event.saved, skipped: event.skipped, failed: event.failed,
+              failed_titles: [...event.failedTitles], catalog_warning: event.catalogWarning,
+            };
+            continue;
+          }
+          throw new Error("Pantry returned an unknown board import event.");
+        }
+        if (!completed) throw new Error("The board import was interrupted. Retry to resume it safely.");
+        return completed;
+      } catch (error) {
+        if (error instanceof Error && (error.message.startsWith("Pantry returned") || error.message.startsWith("The board import was interrupted"))) throw error;
+        if (preflighted) throw new Error("The board import was interrupted. Retry to resume it safely.");
+        throw safeConnectError(error, "Pantry could not import the board right now.");
+      }
+    },
+    async parseImportIngredients(householdID: string, raws: string[]): Promise<ParsedImportIngredient[]> {
+      try {
+        const response = await recipes.parseImportIngredients({ householdId: householdID, rawIngredients: raws });
+        return response.ingredients.map(importIngredientFromProto);
+      } catch (error) {
+        throw safeConnectError(error, "Pantry could not parse the recipe ingredients right now.");
       }
     },
     async whoAmI(): Promise<string> {
@@ -232,6 +444,50 @@ function createConnectClient(apiURL: string, accessToken: string, fetcher: Fetch
         throw safeConnectError(error, "Pantry could not save the recipe right now.");
       }
     },
+  };
+}
+
+function scrapedRecipeFromProto(recipe: WireScrapedRecipe): ScrapedRecipe {
+  if (recipe.sourceType !== "url" && recipe.sourceType !== "pinterest_pin") {
+    throw new Error("Pantry returned an invalid scrape response.");
+  }
+  return {
+    title: recipe.title, source_url: recipe.sourceUrl, source_type: recipe.sourceType,
+    ...(recipe.imageUrl !== undefined ? { image_url: recipe.imageUrl } : {}),
+    ...(recipe.servings !== undefined ? { servings: recipe.servings } : {}),
+    ...(recipe.prepTimeMinutes !== undefined ? { prep_time_minutes: recipe.prepTimeMinutes } : {}),
+    ...(recipe.cookTimeMinutes !== undefined ? { cook_time_minutes: recipe.cookTimeMinutes } : {}),
+    instructions: [...recipe.instructions], raw_ingredients: [...recipe.rawIngredients],
+    suggested_tags: [...recipe.suggestedTags],
+  };
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function importMetadataToProto(metadata: RecipeImportMetadata) {
+  return {
+    sourceUrl: metadata.source_url, sourceType: metadata.source_type,
+    imageUrl: metadata.image_url, instructions: metadata.instructions,
+    tags: metadata.tags, servings: metadata.servings,
+    prepTimeMinutes: metadata.prep_time_minutes, cookTimeMinutes: metadata.cook_time_minutes,
+  };
+}
+
+function boardImportStatus(status: BoardImportItemStatus): BoardImportProgress["status"] {
+  if (status === BoardImportItemStatus.SAVED) return "saved";
+  if (status === BoardImportItemStatus.SKIPPED) return "skipped";
+  if (status === BoardImportItemStatus.FAILED) return "failed";
+  throw new Error("Pantry returned an invalid board import item status.");
+}
+
+function importIngredientFromProto(ingredient: { name: string; quantity?: number; unit?: string; rawString: string }): ParsedImportIngredient {
+  return {
+    name: ingredient.name,
+    quantity: ingredient.quantity ?? null,
+    unit: ingredient.unit ?? null,
+    raw_string: ingredient.rawString,
   };
 }
 

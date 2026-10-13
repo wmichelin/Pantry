@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package pantry.v1;
+
+option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1";
+
+service RecipeScrapeService {
+  rpc ScrapeRecipe(ScrapeRecipeRequest) returns (ScrapeRecipeResponse);
+}
+
+message ScrapeRecipeRequest {
+  string household_id = 1;
+  string url = 2;
+}
+
+message ScrapedRecipe {
+  string title = 1;
+  string source_url = 2;
+  string source_type = 3;
+  optional string image_url = 4;
+  optional int32 servings = 5;
+  optional int32 prep_time_minutes = 6;
+  optional int32 cook_time_minutes = 7;
+  repeated string instructions = 8;
+  repeated string raw_ingredients = 9;
+  repeated string suggested_tags = 10;
+}
+
+message ScrapedBoard {
+  repeated ScrapedRecipe recipes = 1;
+  int32 total_found = 2;
+}
+
+message ScrapeRecipeResponse {
+  oneof result {
+    ScrapedRecipe recipe = 1;
+    ScrapedBoard board = 2;
+  }
+}

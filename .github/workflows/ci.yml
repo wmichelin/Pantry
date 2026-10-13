@@ -48,7 +48,7 @@ jobs:
         run: npx expo export --platform web
 
   go-api:
-    name: Go API foundation
+    name: Go API
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

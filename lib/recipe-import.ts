@@ -2,10 +2,11 @@ import { parseIngredients } from "./parse-ingredient";
 import type { RecipeImport, SavedRecipe } from "./pantry-api";
 import type { ScrapedRecipe } from "./scrape-types";
 
-export function importedRecipeInput(householdID: string, scraped: ScrapedRecipe, title: string, tags: string[]): RecipeImport {
+export function importedRecipeInput(householdID: string, scraped: ScrapedRecipe, title: string, tags: string[], parseInGo = false): RecipeImport {
   return {
     household_id: householdID, title,
-    ingredients: parseIngredients(scraped.raw_ingredients),
+    ingredients: parseInGo ? [] : parseIngredients(scraped.raw_ingredients),
+    ...(parseInGo ? { raw_ingredients: scraped.raw_ingredients, parse_raw_ingredients: true } : {}),
     metadata: {
       source_url: scraped.source_url, source_type: scraped.source_type,
       image_url: scraped.image_url, instructions: scraped.instructions, tags,
@@ -25,7 +26,7 @@ type ImportDependencies = {
 // even when this secondary operation fails. Catalog ownership moves in Phase 4.
 export async function saveImportedRecipe(input: RecipeImport, dependencies: ImportDependencies): Promise<SavedRecipe> {
   const saved = await dependencies.save(input);
-  for (const ingredient of input.ingredients) {
+  for (const ingredient of saved.ingredients ?? input.ingredients) {
     try { await dependencies.ensureCatalog(ingredient.name); }
     catch { dependencies.catalogWarning(); }
   }

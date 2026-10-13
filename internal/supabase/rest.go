@@ -105,6 +105,36 @@ func (client *RESTClient) FindMembership(ctx context.Context, userID, accessToke
 	return &memberships[0], nil
 }
 
+func (client *RESTClient) HasHouseholdMembership(ctx context.Context, userID, householdID, accessToken string) (bool, error) {
+	query := url.Values{
+		"select":       {"household_id"},
+		"user_id":      {"eq." + userID},
+		"household_id": {"eq." + householdID},
+		"limit":        {"1"},
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, client.baseURL+"/rest/v1/household_members?"+query.Encode(), nil)
+	if err != nil {
+		return false, fmt.Errorf("create household membership request: %w", err)
+	}
+	request.Header.Set("apikey", client.apiKey)
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	response, err := client.client.Do(request)
+	if err != nil {
+		return false, fmt.Errorf("request household membership: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("request household membership: unexpected status %d", response.StatusCode)
+	}
+	var memberships []struct {
+		HouseholdID string `json:"household_id"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&memberships); err != nil {
+		return false, fmt.Errorf("decode household membership: %w", err)
+	}
+	return len(memberships) == 1 && memberships[0].HouseholdID == householdID, nil
+}
+
 func (client *RESTClient) CreateHousehold(ctx context.Context, accessToken, name, displayName string) (*CreatedHousehold, error) {
 	var households []CreatedHousehold
 	if err := client.callRPC(ctx, accessToken, "create_household", map[string]string{

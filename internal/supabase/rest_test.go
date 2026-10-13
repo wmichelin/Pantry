@@ -66,6 +66,25 @@ func TestRESTClientFindMembershipForwardsVerifiedCallerIdentity(t *testing.T) {
 	}
 }
 
+func TestRESTClientChecksTheExactRequestedHouseholdMembership(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/rest/v1/household_members" || request.URL.Query().Get("user_id") != "eq.user-1" || request.URL.Query().Get("household_id") != "eq.household-2" || request.URL.Query().Get("limit") != "1" {
+			t.Fatalf("unexpected exact membership request: %s", request.URL.String())
+		}
+		if request.Header.Get("Authorization") != "Bearer user-access-token" || request.Header.Get("apikey") != "anon-key" {
+			t.Fatal("exact membership request did not preserve caller credentials")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`[{"household_id":"household-2"}]`))
+	}))
+	defer server.Close()
+
+	found, err := NewRESTClient(server.URL, "anon-key").HasHouseholdMembership(t.Context(), "user-1", "household-2", "user-access-token")
+	if err != nil || !found {
+		t.Fatalf("HasHouseholdMembership() = %v, %v", found, err)
+	}
+}
+
 func TestRESTClientHouseholdOperationsUseCallerJWTForRPC(t *testing.T) {
 	tests := []struct {
 		name string

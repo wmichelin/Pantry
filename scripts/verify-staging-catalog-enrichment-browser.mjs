@@ -7,7 +7,7 @@ const b = await stagingBrowser();
 const text = (s) => `document.body.innerText.includes(${JSON.stringify(s)})`;
 async function fault() {
   await b.evaluate(
-    `(()=>{const original=window.fetch;window.fetch=async(...args)=>{if(String(args[0]).endsWith('/EnsureCatalogIngredient')){window.fetch=original;return new Response('{}',{status:503,headers:{'Content-Type':'application/json'}});}return original(...args);};})()`,
+    `(()=>{const original=window.fetch;window.fetch=async(...args)=>{const raw=args[0] instanceof Request?args[0].url:String(args[0]);if(new URL(raw,location.href).pathname.endsWith('/EnsureCatalogIngredient')){window.fetch=original;return new Response('{}',{status:503,headers:{'Content-Type':'application/json'}});}return original(...args);};})()`,
   );
 }
 async function recipes() {
@@ -58,7 +58,10 @@ try {
   );
   await b.click("Continue to recipes");
   for (const kind of ["single", "board"])
-    for (const fail of [false, true]) {
+    // Board catalog enrichment is now server-owned. Its failure behavior is
+    // injected in Go domain tests; the browser can fault only client-owned
+    // manual and single-import enrichment without changing server state.
+    for (const fail of kind === "board" ? [false] : [false, true]) {
       const title = kind + (fail ? " warning" : " success"),
         r = scraped(title, title + " flour");
       const query = new URLSearchParams({
@@ -106,7 +109,7 @@ try {
   const result = await call(member, "CatalogService/SeedCatalogFromRecipes", {
     householdId: h,
   });
-  assert(result.added >= 3);
+  assert(result.added >= 2);
   assert.equal((await recipes()).length, count);
   const direct = [
     "ingredient_metadata",
@@ -136,7 +139,8 @@ try {
   console.log(
     JSON.stringify({
       manualSingleBoardSaveAndEnrichment: true,
-      postCommitWarningsVisible: true,
+      clientPostCommitWarningsVisible: true,
+      boardServerCatalogEnrichment: true,
       noDuplicateRecipes: true,
       seedRepairsEnrichment: true,
       autocompleteGo: true,

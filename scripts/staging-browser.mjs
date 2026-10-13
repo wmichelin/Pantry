@@ -7,8 +7,9 @@
 import assert from 'node:assert/strict';
 import { origin } from './verify-staging-recipe-import.mjs';
 
-export async function stagingBrowser() {
-  const tab = await (await fetch('http://127.0.0.1:9222/json/new?' + encodeURIComponent(origin + '/login'), { method: 'PUT' })).json();
+export async function stagingBrowser(browserOrigin = origin, options = {}) {
+  const debugPort = process.env.PANTRY_BROWSER_DEBUG_PORT ?? '9222';
+  const tab = await (await fetch(`http://127.0.0.1:${debugPort}/json/new?` + encodeURIComponent('about:blank'), { method: 'PUT' })).json();
   const socket = new WebSocket(tab.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
   let sequence = 0;
@@ -16,6 +17,7 @@ export async function stagingBrowser() {
   const requests = new Map();
   const responses = [];
   const errors = [];
+  const blockedRequests = [];
   socket.onmessage = ({ data }) => {
     const message = JSON.parse(data);
     if (message.id) {
@@ -28,7 +30,7 @@ export async function stagingBrowser() {
       const request = message.params.request;
       const url = new URL(request.url);
       // Record transport metadata only. Never capture headers, bodies or tokens.
-      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/rest/')) {
+      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/rest/') || url.pathname.startsWith('/functions/')) {
         requests.set(message.params.requestId, { path: url.pathname, method: request.method,
           contentType: Object.entries(request.headers).find(([key]) => key.toLowerCase() === 'content-type')?.[1] });
       }
@@ -36,6 +38,24 @@ export async function stagingBrowser() {
     if (message.method === 'Network.responseReceived') {
       const request = requests.get(message.params.requestId);
       if (request) responses.push({ ...request, status: message.params.response.status });
+    }
+    if (message.method === 'Fetch.requestPaused') {
+      const request = message.params.request;
+      const url = new URL(request.url);
+      let blocked = true;
+      try {
+        blocked = options.requestGuard({ method: request.method, path: url.pathname, origin: url.origin }) === false;
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : 'Request guard failed');
+      }
+      if (blocked) {
+        blockedRequests.push({ method: request.method, path: url.pathname, origin: url.origin });
+        void call('Fetch.failRequest', { requestId: message.params.requestId, errorReason: 'BlockedByClient' })
+          .catch(error => errors.push(error.message));
+      } else {
+        void call('Fetch.continueRequest', { requestId: message.params.requestId })
+          .catch(error => errors.push(error.message));
+      }
     }
     if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.text);
   };
@@ -51,8 +71,8 @@ export async function stagingBrowser() {
     assert(!result.exceptionDetails, 'Browser evaluation failed');
     return result.result.value;
   }
-  async function until(expression) {
-    for (let attempt = 0; attempt < 100; attempt++) {
+  async function until(expression, attempts = 100) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       if (await evaluate(expression)) return;
       await new Promise(resolve => setTimeout(resolve, 200));
     }
@@ -66,7 +86,9 @@ export async function stagingBrowser() {
   }
   await call('Network.enable');
   await call('Runtime.enable');
-  return { call, evaluate, until, fill, click, responses, errors,
+  if (options.requestGuard) await call('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
+  await call('Page.navigate', { url: browserOrigin + '/login' });
+  return { call, evaluate, until, fill, click, responses, errors, blockedRequests,
     async login(user) {
       await until("!!document.querySelector('input[type=email]')");
       await fill('input[type=email]', user.email);
@@ -76,7 +98,7 @@ export async function stagingBrowser() {
     },
     async navigate(path) {
       assert(path.startsWith('/') && !path.startsWith('//'));
-      await call('Page.navigate', { url: origin + path });
+      await call('Page.navigate', { url: browserOrigin + path });
     },
     async close() {
       await Promise.race([call('Browser.close'), new Promise(resolve => setTimeout(resolve, 1000))]).catch(() => {});

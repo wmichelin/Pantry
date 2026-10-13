@@ -6,6 +6,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Single-ingredient compatibility parser. Array expansion/filtering is a separate
@@ -97,6 +100,9 @@ var (
 	ingredientPurpose     = ingredientRE(`(?i)\s+for\s+(?:topping|garnish|serving|sprinkling)\s*$`)
 	ingredientFootnote    = ingredientRE(`\*+$`)
 	ingredientCan         = ingredientRE(`(?i)^cans?$`)
+	ingredientSection     = ingredientRE(`:$`)
+	ingredientServingLine = ingredientRE(`(?i)^for serving\b`)
+	ingredientCompound    = ingredientRE(`(?i)^([a-zA-Z][^,]*?)\s+(?:and|or)\s+([a-zA-Z][^\r\n\x{2028}\x{2029}]*)$`)
 	ingredientQuantities  = []ingredientPattern{
 		ingredientRE(`^(\d+/\d+)\s*[-–]\s*(\d+/\d+)\s+`),
 		ingredientRE(`^(\d+/\d+)\s*[-–]\s*(\d+)\s+`),
@@ -110,6 +116,42 @@ var (
 		ingredientRE(`(?i)^(\d+(?:\.\d+)?)(kg|g|mg|lb|lbs|oz|ml|l)\b\s*`),
 	}
 )
+
+// ParseIngredients preserves the legacy import-array contract. It intentionally
+// differs from the catalog's single-ingredient parser: section/serving lines are
+// removed, one alphabetic compound is expanded, and final names are lowercased.
+func ParseIngredients(raws []string) []ParsedIngredient {
+	parsed := make([]ParsedIngredient, 0, len(raws))
+	for _, raw := range raws {
+		stripped := strings.Trim(raw, jsTrim)
+		stripped = ingredientBullet.replace(stripped, "")
+		if ingredientSection.match(stripped) != nil || ingredientServingLine.match(stripped) != nil {
+			continue
+		}
+		for _, expanded := range expandCompoundIngredient(raw) {
+			ingredient := ParseIngredient(expanded)
+			ingredient.Name = cases.Lower(language.Und).String(ingredient.Name)
+			parsed = append(parsed, ingredient)
+		}
+	}
+	return parsed
+}
+
+func expandCompoundIngredient(raw string) []string {
+	stripped := strings.Trim(raw, jsTrim)
+	stripped = ingredientBullet.replace(stripped, "")
+	stripped = ingredientFiller.replace(stripped, "")
+	stripped = ingredientPurpose.replace(stripped, "")
+	stripped = ingredientDescription.replace(stripped, "")
+	stripped = strings.Trim(stripped, jsTrim)
+	if stripped == "" {
+		return []string{raw}
+	}
+	if match := ingredientCompound.match(stripped); match != nil {
+		return []string{strings.Trim(match[1], jsTrim), strings.Trim(match[2], jsTrim)}
+	}
+	return []string{stripped}
+}
 
 func ingredientFraction(s string) float64 {
 	if v, ok := map[string]float64{"½": .5, "⅓": .333, "⅔": .667, "¼": .25, "¾": .75, "⅛": .125, "⅜": .375, "⅝": .625, "⅞": .875}[s]; ok {

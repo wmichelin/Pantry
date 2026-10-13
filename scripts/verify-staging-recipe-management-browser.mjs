@@ -19,6 +19,9 @@ try {
   // Tagged sections start collapsed. Search exposes the matching recipe without
   // depending on that presentation state.
   await browser.until("!!document.querySelector('input[placeholder=\"Search by title or ingredient…\"]')");
+  assert(browser.responses.some(r => r.path.endsWith('/ListHouseholds') && r.status === 200 && r.contentType === 'application/proto'),
+    'Dashboard household read did not use binary Connect');
+  assert(!browser.responses.some(r => r.path === '/rest/v1/households'), 'Dashboard retained a direct household read');
   await browser.fill('input[placeholder="Search by title or ingredient…"]', 'salt');
   await browser.until("document.body.innerText.includes('Management Browser Recipe') && !document.body.innerText.includes('Searching…')");
   // Search is debounced; wait for its completed RPC before changing the route.
@@ -44,5 +47,5 @@ try {
   }
   assert(!browser.responses.some(r => ['/rest/v1/recipes', '/rest/v1/recipe_ingredients'].includes(r.path)), 'Direct recipe reads/writes remain in this journey');
   assert.deepEqual(browser.errors, []);
-  console.log(JSON.stringify({ browserListDetailSearch: true, tagsPersisted: true, mobileDelete: true, fiveBinaryConnectMethods: true, directRecipeDataCalls: false, uncaughtExceptions: 0 }));
+  console.log(JSON.stringify({ dashboardListHouseholdsConnect: true, directHouseholdReads: false, browserListDetailSearch: true, tagsPersisted: true, mobileDelete: true, fiveBinaryConnectMethods: true, directRecipeDataCalls: false, uncaughtExceptions: 0 }));
 } finally { await browser.close(); }

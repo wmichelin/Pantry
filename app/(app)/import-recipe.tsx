@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth-context";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
+import { scrapeRecipe, stagingRecipeScrapeAPIOrigin } from "../../lib/pantry-api";
 
 export default function ImportRecipeScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
@@ -21,8 +22,16 @@ export default function ImportRecipeScreen() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const requestEpoch = useRef(0);
+  const requestPending = useRef(false);
+
+  useEffect(() => () => {
+    requestEpoch.current++;
+    requestPending.current = false;
+  }, [householdId]);
 
   const handleImport = async () => {
+    if (requestPending.current) return;
     const trimmed = url.trim();
     if (!trimmed) return;
     // Avoid wasting a scrape call on plain text / typos.
@@ -32,13 +41,29 @@ export default function ImportRecipeScreen() {
       Alert.alert("Invalid URL", "Enter a full link starting with http:// or https://.");
       return;
     }
+    requestPending.current = true;
+    const currentRequest = ++requestEpoch.current;
     setLoading(true);
 
-    const { data, error } = await supabase.functions.invoke("scrape-recipe", {
-      body: { url: trimmed },
-      headers: { Authorization: `Bearer ${session!.access_token}` },
-    });
+    let data: any;
+    let error: { message?: string } | null = null;
+    try {
+      const apiURL = stagingRecipeScrapeAPIOrigin();
+      if (apiURL) {
+        data = await scrapeRecipe(apiURL, session!.access_token, householdId, trimmed);
+      } else {
+        const legacy = await supabase.functions.invoke("scrape-recipe", {
+          body: { url: trimmed }, headers: { Authorization: `Bearer ${session!.access_token}` },
+        });
+        data = legacy.data;
+        error = legacy.error;
+      }
+    } catch (caught) {
+      error = { message: caught instanceof Error ? caught.message : "Could not scrape that URL." };
+    }
 
+    if (currentRequest !== requestEpoch.current) return;
+    requestPending.current = false;
     setLoading(false);
 
     if (error || !data || data.error) {

@@ -16,6 +16,7 @@ import { errorMessage, showError, throwOnError } from "../../lib/db";
 import TagEditor from "../../components/TagEditor";
 import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../lib/recipe-api";
 import { queueAPI, stagingQueueAPIOrigin } from "../../lib/queue-api";
+import { createPantryAPIClient } from "../../lib/pantry-api";
 
 type Recipe = { id: string; title: string; tags: string[] | null };
 type Household = { id: string; name: string };
@@ -56,7 +57,10 @@ export default function HouseholdScreen() {
       if (apiURL && !session?.access_token) throw new Error("A valid Pantry session is required.");
       if (queueURL && !session?.access_token) throw new Error("A valid Pantry session is required.");
       const [hRes, rRes, qRes] = await Promise.all([
-        supabase.from("households").select("id, name").eq("id", id).single(),
+        apiURL
+          ? createPantryAPIClient(apiURL, session!.access_token, undefined, "connect").listHouseholds()
+            .then(rows => ({ data: rows.find(row => row.id === id) ?? null, error: null }))
+          : supabase.from("households").select("id, name").eq("id", id).single(),
         apiURL ? recipeAPI(apiURL, session!.access_token).list(id).then(data => ({ data, error: null }))
           : supabase.from("recipes").select("id, title, tags").eq("household_id", id).order("created_at", { ascending: false }),
         queueURL ? queueAPI(queueURL, session!.access_token).list(id).then(data => ({ data, error: null })) : supabase
@@ -66,6 +70,7 @@ export default function HouseholdScreen() {
           .order("created_at", { ascending: true }),
       ]);
       if (hRes.error) throw hRes.error;
+      if (!hRes.data) throw new Error("Household not found.");
       if (rRes.error) throw rRes.error;
       if (qRes.error) throw qRes.error;
       setHousehold(hRes.data);

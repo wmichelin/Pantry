@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,33 +18,47 @@ import { parseIngredients } from "../../lib/parse-ingredient";
 import { ensureCatalogIngredient } from "../../lib/ingredient-catalog";
 import type { ScrapedRecipe } from "../../lib/scrape-types";
 import TagEditor from "../../components/TagEditor";
-import { importRecipe, stagingRecipeImportAPIOrigin } from "../../lib/pantry-api";
+import { importBoard, importRecipe, stagingBoardImportAPIOrigin, stagingImportParserAPIOrigin, stagingRecipeImportAPIOrigin, validateBoardImportInputs } from "../../lib/pantry-api";
 import { importedRecipeInput, saveImportedBoard } from "../../lib/recipe-import";
 import { recipeAPI, stagingRecipeManagementAPIOrigin } from "../../lib/recipe-api";
 import { SavedNotice, catalogSavedWarning } from "../../components/SavedNotice";
+import { boardRecoveryMarkersPresent, boardResumeState } from "../../lib/board-import-recovery";
 
 export default function ReviewBoardScreen() {
-  const { householdId, recipesJson } = useLocalSearchParams<{
+  const { householdId, recipesJson, boardOperationId, boardSelectionJson, boardTagsJson } = useLocalSearchParams<{
     householdId: string;
     recipesJson: string;
+    boardOperationId?: string;
+    boardSelectionJson?: string;
+    boardTagsJson?: string;
   }>();
   const { user, session } = useAuth();
   const router = useRouter();
 
   const recipes: ScrapedRecipe[] = JSON.parse(recipesJson);
+  const resume = boardResumeState(recipes, boardOperationId, boardSelectionJson, boardTagsJson);
+  const invalidRecovery = boardRecoveryMarkersPresent(boardOperationId, boardSelectionJson, boardTagsJson) && !resume;
   const [selected, setSelected] = useState<Set<number>>(
-    new Set(recipes.map((_, i) => i).filter((i) => recipes[i].raw_ingredients.length > 0))
+    () => resume?.selected ?? new Set(recipes.map((_, i) => i).filter((i) => recipes[i].raw_ingredients.length > 0))
   );
   const [tagSelections, setTagSelections] = useState<Record<number, string[]>>(
-    () => Object.fromEntries(recipes.map((r, i) => [i, r.suggested_tags]))
+    () => resume?.tags ?? Object.fromEntries(recipes.map((r, i) => [i, r.suggested_tags]))
   );
   const [editingCardIndex, setEditingCardIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
   const [savedNotice, setSavedNotice] = useState("");
+  const [saveError, setSaveError] = useState(invalidRecovery
+    ? "This board import recovery link is incomplete or invalid. Pantry blocked a new save to avoid duplicating an unconfirmed recipe. Return to your recipes and review what was saved before trying again."
+    : "");
+  const [canRetry, setCanRetry] = useState(false);
+  const operationID = useRef(resume?.operationID ?? "");
+  const savingRef = useRef(false);
+  const [operationStarted, setOperationStarted] = useState(operationID.current !== "");
   const finish = () => router.replace({ pathname: "/(app)/household", params: { id: householdId } });
 
   const toggleSelect = (index: number) => {
+    if (saving || operationStarted) return;
     setSelected((prev) => {
       const next = new Set(prev);
       next.has(index) ? next.delete(index) : next.add(index);
@@ -55,6 +69,7 @@ export default function ReviewBoardScreen() {
   const scrapedIndices = recipes.map((_, i) => i).filter((i) => recipes[i].raw_ingredients.length > 0);
 
   const toggleAll = () => {
+    if (saving || operationStarted) return;
     if (selected.size === scrapedIndices.length) {
       setSelected(new Set());
     } else {
@@ -62,23 +77,71 @@ export default function ReviewBoardScreen() {
     }
   };
 
-  const handleSave = async () => {
-    if (saving || savedNotice) return;
+  const handleSave = async (resume = false) => {
+    if (savingRef.current || saving || (savedNotice && !resume)) return;
+    savingRef.current = true;
+    try {
+    if (resume) {
+      setSavedNotice("");
+      setSaveError("");
+    }
     let catalogFailed = false;
     const toSave = recipes.filter((_, i) => selected.has(i));
     if (toSave.length === 0) {
       Alert.alert("Nothing selected", "Select at least one recipe to save.");
       return;
     }
+    let boardAPIURL: string | null;
+    let apiURL: string | null;
+    try {
+      boardAPIURL = stagingBoardImportAPIOrigin();
+      apiURL = boardAPIURL ? null : stagingRecipeImportAPIOrigin();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not configure board import.");
+      return;
+    }
     setSaving(true);
     setSaveProgress(0);
 
-    const apiURL = stagingRecipeImportAPIOrigin();
-    if (apiURL) {
+    if (boardAPIURL) {
       try {
         if (!session?.access_token) throw new Error("A valid Pantry session is required.");
         const inputs = recipes.flatMap((recipe, index) => selected.has(index)
-          ? [importedRecipeInput(householdId!, recipe, recipe.title, tagSelections[index] ?? recipe.suggested_tags)] : []);
+          ? [{ ...importedRecipeInput(householdId!, recipe, recipe.title, tagSelections[index] ?? recipe.suggested_tags, true), item_index: index, raw_ingredients: recipe.raw_ingredients }]
+          : []);
+        validateBoardImportInputs(inputs, householdId!);
+        if (!operationID.current) {
+          operationID.current = createBoardOperationID();
+          router.setParams({
+            boardOperationId: operationID.current,
+            boardSelectionJson: JSON.stringify(inputs.map((input) => input.item_index)),
+            boardTagsJson: JSON.stringify(Object.fromEntries(inputs.map((input) => [input.item_index, input.metadata.tags]))),
+          });
+        }
+        setOperationStarted(true);
+        setCanRetry(false);
+        const result = await importBoard(boardAPIURL, session.access_token, householdId!, operationID.current, inputs, (progress) => {
+          setSaveProgress(progress.processed);
+        });
+        catalogFailed = result.catalog_warning;
+        if (result.failed || catalogFailed) {
+          setCanRetry(result.failed > 0);
+          setSavedNotice(`Saved ${result.saved}. Skipped ${result.skipped}.${result.failed ? `\n\nNot confirmed; retry safely: ${result.failed_titles.join(", ")}` : ""}${catalogFailed ? `\n\n${catalogSavedWarning}` : ""}`);
+        } else finish();
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : "Could not import board.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    if (apiURL) {
+      try {
+        if (!session?.access_token) throw new Error("A valid Pantry session is required.");
+        const parseInGo = stagingImportParserAPIOrigin() !== null;
+        const inputs = recipes.flatMap((recipe, index) => selected.has(index)
+          ? [importedRecipeInput(householdId!, recipe, recipe.title, tagSelections[index] ?? recipe.suggested_tags, parseInGo)] : []);
         const result = await saveImportedBoard(inputs, {
           save: (input) => importRecipe(apiURL, session.access_token, input),
           ensureCatalog: (name) => ensureCatalogIngredient(householdId!, name),
@@ -171,19 +234,30 @@ export default function ReviewBoardScreen() {
     if (failed.length || catalogFailed) {
       setSavedNotice(`Saved ${saved} of ${deduped.length}.${failed.length ? `\n\nNot saved: ${failed.join(", ")}` : ""}${catalogFailed ? `\n\n${catalogSavedWarning}` : ""}`);
     } else finish();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const selectedCount = selected.size;
-  const allSelected = selected.size === recipes.length;
+  const allSelected = selected.size === scrapedIndices.length;
 
   return (
     <View style={styles.container}>
-      <SavedNotice message={savedNotice} onContinue={finish} />
+      <SavedNotice message={savedNotice} onContinue={finish} onRetry={canRetry ? () => { void handleSave(true); } : undefined} />
+      <SavedNotice
+        message={saveError}
+        title={invalidRecovery ? "Import recovery unavailable" : operationStarted ? "Import interrupted" : "Couldn’t import board"}
+        continueLabel={invalidRecovery ? "Return to recipes" : "Back to board"}
+        onContinue={invalidRecovery ? finish : () => setSaveError("")}
+        onRetry={!invalidRecovery && operationStarted ? () => { void handleSave(true); } : undefined}
+      />
       <View style={styles.header}>
         <Text style={styles.headerText}>
           {recipes.length} recipes found
         </Text>
-        <Pressable onPress={toggleAll}>
+        <Pressable onPress={toggleAll} disabled={saving || operationStarted}>
           <Text style={styles.toggleAll}>
             {allSelected ? "Deselect all" : "Select all"}
           </Text>
@@ -200,6 +274,7 @@ export default function ReviewBoardScreen() {
             <Pressable
               style={[styles.card, !isSelected && styles.cardDeselected]}
               onPress={() => toggleSelect(index)}
+              disabled={saving || operationStarted}
             >
               {item.image_url ? (
                 <Image
@@ -232,6 +307,7 @@ export default function ReviewBoardScreen() {
                       <Pressable
                         key={tag}
                         style={[styles.cardTagPill, active && styles.cardTagPillActive]}
+                        disabled={saving || operationStarted}
                         onPress={() => {
                           const current = tagSelections[index] ?? [];
                           setTagSelections((prev) => ({
@@ -250,6 +326,7 @@ export default function ReviewBoardScreen() {
                   })}
                   <Pressable
                     style={styles.cardTagAdd}
+                    disabled={saving || operationStarted}
                     onPress={() => setEditingCardIndex(index)}
                   >
                     <Text style={styles.cardTagAddText}>+</Text>
@@ -309,17 +386,28 @@ export default function ReviewBoardScreen() {
         ) : (
           <Pressable
             style={[styles.saveButton, selectedCount === 0 && styles.buttonDisabled]}
-            onPress={handleSave}
-            disabled={selectedCount === 0}
+            onPress={() => { void handleSave(); }}
+            disabled={selectedCount === 0 || invalidRecovery}
           >
             <Text style={styles.saveButtonText}>
-              Save {selectedCount} recipe{selectedCount !== 1 ? "s" : ""}
+              {operationStarted ? "Resume" : "Save"} {selectedCount} recipe{selectedCount !== 1 ? "s" : ""}
             </Text>
           </Pressable>
         )}
       </View>
     </View>
   );
+}
+
+function createBoardOperationID(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (typeof globalThis.crypto?.getRandomValues === "function") globalThis.crypto.getRandomValues(bytes);
+  else for (let index = 0; index < bytes.length; index++) bytes[index] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 const styles = StyleSheet.create({

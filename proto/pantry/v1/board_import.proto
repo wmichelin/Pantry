@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package pantry.v1;
+
+import "pantry/v1/recipe.proto";
+
+option go_package = "github.com/wmichelin/Pantry/internal/gen/pantry/v1;pantryv1";
+
+// Board import is deliberately server streaming: each completed database item
+// is recoverable by operation/index before its ordered progress event is sent.
+service BoardImportService {
+  rpc ImportBoard(ImportBoardRequest) returns (stream ImportBoardResponse);
+}
+
+message BoardImportItem {
+  int32 item_index = 1;
+  string title = 2;
+  repeated string raw_ingredients = 3;
+  RecipeImportMetadata metadata = 4;
+}
+
+message ImportBoardRequest {
+  string household_id = 1;
+  string operation_id = 2;
+  repeated BoardImportItem items = 3;
+}
+
+enum BoardImportEventKind {
+  BOARD_IMPORT_EVENT_KIND_UNSPECIFIED = 0;
+  BOARD_IMPORT_EVENT_KIND_PREFLIGHTED = 1;
+  BOARD_IMPORT_EVENT_KIND_ITEM = 2;
+  BOARD_IMPORT_EVENT_KIND_COMPLETE = 3;
+}
+
+enum BoardImportItemStatus {
+  BOARD_IMPORT_ITEM_STATUS_UNSPECIFIED = 0;
+  BOARD_IMPORT_ITEM_STATUS_SAVED = 1;
+  BOARD_IMPORT_ITEM_STATUS_SKIPPED = 2;
+  BOARD_IMPORT_ITEM_STATUS_FAILED = 3;
+}
+
+message ImportBoardResponse {
+  BoardImportEventKind kind = 1;
+  int32 item_index = 2;
+  string title = 3;
+  BoardImportItemStatus status = 4;
+  SavedRecipe recipe = 5;
+  repeated ImportedRecipeIngredient ingredients = 6;
+  int32 processed = 7;
+  int32 total = 8;
+  int32 saved = 9;
+  int32 skipped = 10;
+  int32 failed = 11;
+  repeated string failed_titles = 12;
+  bool catalog_warning = 13;
+}

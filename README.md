@@ -18,8 +18,9 @@ future work, not product guarantees.
 | Layer | Choice |
 |-------|--------|
 | Client | Expo, Expo Router, React Native, and TypeScript |
-| Data and auth | Supabase Postgres, Auth, and row-level security via `supabase-js` |
-| Server work | Supabase Edge Functions for recipe scraping |
+| Data and auth | Supabase Postgres, Auth, and row-level security; the client uses `supabase-js` for Auth and compatibility paths |
+| Staging business API | Go with Protobuf and Connect; caller JWTs are forwarded to Supabase so RLS remains authoritative |
+| Recipe scraping | Authenticated, bounded Go scraper in staging; the legacy Edge Function remains the production/rollback path during rollout |
 | Web delivery | Static Expo export in a Docker/Nginx image |
 
 ## Docs

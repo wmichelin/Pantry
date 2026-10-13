@@ -1,4 +1,4 @@
-name: Publish staging on approved domain
+name: Converge staging on approved domain
 
 on:
   workflow_dispatch:
@@ -12,10 +12,10 @@ permissions:
 
 jobs:
   publish:
-    name: Publish the approved staging hostname
+    name: Converge the approved staging proxy
     runs-on: ubuntu-latest
     steps:
-      - name: Configure HTTPS for pantry-staging.waltermichelin.com only
+      - name: Configure board streaming for pantry-staging.waltermichelin.com only
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DROPLET_HOST }}
@@ -29,84 +29,92 @@ jobs:
             readonly site_enabled='/etc/nginx/sites-enabled/pantry-staging'
             readonly production_domain='pantry.waltermichelin.com'
             readonly production_container='pantry'
+            readonly marker='location = /api/rpc/pantry.v1.BoardImportService/ImportBoard {'
             readonly rollback_dir="$(mktemp -d)"
-            published=false
-            saved_site_available=false
-            saved_site_enabled=false
+            readonly candidate="$rollback_dir/pantry-staging.candidate"
+            changed=false
+            restored=false
 
             verify_production() {
-              docker inspect --format '{{.State.Running}}' "$production_container" | grep -Fx true >/dev/null
+              docker inspect --format '{{.State.Running}}' "$production_container" | grep -Fx true >/dev/null || return 1
               curl --fail --silent --show-error \
-                --resolve "$production_domain:443:127.0.0.1" "https://$production_domain/" >/dev/null
+                --resolve "$production_domain:443:127.0.0.1" "https://$production_domain/" >/dev/null || return 1
             }
 
-            cleanup_unpublished_site() {
+            verify_staging() {
+              curl --fail --silent --show-error \
+                --resolve "$domain:443:127.0.0.1" "https://$domain/" >/dev/null || return 1
+              api_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+                --resolve "$domain:443:127.0.0.1" "https://$domain/api/v1/membership")" || return 1
+              test "$api_status" = 401 || return 1
+              ss -ltn '( sport = :18081 )' | grep -F '127.0.0.1:18081' || return 1
+              ss -ltn '( sport = :18083 )' | grep -F '127.0.0.1:18083' || return 1
+            }
+
+            restore_staging_proxy() {
               status="$?"
-              if [ "$published" = false ]; then
-                # Restore only the prior staging vhost after a failed attempt;
-                # production paths remain read-only throughout this workflow.
-                if ! (
-                  rm -f "$site_enabled" "$site_available"
-                  if [ "$saved_site_available" = true ]; then
-                    cp -a "$rollback_dir/site_available" "$site_available"
-                  fi
-                  if [ "$saved_site_enabled" = true ]; then
-                    cp -a "$rollback_dir/site_enabled" "$site_enabled"
-                  fi
-                  if nginx -t; then
-                    verify_production
-                    systemctl reload nginx
-                    verify_production
-                  fi
-                ); then
-                  echo 'Could not fully restore the previous staging Nginx configuration.' >&2
+              trap - EXIT
+              if [ "$status" -ne 0 ] && [ "$changed" = true ]; then
+                echo 'Staging proxy validation failed; restoring its exact prior vhost.' >&2
+                if install -o root -g root -m 0644 "$rollback_dir/pantry-staging.before" "$site_available" \
+                  && nginx -t \
+                  && systemctl reload nginx \
+                  && verify_production \
+                  && verify_staging; then
+                  restored=true
+                else
+                  echo "Automatic restore could not be verified; retained recovery copy at $rollback_dir/pantry-staging.before" >&2
                 fi
               fi
-              rm -rf "$rollback_dir"
-              trap - EXIT
+              if [ "$status" -eq 0 ] || [ "$changed" = false ] || [ "$restored" = true ]; then
+                rm -rf "$rollback_dir"
+              fi
               exit "$status"
             }
-            trap cleanup_unpublished_site EXIT
 
+            # The trap is harmless until changed=true. A failed precheck only
+            # cleans the temporary directory and cannot touch the live vhost.
+            trap restore_staging_proxy EXIT
             command -v nginx >/dev/null 2>&1
-            command -v certbot >/dev/null 2>&1
-            curl --fail --silent --show-error http://127.0.0.1:18081/ >/dev/null
-            verify_production
-
-            install -d -m 0755 /etc/nginx/sites-available /etc/nginx/sites-enabled
-            if [ -e "$site_available" ]; then
-              cp -a "$site_available" "$rollback_dir/site_available"
-              saved_site_available=true
-            fi
-            if [ -e "$site_enabled" ] || [ -L "$site_enabled" ]; then
-              cp -a "$site_enabled" "$rollback_dir/site_enabled"
-              saved_site_enabled=true
-            fi
-            # This vhost exposes only the staging API. Authorization is passed
-            # unchanged to the loopback service; no privileged key is added here.
-            printf '%s' 'c2VydmVyIHsKICBsaXN0ZW4gODA7CiAgc2VydmVyX25hbWUgcGFudHJ5LXN0YWdpbmcud2FsdGVybWljaGVsaW4uY29tOwoKICBsb2NhdGlvbiAvYXBpLyB7CiAgICBwcm94eV9wYXNzIGh0dHA6Ly8xMjcuMC4wLjE6MTgwODM7CiAgICBwcm94eV9odHRwX3ZlcnNpb24gMS4xOwogICAgcHJveHlfc2V0X2hlYWRlciBIb3N0ICRob3N0OwogICAgcHJveHlfc2V0X2hlYWRlciBBdXRob3JpemF0aW9uICRodHRwX2F1dGhvcml6YXRpb247CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtUmVhbC1JUCAkcmVtb3RlX2FkZHI7CiAgICBwcm94eV9zZXRfaGVhZGVyIFgtRm9yd2FyZGVkLUZvciAkcHJveHlfYWRkX3hfZm9yd2FyZGVkX2ZvcjsKICAgIHByb3h5X3NldF9oZWFkZXIgWC1Gb3J3YXJkZWQtUHJvdG8gJHNjaGVtZTsKICB9CgogIGxvY2F0aW9uIC8gewogICAgcHJveHlfcGFzcyBodHRwOi8vMTI3LjAuMC4xOjE4MDgxOwogICAgcHJveHlfaHR0cF92ZXJzaW9uIDEuMTsKICAgIHByb3h5X3NldF9oZWFkZXIgSG9zdCAkaG9zdDsKICAgIHByb3h5X3NldF9oZWFkZXIgWC1SZWFsLUlQICRyZW1vdGVfYWRkcjsKICAgIHByb3h5X3NldF9oZWFkZXIgWC1Gb3J3YXJkZWQtRm9yICRwcm94eV9hZGRfeF9mb3J3YXJkZWRfZm9yOwogICAgcHJveHlfc2V0X2hlYWRlciBYLUZvcndhcmRlZC1Qcm90byAkc2NoZW1lOwogIH0KfQo=' | base64 --decode > "$site_available"
-            ln -sfn "$site_available" "$site_enabled"
+            test -f "$site_available"
+            test -e "$site_enabled" || test -L "$site_enabled"
+            test "$(readlink -f "$site_enabled")" = "$site_available"
+            test "$(grep -Fc 'server_name pantry-staging.waltermichelin.com;' "$site_available")" -ge 1
+            test "$(grep -Ec '^[[:space:]]*location /api/ \{$' "$site_available")" -eq 1
             nginx -t
             verify_production
-            systemctl reload nginx
-            verify_production
+            verify_staging
 
-            certbot --nginx --non-interactive --agree-tos --redirect -d "$domain"
-            nginx -t
-            verify_production
-            systemctl reload nginx
-            verify_production
-            curl --fail --silent --show-error \
-              --resolve "$domain:443:127.0.0.1" "https://$domain/" >/dev/null
-            api_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-              --resolve "$domain:443:127.0.0.1" "https://$domain/api/v1/membership")"
-            if [ "$api_status" != 401 ]; then
-              echo "Expected the staging API proxy to reject an anonymous request with 401, got $api_status." >&2
+            if grep -Fq "$marker" "$site_available"; then
+              test "$(grep -Fc "$marker" "$site_available")" -eq 1
+              test "$(grep -Fc 'client_max_body_size 4m;' "$site_available")" -eq 1
+              test "$(grep -Fc 'proxy_buffering off;' "$site_available")" -eq 1
+              test "$(grep -Fc 'proxy_read_timeout 310s;' "$site_available")" -eq 1
+              test "$(grep -Fc 'proxy_send_timeout 310s;' "$site_available")" -eq 1
+              echo 'Staging board-stream proxy configuration is already converged.'
+              rm -rf "$rollback_dir"
+              exit 0
+            fi
+            if grep -Fq 'BoardImportService/ImportBoard' "$site_available"; then
+              echo 'An unrecognized board-import proxy rule already exists; refusing to overwrite it.' >&2
               exit 1
             fi
-            ss -ltn '( sport = :18081 )' | grep -F '127.0.0.1:18081'
-            ss -ltn '( sport = :18083 )' | grep -F '127.0.0.1:18083'
 
-            published=true
+            cp -a "$site_available" "$rollback_dir/pantry-staging.before"
+            awk '!inserted && /^[[:space:]]*location \/api\/ \{$/ { print "  location = /api/rpc/pantry.v1.BoardImportService/ImportBoard {\n    client_max_body_size 4m;\n    proxy_pass http://127.0.0.1:18083;\n    proxy_http_version 1.1;\n    proxy_buffering off;\n    proxy_read_timeout 310s;\n    proxy_send_timeout 310s;\n    proxy_set_header Host $host;\n    proxy_set_header Authorization $http_authorization;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n  }\n"; inserted=1 } { print } END { if (!inserted) exit 42 }' "$site_available" > "$candidate"
+
+            test "$(grep -Fc "$marker" "$candidate")" -eq 1
+            test "$(grep -Fc 'client_max_body_size 4m;' "$candidate")" -eq 1
+            test "$(grep -Fc 'proxy_buffering off;' "$candidate")" -eq 1
+            test "$(grep -Fc 'proxy_read_timeout 310s;' "$candidate")" -eq 1
+            test "$(grep -Fc 'proxy_send_timeout 310s;' "$candidate")" -eq 1
+            changed=true
+            install -o root -g root -m 0644 "$candidate" "$site_available"
+            nginx -t
+            verify_production
+            systemctl reload nginx
+            verify_production
+            verify_staging
+
             trap - EXIT
             rm -rf "$rollback_dir"
